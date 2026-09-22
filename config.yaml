@@ -19,8 +19,10 @@ llm:
       base_url: https://api.justwoker.icu
       # API key đọc từ env ANTHROPIC_API_KEY
       max_output_tokens: 16000
+      # provider này không nhận tham số temperature
+      supports_temperature: false
     - name: gemini
-      model: gemini-2.0-flash
+      model: gemini-flash-latest
       # API key đọc từ env GEMINI_API_KEY
   temperature: 0.9
   max_retries: 2

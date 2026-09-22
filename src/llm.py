@@ -44,13 +44,16 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
     if provider.get("base_url"):
         kwargs["base_url"] = provider["base_url"]
     client = Anthropic(**kwargs)
-    resp = client.messages.create(
-        model=provider["model"],
-        max_tokens=int(provider.get("max_output_tokens", 4096)),
-        temperature=temperature,
-        system=system or "",
-        messages=[{"role": "user", "content": prompt}],
-    )
+    kw: dict = {
+        "model": provider["model"],
+        "max_tokens": int(provider.get("max_output_tokens", 4096)),
+        "system": system or "",
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    # provider justwoker.icu không nhận 'temperature'; chỉ gửi khi được bật
+    if provider.get("supports_temperature", False):
+        kw["temperature"] = temperature
+    resp = client.messages.create(**kw)
     parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
     text = "".join(parts).strip()
     if not text:
