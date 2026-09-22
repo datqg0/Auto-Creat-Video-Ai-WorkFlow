@@ -3,8 +3,13 @@ venv/
 __pycache__/
 *.pyc
 .env
-credentials/client_secret.json
-credentials/token.json
+
+# Bí mật OAuth / token - KHÔNG push lên
+credentials/
+client_secret*.json
+token.json
+*_secret*.json
+
 media/
 *.log
 .DS_Store
