@@ -27,10 +27,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cài ffmpeg + fonts
+      - name: Cài ffmpeg + system deps cho Manim
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          sudo apt-get install -y \
+            ffmpeg \
+            fonts-dejavu-core \
+            build-essential \
+            python3-dev \
+            pkg-config \
+            libcairo2-dev \
+            libpango1.0-dev
 
       - name: Setup Python
         uses: actions/setup-python@v5
