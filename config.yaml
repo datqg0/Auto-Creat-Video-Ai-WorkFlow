@@ -56,11 +56,19 @@ visual:
   # Font hỗ trợ đầy đủ dấu tiếng Việt
   font: "assets/fonts/BeVietnamPro-Bold.ttf"
   font_regular: "assets/fonts/BeVietnamPro-Regular.ttf"
+  # Thời gian chuyển cảnh crossfade giữa các scene (giây)
+  crossfade: 0.4
+
+# ---- Ảnh minh họa tự tìm ----
+images:
+  # Tự tìm & tải ảnh nền minh họa theo image_query của mỗi scene.
+  # Nguồn: Openverse (không cần key). Đặt PEXELS_API_KEY để dùng Pexels (đẹp hơn).
+  enabled: true
 
 # ---- Subtitles ----
 subtitles:
   enabled: true
-  whisper_model: "base"   # tiny|base|small|medium|large-v3
+  whisper_model: "base"   # (chỉ dùng khi fallback Whisper) tiny|base|small|medium
   burn_in: true           # ghi phụ đề trực tiếp vào video
 
 # ---- Nhạc nền ----
@@ -68,6 +76,12 @@ music:
   enabled: true
   directory: "assets/music"
   volume: 0.12            # âm lượng nhạc nền so với narration
+
+# ---- Hiệu ứng âm thanh chuyển cảnh ----
+sfx:
+  enabled: true
+  directory: "assets/sfx"  # đặt file whoosh .mp3/.wav vào đây
+  volume: 0.3
 
 # ---- Intro / Outro ----
 branding:

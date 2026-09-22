@@ -89,10 +89,41 @@ def _decor_blobs(img: Image.Image, seed: int, count: int = 3) -> Image.Image:
     return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
 
 
-def _new_canvas(seed: int = 0, blobs: int = 3) -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    img = _gradient_bg()
-    if blobs:
-        img = _decor_blobs(img, seed, blobs)
+def _photo_bg(query: str) -> Image.Image | None:
+    """Ảnh minh họa làm nền: crop full khung, blur nhẹ + phủ tối để chữ đọc rõ."""
+    try:
+        from .image_fetcher import fetch_image
+
+        path = fetch_image(query)
+        if not path:
+            return None
+        photo = Image.open(path).convert("RGB")
+        # scale phủ kín 1920x1080 (cover)
+        scale = max(W / photo.width, H / photo.height)
+        photo = photo.resize((int(photo.width * scale), int(photo.height * scale)))
+        left = (photo.width - W) // 2
+        top = (photo.height - H) // 2
+        photo = photo.crop((left, top, left + W, top + H))
+        photo = photo.filter(ImageFilter.GaussianBlur(6))
+        # lớp phủ tối để tăng tương phản chữ
+        overlay = Image.new("RGBA", (W, H), (5, 8, 16, 190))
+        return Image.alpha_composite(photo.convert("RGBA"), overlay).convert("RGB")
+    except Exception as e:  # noqa: BLE001
+        log.debug("Nền ảnh lỗi: %s", e)
+        return None
+
+
+_IMAGES_ON = CONFIG.get("images", {}).get("enabled", False)
+
+
+def _new_canvas(
+    seed: int = 0, blobs: int = 3, image_query: str = ""
+) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    img = _photo_bg(image_query) if (image_query and _IMAGES_ON) else None
+    if img is None:
+        img = _gradient_bg()
+        if blobs:
+            img = _decor_blobs(img, seed, blobs)
     return img, ImageDraw.Draw(img)
 
 
@@ -146,7 +177,7 @@ def _icon(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: str, idx:
 
 def _render_title(scene: Scene, out: Path) -> None:
     heading = scene.heading or scene.narration[:60]
-    img, draw = _new_canvas(_seed(heading), blobs=4)
+    img, draw = _new_canvas(_seed(heading), blobs=4, image_query=scene.image_query)
     cx, cy = W // 2, H // 2 - 40
     # vòng tròn đồng tâm trang trí
     for i, rad in enumerate((320, 250, 180)):
@@ -164,7 +195,7 @@ def _render_title(scene: Scene, out: Path) -> None:
 
 
 def _render_bullets(scene: Scene, out: Path) -> None:
-    img, draw = _new_canvas(_seed(scene.heading or scene.narration))
+    img, draw = _new_canvas(_seed(scene.heading or scene.narration), image_query=scene.image_query)
     if scene.heading:
         draw.rectangle([(120, 120), (132, 200)], fill=ACCENT)
         draw.text((170, 120), textwrap.fill(scene.heading, 34), font=_font(60), fill=_TEXT)
@@ -184,7 +215,7 @@ def _render_bullets(scene: Scene, out: Path) -> None:
 
 def _render_quote(scene: Scene, out: Path) -> None:
     quote = scene.bullets[0] if scene.bullets else scene.narration
-    img, draw = _new_canvas(_seed(quote), blobs=4)
+    img, draw = _new_canvas(_seed(quote), blobs=4, image_query=scene.image_query)
     draw.text((W / 2 - 260, H / 2 - 240), "\u201c", font=_font(240), fill=ACCENT)
     _draw_center_text(draw, quote, _font(56, bold=False), H // 2 - 40, max_chars=34)
     _footer(draw)
@@ -264,7 +295,7 @@ def _render_chart(scene: Scene, out: Path) -> None:
 
 def _render_diagram(scene: Scene, out: Path) -> None:
     """Sơ đồ luồng: các bước nối bằng mũi tên (dùng bullets làm node)."""
-    img, draw = _new_canvas(_seed(scene.heading or scene.algorithm or "diagram"), blobs=2)
+    img, draw = _new_canvas(_seed(scene.heading or scene.algorithm or "diagram"), blobs=2, image_query=scene.image_query)
     if scene.heading:
         _draw_center_text(draw, scene.heading, _font(56), 90, fill=_TEXT, max_chars=34)
 

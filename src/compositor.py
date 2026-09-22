@@ -1,7 +1,10 @@
 """Ghép ảnh scene + audio -> clip, nối lại thành video, thêm nhạc nền + phụ đề.
 
-Dùng moviepy (bọc ffmpeg). Mỗi scene = ảnh tĩnh + hiệu ứng zoom nhẹ (Ken Burns)
-kéo dài đúng bằng thời lượng audio của scene đó.
+Dùng moviepy (bọc ffmpeg). Scene tĩnh = ảnh + hiệu ứng zoom nhẹ (Ken Burns);
+scene động = clip mp4 do thư viện mathviz sinh ra. Cả hai đều kéo dài đúng bằng
+thời lượng audio của scene đó.
+
+Lớp ``mv_compat`` che khác biệt moviepy 1.x/2.x nên chạy được cả hai bản.
 """
 from __future__ import annotations
 
@@ -9,17 +12,20 @@ import logging
 import random
 from pathlib import Path
 
-# Pillow >=10 bỏ Image.ANTIALIAS nhưng moviepy 1.x vẫn gọi -> thêm shim
-from PIL import Image as _PILImage
-
-if not hasattr(_PILImage, "ANTIALIAS"):
-    _PILImage.ANTIALIAS = _PILImage.Resampling.LANCZOS
-
-from moviepy.editor import (
+from .mv_compat import (
     AudioFileClip,
     CompositeAudioClip,
     ImageClip,
     concatenate_videoclips,
+    crossfadein,
+    loop_audio,
+    resize,
+    set_audio,
+    set_duration,
+    set_fps,
+    set_position,
+    set_start,
+    volumex,
 )
 
 from .config import CONFIG
@@ -31,31 +37,57 @@ H = CONFIG["visual"]["height"]
 FPS = CONFIG["visual"]["fps"]
 
 
-def _ken_burns(clip: ImageClip, duration: float) -> ImageClip:
+def _ken_burns(clip, duration: float):
     """Zoom nhẹ từ 1.0 -> 1.06 để ảnh tĩnh đỡ nhàm."""
-    return clip.resize(lambda t: 1.0 + 0.06 * (t / max(duration, 0.1)))
+    return resize(clip, lambda t: 1.0 + 0.06 * (t / max(duration, 0.1)))
 
 
-def _scene_clip(image_path: Path, audio_path: Path) -> ImageClip:
+_XFADE = float(CONFIG["visual"].get("crossfade", 0.4))
+
+
+def _scene_clip(image_path: Path, audio_path: Path):
+    """Scene tĩnh: ảnh PNG + Ken Burns + audio."""
     audio = AudioFileClip(str(audio_path))
     duration = audio.duration
-    img = ImageClip(str(image_path)).set_duration(duration)
-    img = _ken_burns(img, duration).set_position("center")
-    # crop về đúng khung sau khi zoom
-    img = img.resize(height=H) if img.h < H else img
-    return img.set_audio(audio).set_fps(FPS)
+    img = set_duration(ImageClip(str(image_path)), duration)
+    img = set_position(_ken_burns(img, duration), "center")
+    if img.h < H:
+        img = resize(img, height=H)
+    return set_fps(set_audio(img, audio), FPS)
+
+
+def _anim_clip(mv_scene, audio_path: Path):
+    """Scene động: clip do mathviz sinh + audio narration (đã fit duration)."""
+    audio = AudioFileClip(str(audio_path))
+    clip = mv_scene.build_clip()
+    clip = set_duration(clip, audio.duration)
+    return set_fps(set_audio(clip, audio), FPS)
+
+
+def _pick_from(dir_key: str, exts=(".mp3", ".wav")) -> Path | None:
+    root = Path(__file__).resolve().parent.parent
+    d = root / dir_key
+    if not d.exists():
+        return None
+    files: list[Path] = []
+    for e in exts:
+        files += list(d.glob(f"*{e}"))
+    return random.choice(files) if files else None
 
 
 def _pick_music() -> Path | None:
     music_cfg = CONFIG["music"]
     if not music_cfg.get("enabled"):
         return None
-    root = Path(__file__).resolve().parent.parent
-    mdir = root / music_cfg["directory"]
-    if not mdir.exists():
+    return _pick_from(music_cfg["directory"])
+
+
+def _whoosh() -> Path | None:
+    """Hiệu ứng âm thanh chuyển cảnh (nếu có file trong assets/sfx)."""
+    sfx_cfg = CONFIG.get("sfx", {})
+    if not sfx_cfg.get("enabled"):
         return None
-    tracks = list(mdir.glob("*.mp3")) + list(mdir.glob("*.wav"))
-    return random.choice(tracks) if tracks else None
+    return _pick_from(sfx_cfg.get("directory", "assets/sfx"))
 
 
 def compose(
@@ -63,24 +95,64 @@ def compose(
     scene_audios: list[Path],
     out_path: Path,
     srt_path: Path | None = None,
+    anim_scenes: list | None = None,
 ) -> Path:
-    assert len(scene_images) == len(scene_audios), "Số ảnh và audio phải khớp"
+    """Ghép các scene thành video.
 
-    clips = [_scene_clip(img, aud) for img, aud in zip(scene_images, scene_audios)]
-    video = concatenate_videoclips(clips, method="compose")
+    ``anim_scenes[i]`` nếu khác None là 1 mathviz.Scene động cho scene thứ i;
+    khi đó ảnh tĩnh ``scene_images[i]`` bị bỏ qua và ta render clip động thay thế.
+    """
+    assert len(scene_images) == len(scene_audios), "Số ảnh và audio phải khớp"
+    if anim_scenes is None:
+        anim_scenes = [None] * len(scene_images)
+
+    clips = []
+    for img, aud, anim in zip(scene_images, scene_audios, anim_scenes):
+        if anim is not None:
+            try:
+                clips.append(_anim_clip(anim, aud))
+                continue
+            except Exception as e:  # noqa: BLE001 - fallback về ảnh tĩnh
+                log.warning("Render clip động lỗi, dùng ảnh tĩnh: %s", e)
+        clips.append(_scene_clip(img, aud))
+
+    # Chuyển cảnh crossfade nhẹ giữa các scene
+    if _XFADE > 0 and len(clips) > 1:
+        faded = [clips[0]]
+        for c in clips[1:]:
+            faded.append(crossfadein(c, _XFADE))
+        video = concatenate_videoclips(faded, method="compose", padding=-_XFADE)
+    else:
+        video = concatenate_videoclips(clips, method="compose")
+
+    audio_layers = [video.audio]
+
+    # Hiệu ứng whoosh tại mỗi điểm chuyển cảnh
+    whoosh_path = _whoosh()
+    if whoosh_path and len(clips) > 1:
+        vol = float(CONFIG.get("sfx", {}).get("volume", 0.3))
+        t = 0.0
+        for c in clips[:-1]:
+            t += c.duration - _XFADE
+            try:
+                sfx = set_start(volumex(AudioFileClip(str(whoosh_path)), vol), max(t, 0))
+                audio_layers.append(sfx)
+            except Exception:  # noqa: BLE001
+                break
 
     # Nhạc nền
     music_path = _pick_music()
     if music_path:
         vol = float(CONFIG["music"].get("volume", 0.12))
-        bg = AudioFileClip(str(music_path)).volumex(vol)
+        bg = volumex(AudioFileClip(str(music_path)), vol)
         if bg.duration < video.duration:
-            from moviepy.audio.fx.all import audio_loop
-
-            bg = audio_loop(bg, duration=video.duration)
+            bg = loop_audio(bg, video.duration)
         else:
-            bg = bg.subclip(0, video.duration)
-        video = video.set_audio(CompositeAudioClip([video.audio, bg]))
+            bg = bg.subclipped(0, video.duration) if hasattr(bg, "subclipped") else bg.subclip(0, video.duration)
+        audio_layers.append(bg)
+
+    if len(audio_layers) > 1:
+        video = set_audio(video, CompositeAudioClip(audio_layers))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     video.write_videofile(

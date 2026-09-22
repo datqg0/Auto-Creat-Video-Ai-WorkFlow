@@ -17,7 +17,7 @@ from .config import CONFIG, OUTPUT_DIR
 from .metadata import build_metadata, make_thumbnail
 from .models import Script
 from .script_writer import write_script
-from .subtitles import generate_srt
+from .subtitles import srt_from_scenes
 from .topic_selector import pick_topic
 from .tts import synthesize
 
@@ -27,48 +27,53 @@ log = logging.getLogger(__name__)
 def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
     """Render kịch bản thành file video + thumbnail. Trả về (video, thumbnail)."""
     from .visual_engine import render_scene
+    from .animation_bridge import build_animation_scene
+
+    import wave
 
     images: list[Path] = []
     audios: list[Path] = []
-    full_narration: list[str] = []
+    scene_texts: list[str] = []
+    durations: list[float] = []
+    anim_scenes: list = []
 
     for i, scene in enumerate(script.scenes):
         img = workdir / f"scene_{i:02d}.png"
         aud = workdir / f"scene_{i:02d}.wav"
+        # Luôn render ảnh tĩnh làm fallback
         render_scene(scene, img)
+        # Tổng hợp audio TRƯỚC để lấy đúng thời lượng cho animation
         synthesize(scene.narration, aud)
+        with wave.open(str(aud), "rb") as w:
+            dur = w.getnframes() / float(w.getframerate())
+        durations.append(dur)
         images.append(img)
         audios.append(aud)
-        full_narration.append(scene.narration)
+        scene_texts.append(scene.narration)
 
-    # phụ đề: ghép audio đã có sẵn timing theo từng scene -> whisper toàn bộ
+        # Scene động: nếu visual_type == "animation" và có cấu hình
+        anim = None
+        if scene.visual_type == "animation" and scene.animation:
+            try:
+                anim = build_animation_scene(scene, dur)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Bỏ animation scene %d: %s", i, e)
+                anim = None
+        anim_scenes.append(anim)
+
+    # Phụ đề: dùng chính text narration gốc (chính xác 100%), căn theo thời lượng scene
     srt_path: Path | None = None
     if CONFIG["subtitles"].get("enabled"):
         try:
-            # dùng audio scene đầu tiên là không đủ; whisper chạy trên video sau ghép
-            merged_audio = workdir / "narration_full.wav"
-            _concat_wav(audios, merged_audio)
-            srt_path = generate_srt(merged_audio, workdir / "subs.srt")
+            srt_path = srt_from_scenes(scene_texts, durations, workdir / "subs.srt")
         except Exception as e:  # noqa: BLE001 - phụ đề không bắt buộc
             log.warning("Sinh phụ đề lỗi: %s", e)
             srt_path = None
 
-    video_path = compose(images, audios, workdir / "video.mp4", srt_path)
+    video_path = compose(images, audios, workdir / "video.mp4", srt_path, anim_scenes)
 
     thumb_path = make_thumbnail(script, workdir / "thumbnail.png")
     return video_path, thumb_path
-
-
-def _concat_wav(wavs: list[Path], out: Path) -> None:
-    import wave
-
-    with wave.open(str(wavs[0]), "rb") as w0:
-        params = w0.getparams()
-    with wave.open(str(out), "wb") as wout:
-        wout.setparams(params)
-        for p in wavs:
-            with wave.open(str(p), "rb") as w:
-                wout.writeframes(w.readframes(w.getnframes()))
 
 
 def run_once(upload_video: bool = True, dry_run: bool = False) -> None:

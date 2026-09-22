@@ -6,7 +6,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 # Các loại visual mà visual_engine biết render
-VisualType = Literal["title", "bullets", "chart", "code", "algorithm", "quote", "diagram"]
+VisualType = Literal[
+    "title", "bullets", "chart", "code", "algorithm", "quote", "diagram", "animation"
+]
 
 
 class Scene(BaseModel):
@@ -24,6 +26,11 @@ class Scene(BaseModel):
     code_language: str = "python"
     # algorithm: tên thuật toán để chọn animation Manim có sẵn
     algorithm: str = ""
+    # từ khóa tiếng Anh để tự tìm ảnh minh họa nền cho scene
+    image_query: str = ""
+    # animation: cấu hình clip động render bằng thư viện mathviz.
+    # {"preset": "function|neural_net|bar_chart|sorting|counter|steps", ...tham số}
+    animation: dict | None = None
 
 
 class Script(BaseModel):
