@@ -50,7 +50,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           # VieNeu-TTS (cài từ git; nếu lỗi vẫn tiếp tục vì có fallback Edge/ElevenLabs)
-          pip install git+https://github.com/pnnbao-ump/VieNeu-TTS.git || echo "VieNeu-TTS bỏ qua, dùng fallback"
+          pip install git+https://github.com/pnnbao97/VieNeu-TTS.git || echo "VieNeu-TTS bỏ qua, dùng fallback"
 
       - name: Cache model Whisper
         uses: actions/cache@v4
