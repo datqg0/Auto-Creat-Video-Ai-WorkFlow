@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+credentials/client_secret.json
+credentials/token.json
+media/
+*.log
+.DS_Store
+
+# Bỏ toàn bộ output trừ file DB lịch sử (cần track để chống trùng chủ đề)
+output/*
+!output/state.db
+

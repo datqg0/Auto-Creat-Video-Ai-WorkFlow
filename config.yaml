@@ -1,0 +1,98 @@
+# Cấu hình pipeline tạo video tech tự động
+
+# Số video tạo mỗi lần chạy pipeline
+videos_per_run: 1
+
+# Ngôn ngữ nội dung: vi | en
+language: vi
+
+# Độ dài video mục tiêu (giây). ~300 = 5 phút
+target_duration_seconds: 300
+
+# ---- LLM ----
+llm:
+  # Thứ tự ưu tiên: dùng provider đầu tiên, lỗi thì fallback sang cái kế
+  providers:
+    - name: anthropic
+      model: claude-opus-4-8
+      # base_url của provider tương thích Anthropic (bỏ phần /v1/messages, SDK tự thêm)
+      base_url: https://api.justwoker.icu
+      # API key đọc từ env ANTHROPIC_API_KEY
+      max_output_tokens: 16000
+    - name: gemini
+      model: gemini-2.0-flash
+      # API key đọc từ env GEMINI_API_KEY
+  temperature: 0.9
+  max_retries: 2
+
+# ---- TTS ----
+tts:
+  # Thứ tự fallback: vieneu -> elevenlabs -> edge
+  providers:
+    - vieneu
+    - elevenlabs
+    - edge
+  vieneu:
+    # Đường dẫn model VieNeu-TTS (cài trong workflow)
+    voice: default
+  elevenlabs:
+    voice_id: "21m00Tcm4TlvDq8ikWAM"  # Rachel (đổi nếu muốn)
+    model: eleven_multilingual_v2
+  edge:
+    # Giọng tiếng Việt tự nhiên của Edge
+    voice_vi: "vi-VN-HoaiMyNeural"
+    voice_en: "en-US-AriaNeural"
+
+# ---- Visual ----
+visual:
+  width: 1920
+  height: 1080
+  fps: 30
+  # Tỉ lệ scene: bao nhiêu % dùng loại nào (pipeline tự quyết dựa trên nội dung)
+  background_color: "#0d1117"
+  accent_color: "#58a6ff"
+  font: "assets/fonts/Inter-Bold.ttf"
+
+# ---- Subtitles ----
+subtitles:
+  enabled: true
+  whisper_model: "base"   # tiny|base|small|medium|large-v3
+  burn_in: true           # ghi phụ đề trực tiếp vào video
+
+# ---- Nhạc nền ----
+music:
+  enabled: true
+  directory: "assets/music"
+  volume: 0.12            # âm lượng nhạc nền so với narration
+
+# ---- Intro / Outro ----
+branding:
+  intro: "assets/branding/intro.mp4"
+  outro: "assets/branding/outro.mp4"
+  enabled: false          # bật khi đã có file intro/outro
+
+# ---- YouTube ----
+youtube:
+  privacy_status: public   # public | unlisted | private
+  category_id: "28"        # 28 = Science & Technology
+  default_tags:
+    - technology
+    - programming
+    - tech explained
+    - "công nghệ"
+  made_for_kids: false
+
+# ---- Chủ đề ----
+topics:
+  # Lĩnh vực để AI chọn chủ đề (tránh lan man)
+  domains:
+    - "trí tuệ nhân tạo và machine learning"
+    - "thuật toán và cấu trúc dữ liệu"
+    - "kiến trúc hệ thống và distributed systems"
+    - "ngôn ngữ lập trình và paradigm"
+    - "an ninh mạng và mã hóa"
+    - "blockchain và cryptography"
+    - "phần cứng, GPU, kiến trúc máy tính"
+    - "database và big data"
+  # Số ngày tránh lặp lại chủ đề đã dùng
+  dedup_days: 30

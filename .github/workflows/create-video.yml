@@ -1,0 +1,83 @@
+name: Tạo & upload video tech
+
+on:
+  # Chạy tự động 2 lần/ngày (giờ UTC). 00:00 và 12:00 UTC = 7h và 19h giờ VN.
+  schedule:
+    - cron: "0 0 * * *"
+    - cron: "0 12 * * *"
+  # Cho phép chạy tay từ tab Actions
+  workflow_dispatch:
+    inputs:
+      no_upload:
+        description: "Chỉ render, không upload (true/false)"
+        required: false
+        default: "false"
+
+# Tránh chạy chồng nếu lần trước chưa xong
+concurrency:
+  group: video-pipeline
+  cancel-in-progress: false
+
+jobs:
+  create-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cài ffmpeg + fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Cài dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # VieNeu-TTS (cài từ git; nếu lỗi vẫn tiếp tục vì có fallback Edge/ElevenLabs)
+          pip install git+https://github.com/pnnbao-ump/VieNeu-TTS.git || echo "VieNeu-TTS bỏ qua, dùng fallback"
+
+      - name: Cache model Whisper
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-${{ runner.os }}
+
+      - name: Chạy pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.no_upload }}" = "true" ]; then
+            python -m src.pipeline --no-upload
+          else
+            python -m src.pipeline
+          fi
+
+      - name: Lưu artifact khi test (không upload)
+        if: ${{ github.event.inputs.no_upload == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-videos
+          path: output/**/*.mp4
+          retention-days: 3
+
+      - name: Commit lịch sử DB
+        if: ${{ always() }}
+        run: |
+          git config user.name "video-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -f output/state.db || true
+          git commit -m "chore: cập nhật lịch sử video [skip ci]" || echo "Không có thay đổi"
+          git push || echo "Không push được (bỏ qua)"
