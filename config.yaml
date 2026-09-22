@@ -53,7 +53,9 @@ visual:
   # Tỉ lệ scene: bao nhiêu % dùng loại nào (pipeline tự quyết dựa trên nội dung)
   background_color: "#0d1117"
   accent_color: "#58a6ff"
-  font: "assets/fonts/Inter-Bold.ttf"
+  # Font hỗ trợ đầy đủ dấu tiếng Việt
+  font: "assets/fonts/BeVietnamPro-Bold.ttf"
+  font_regular: "assets/fonts/BeVietnamPro-Regular.ttf"
 
 # ---- Subtitles ----
 subtitles:

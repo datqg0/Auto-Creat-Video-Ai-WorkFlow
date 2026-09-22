@@ -1,18 +1,19 @@
 """Render mỗi scene thành 1 ảnh PNG (1920x1080) dựa trên visual_type.
 
-Dùng Pillow cho text/bullets/code/quote/title và Matplotlib cho chart.
+Dùng Pillow cho text/bullets/code/quote/title/diagram và Matplotlib cho chart.
 Compositor sẽ ghép ảnh + audio thành clip, thêm hiệu ứng zoom nhẹ.
 
-Ghi chú: bản khung dùng ảnh tĩnh cho ổn định trên CI. Có thể nâng cấp
-scene "algorithm" sang Manim animation sau (xem manim_scenes.py placeholder).
+Mỗi loại scene có nền gradient + khối trang trí + icon riêng để video sinh
+động hơn, không chỉ là chữ trên nền phẳng.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import textwrap
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from .config import CONFIG
 from .models import Scene
@@ -24,23 +25,85 @@ H = CONFIG["visual"]["height"]
 BG = CONFIG["visual"]["background_color"]
 ACCENT = CONFIG["visual"]["accent_color"]
 FONT_PATH = CONFIG["visual"]["font"]
+FONT_REGULAR = CONFIG["visual"].get("font_regular", FONT_PATH)
 
 _TEXT = "#e6edf3"
 _MUTED = "#8b949e"
+_PANEL = "#161b22"
+# Bảng màu phụ để tô khối trang trí / icon cho đa dạng
+_PALETTE = ["#58a6ff", "#3fb950", "#d29922", "#f778ba", "#a371f7", "#39c5cf"]
 
 
-def _font(size: int) -> ImageFont.FreeTypeFont:
+def _hex(color: str) -> tuple[int, int, int]:
+    c = color.lstrip("#")
+    return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
+
+
+def _mix(c1: str, c2: str, t: float) -> tuple[int, int, int]:
+    a, b = _hex(c1), _hex(c2)
+    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))  # type: ignore[return-value]
+
+
+def _seed(text: str) -> int:
+    return int(hashlib.md5(text.encode("utf-8")).hexdigest()[:8], 16)
+
+
+def _font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
     root = Path(__file__).resolve().parent.parent
-    fp = root / FONT_PATH
+    fp = root / (FONT_PATH if bold else FONT_REGULAR)
     try:
         return ImageFont.truetype(str(fp), size)
     except Exception:  # noqa: BLE001 - fallback font mặc định
-        return ImageFont.load_default(size)
+        try:
+            return ImageFont.load_default(size)
+        except Exception:  # noqa: BLE001
+            return ImageFont.load_default()
 
 
-def _new_canvas() -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    img = Image.new("RGB", (W, H), BG)
+# ----------------------------- Nền trang trí -----------------------------
+
+def _gradient_bg(top: str = BG, bottom: str = "#010409") -> Image.Image:
+    """Nền gradient dọc nhẹ (vẽ theo hàng cho nhanh)."""
+    grad = Image.new("RGB", (1, H))
+    gpx = grad.load()
+    for y in range(H):
+        gpx[0, y] = _mix(top, bottom, y / H)
+    return grad.resize((W, H))
+
+
+def _decor_blobs(img: Image.Image, seed: int, count: int = 3) -> Image.Image:
+    """Thêm vài khối tròn mờ làm điểm nhấn nền."""
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    rng = seed or 1
+    for i in range(count):
+        rng = (rng * 1103515245 + 12345) & 0x7FFFFFFF
+        cx = rng % W
+        rng = (rng * 1103515245 + 12345) & 0x7FFFFFFF
+        cy = rng % H
+        rng = (rng * 1103515245 + 12345) & 0x7FFFFFFF
+        rad = 180 + (rng % 260)
+        r, g, b = _hex(_PALETTE[(seed + i) % len(_PALETTE)])
+        od.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=(r, g, b, 34))
+    overlay = overlay.filter(ImageFilter.GaussianBlur(80))
+    return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+
+
+def _new_canvas(seed: int = 0, blobs: int = 3) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    img = _gradient_bg()
+    if blobs:
+        img = _decor_blobs(img, seed, blobs)
     return img, ImageDraw.Draw(img)
+
+
+def _footer(draw: ImageDraw.ImageDraw) -> None:
+    draw.line([(120, H - 90), (W - 120, H - 90)], fill=_MUTED, width=2)
+    draw.ellipse([(120, H - 78), (140, H - 58)], fill=ACCENT)
+
+
+def _text_w(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> int:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0]
 
 
 def _draw_center_text(
@@ -62,50 +125,90 @@ def _draw_center_text(
     return y
 
 
+def _icon(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: str, idx: int) -> None:
+    """Vẽ icon hình học nhỏ cạnh mỗi bullet cho sinh động."""
+    r, g, b = _hex(color)
+    shape = idx % 4
+    if shape == 0:
+        draw.ellipse([x, y, x + size, y + size], fill=(r, g, b))
+    elif shape == 1:
+        draw.rounded_rectangle([x, y, x + size, y + size], radius=6, fill=(r, g, b))
+    elif shape == 2:
+        draw.polygon([(x + size // 2, y), (x, y + size), (x + size, y + size)], fill=(r, g, b))
+    else:
+        draw.polygon(
+            [(x + size // 2, y), (x + size, y + size // 2), (x + size // 2, y + size), (x, y + size // 2)],
+            fill=(r, g, b),
+        )
+
+
+# ----------------------------- Renderers -----------------------------
+
 def _render_title(scene: Scene, out: Path) -> None:
-    img, draw = _new_canvas()
-    # thanh accent trên tiêu đề
-    draw.rectangle([(W / 2 - 120, H / 2 - 140), (W / 2 + 120, H / 2 - 128)], fill=ACCENT)
-    _draw_center_text(draw, scene.heading or scene.narration[:60], _font(84), H // 2 - 90, max_chars=24)
+    heading = scene.heading or scene.narration[:60]
+    img, draw = _new_canvas(_seed(heading), blobs=4)
+    cx, cy = W // 2, H // 2 - 40
+    # vòng tròn đồng tâm trang trí
+    for i, rad in enumerate((320, 250, 180)):
+        r, g, b = _hex(_PALETTE[i % len(_PALETTE)])
+        ring = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        ImageDraw.Draw(ring).ellipse(
+            [cx - rad, cy - rad, cx + rad, cy + rad], outline=(r, g, b, 90), width=3
+        )
+        img = Image.alpha_composite(img.convert("RGBA"), ring).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([(cx - 140, cy - 150), (cx + 140, cy - 138)], fill=ACCENT)
+    _draw_center_text(draw, heading, _font(84), cy - 110, max_chars=22)
+    _footer(draw)
     img.save(out)
 
 
 def _render_bullets(scene: Scene, out: Path) -> None:
-    img, draw = _new_canvas()
+    img, draw = _new_canvas(_seed(scene.heading or scene.narration))
     if scene.heading:
-        _draw_center_text(draw, scene.heading, _font(64), 120, fill=ACCENT, max_chars=30)
-    y = 340
-    bullet_font = _font(46)
-    for b in scene.bullets[:5]:
-        draw.ellipse([(200, y + 18), (224, y + 42)], fill=ACCENT)
-        wrapped = textwrap.wrap(b, width=48) or [""]
-        for i, line in enumerate(wrapped):
+        draw.rectangle([(120, 120), (132, 200)], fill=ACCENT)
+        draw.text((170, 120), textwrap.fill(scene.heading, 34), font=_font(60), fill=_TEXT)
+    y = 320
+    bullet_font = _font(44, bold=False)
+    for i, b in enumerate(scene.bullets[:5]):
+        color = _PALETTE[i % len(_PALETTE)]
+        _icon(draw, 190, y + 8, 34, color, i)
+        wrapped = textwrap.wrap(b, width=46) or [""]
+        for line in wrapped:
             draw.text((260, y), line, font=bullet_font, fill=_TEXT)
-            y += 62
-        y += 24
+            y += 58
+        y += 26
+    _footer(draw)
     img.save(out)
 
 
 def _render_quote(scene: Scene, out: Path) -> None:
-    img, draw = _new_canvas()
     quote = scene.bullets[0] if scene.bullets else scene.narration
-    draw.text((W / 2 - 200, H / 2 - 200), "\u201c", font=_font(200), fill=ACCENT)
-    _draw_center_text(draw, quote, _font(58), H // 2 - 60, max_chars=34)
+    img, draw = _new_canvas(_seed(quote), blobs=4)
+    draw.text((W / 2 - 260, H / 2 - 240), "\u201c", font=_font(240), fill=ACCENT)
+    _draw_center_text(draw, quote, _font(56, bold=False), H // 2 - 40, max_chars=34)
+    _footer(draw)
     img.save(out)
 
 
 def _render_code(scene: Scene, out: Path) -> None:
-    img, draw = _new_canvas()
+    img, draw = _new_canvas(_seed(scene.heading or "code"), blobs=2)
     if scene.heading:
-        _draw_center_text(draw, scene.heading, _font(56), 90, fill=ACCENT, max_chars=34)
-    # panel code
-    pad = 160
-    draw.rounded_rectangle([(pad, 240), (W - pad, H - 160)], radius=24, fill="#161b22")
-    mono = _font(38)
-    y = 300
+        draw.rectangle([(120, 90), (132, 160)], fill=ACCENT)
+        draw.text((170, 96), textwrap.fill(scene.heading, 34), font=_font(52), fill=_TEXT)
+    pad = 140
+    top = 220
+    draw.rounded_rectangle([(pad, top), (W - pad, H - 150)], radius=20, fill=_PANEL)
+    draw.rounded_rectangle([(pad, top), (W - pad, top + 46)], radius=20, fill="#21262d")
+    for k, dot in enumerate(("#ff5f56", "#ffbd2e", "#27c93f")):
+        r, g, b = _hex(dot)
+        draw.ellipse([pad + 24 + k * 34, top + 16, pad + 40 + k * 34, top + 32], fill=(r, g, b))
+    mono = _font(34, bold=False)
+    y = top + 78
     for line in scene.bullets[:16]:
-        draw.text((pad + 60, y), line, font=mono, fill="#c9d1d9")
-        y += 52
+        draw.text((pad + 50, y), line, font=mono, fill="#c9d1d9")
+        y += 48
+    _footer(draw)
     img.save(out)
 
 
@@ -114,6 +217,13 @@ def _render_chart(scene: Scene, out: Path) -> None:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib import font_manager
+
+    root = Path(__file__).resolve().parent.parent
+    try:
+        fp = font_manager.FontProperties(fname=str(root / FONT_PATH))
+    except Exception:  # noqa: BLE001
+        fp = None
 
     chart = scene.chart or {}
     labels = chart.get("labels", [])
@@ -124,36 +234,84 @@ def _render_chart(scene: Scene, out: Path) -> None:
     fig.patch.set_facecolor(BG)
     ax = fig.add_subplot(111)
     ax.set_facecolor(BG)
+    colors = _PALETTE * (len(values) // len(_PALETTE) + 1)
 
     if kind == "line":
-        ax.plot(labels, values, color=ACCENT, linewidth=3, marker="o")
+        ax.plot(labels, values, color=ACCENT, linewidth=4, marker="o", markersize=9)
+        ax.fill_between(range(len(values)), values, alpha=0.15, color=ACCENT)
     elif kind == "pie":
-        ax.pie(values, labels=labels, autopct="%1.0f%%", textprops={"color": _TEXT})
+        tp = {"color": _TEXT}
+        if fp:
+            tp["fontproperties"] = fp
+        ax.pie(values, labels=labels, autopct="%1.0f%%", colors=colors[: len(values)], textprops=tp)
     else:
-        ax.bar(labels, values, color=ACCENT)
+        ax.bar(labels, values, color=colors[: len(values)])
 
     if kind != "pie":
-        ax.tick_params(colors=_TEXT, labelsize=14)
+        ax.tick_params(colors=_TEXT, labelsize=16)
         for spine in ax.spines.values():
             spine.set_color(_MUTED)
+        if fp:
+            for lbl in ax.get_xticklabels() + ax.get_yticklabels():
+                lbl.set_fontproperties(fp)
     if scene.heading:
-        ax.set_title(scene.heading, color=_TEXT, fontsize=26, pad=20)
+        ax.set_title(scene.heading, color=_TEXT, fontsize=30, pad=24, fontproperties=fp)
 
     fig.tight_layout()
     fig.savefig(out, facecolor=BG)
     plt.close(fig)
 
 
+def _render_diagram(scene: Scene, out: Path) -> None:
+    """Sơ đồ luồng: các bước nối bằng mũi tên (dùng bullets làm node)."""
+    img, draw = _new_canvas(_seed(scene.heading or scene.algorithm or "diagram"), blobs=2)
+    if scene.heading:
+        _draw_center_text(draw, scene.heading, _font(56), 90, fill=_TEXT, max_chars=34)
+
+    steps = scene.bullets[:5] or [scene.algorithm or "Bước"]
+    n = len(steps)
+    box_w, box_h, gap = 560, 120, 56
+    total_h = n * box_h + (n - 1) * gap
+    y = max((H - total_h) // 2 + 40, 220)
+    cx = W // 2
+    node_font = _font(36, bold=False)
+
+    for i, step in enumerate(steps):
+        r, g, b = _hex(_PALETTE[i % len(_PALETTE)])
+        x0 = cx - box_w // 2
+        draw.rounded_rectangle(
+            [x0, y, x0 + box_w, y + box_h], radius=18, outline=(r, g, b), width=4, fill=_PANEL
+        )
+        draw.ellipse([x0 + 20, y + box_h // 2 - 24, x0 + 68, y + box_h // 2 + 24], fill=(r, g, b))
+        num = str(i + 1)
+        nw = _text_w(draw, num, _font(34))
+        draw.text((x0 + 44 - nw / 2, y + box_h // 2 - 24), num, font=_font(34), fill="#0d1117")
+        draw.multiline_text(
+            (x0 + 90, y + 22), textwrap.fill(step, width=28), font=node_font, fill=_TEXT, spacing=6
+        )
+        if i < n - 1:
+            ay = y + box_h
+            draw.line([(cx, ay), (cx, ay + gap)], fill=ACCENT, width=4)
+            draw.polygon(
+                [(cx - 12, ay + gap - 14), (cx + 12, ay + gap - 14), (cx, ay + gap)], fill=ACCENT
+            )
+        y += box_h + gap
+    _footer(draw)
+    img.save(out)
+
+
 def _render_algorithm(scene: Scene, out: Path) -> None:
-    # Bản khung: hiển thị như bullets kèm nhãn thuật toán.
-    # Nâng cấp sang Manim animation ở giai đoạn sau.
-    fallback = Scene(
-        narration=scene.narration,
-        visual_type="bullets",
-        heading=scene.heading or f"Thuật toán: {scene.algorithm}",
-        bullets=scene.bullets or [scene.algorithm],
-    )
-    _render_bullets(fallback, out)
+    # Thuật toán -> vẽ dạng sơ đồ luồng cho trực quan
+    if scene.bullets:
+        _render_diagram(scene, out)
+    else:
+        fallback = Scene(
+            narration=scene.narration,
+            visual_type="bullets",
+            heading=scene.heading or f"Thuật toán: {scene.algorithm}",
+            bullets=[scene.algorithm or scene.narration],
+        )
+        _render_bullets(fallback, out)
 
 
 _RENDERERS = {
@@ -163,6 +321,7 @@ _RENDERERS = {
     "code": _render_code,
     "chart": _render_chart,
     "algorithm": _render_algorithm,
+    "diagram": _render_diagram,
 }
 
 

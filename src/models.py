@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 # Các loại visual mà visual_engine biết render
-VisualType = Literal["title", "bullets", "chart", "code", "algorithm", "quote"]
+VisualType = Literal["title", "bullets", "chart", "code", "algorithm", "quote", "diagram"]
 
 
 class Scene(BaseModel):

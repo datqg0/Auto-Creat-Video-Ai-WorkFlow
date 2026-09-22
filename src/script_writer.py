@@ -35,7 +35,12 @@ Mỗi scene có một "visual_type" trong các loại sau, chọn loại phù h�
 - "chart": biểu đồ dữ liệu. Cần trường "chart": {{"kind": "bar|line|pie", "labels": [...], "values": [...]}}.
 - "code": đoạn code minh họa. Đặt các dòng code vào "bullets", set "code_language".
 - "algorithm": mô phỏng thuật toán. Set "algorithm" là 1 trong: "sorting", "search", "graph", "neural_network".
+- "diagram": sơ đồ luồng/quy trình các bước. Đặt 3-5 bước ngắn gọn vào "bullets" (mỗi bullet là 1 bước).
 - "quote": một câu chốt/ấn tượng, đặt câu đó vào bullets[0].
+
+QUAN TRỌNG về hình ảnh: đa dạng hóa visual_type để video sinh động. Trong 6-9 scene
+hãy dùng ÍT NHẤT 4 loại khác nhau (ví dụ trộn bullets, chart, diagram, code, quote).
+Tránh để nhiều scene liên tiếp cùng loại "bullets".
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{
