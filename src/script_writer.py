@@ -7,7 +7,7 @@ import re
 
 from .config import CONFIG
 from .llm import generate
-from .models import Scene, Script
+from .models import Exercise, Scene, Script
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +83,11 @@ QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animati
   cụ thể, sinh động (ví dụ "neural network brain glowing", "data center servers blue",
   "encryption padlock circuit", "quantum computer chip"). Không để trống.
 - Ưu tiên hình ảnh trực quan hơn chữ: mỗi ý nên gắn với 1 hình ảnh hoặc animation minh họa.
+- "video_query": với các scene hợp với CẢNH QUAY THỰC (data center, con chip, người dùng
+  điện thoại/laptop, robot, thành phố, mạch điện, phòng lab...), thêm 2-4 từ khóa TIẾNG ANH
+  để tải footage VIDEO thật làm nền động (ví dụ "data center servers", "person using smartphone",
+  "circuit board macro", "city traffic night"). Nếu scene trừu tượng/toán học thì để trống "".
+  Nên có 3-6 scene có video_query rải đều để video trực quan, sinh động hơn ảnh tĩnh.
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{
@@ -99,10 +104,23 @@ Trả về DUY NHẤT một object JSON theo schema:
       "code_language": "python",
       "algorithm": "",
       "image_query": "từ khóa ảnh tiếng Anh",
+      "video_query": "từ khóa footage video tiếng Anh (hoặc để trống)",
       "animation": null
+    }}
+  ],
+  "exercises": [
+    {{
+      "question": "một bài toán/tình huống THỰC TẾ để người xem tự giải",
+      "hint": "gợi ý ngắn hướng giải (không bắt buộc)",
+      "answer": "đáp án hoặc hướng làm ngắn gọn (không bắt buộc)"
     }}
   ]
 }}
+
+BÀI TOÁN THỰC TẾ (BẮT BUỘC): tạo mảng "exercises" gồm 4-6 bài toán/tình huống THỰC TẾ
+liên quan trực tiếp tới chủ đề, để người xem tự luyện ở CUỐI video. Mỗi bài phải cụ thể,
+gắn với ứng dụng đời thực (con số, tình huống công việc/cuộc sống), tăng dần độ khó,
+kèm "hint" ngắn và "answer" gợi hướng làm. KHÔNG hỏi lý thuyết suông.
 
 Lưu ý:
 - narration phải liền mạch, kể chuyện, KHÔNG đọc gạch đầu dòng, KHÔNG quá ngắn.
@@ -152,10 +170,21 @@ Trả về DUY NHẤT một object JSON theo schema:
       "code_language": "python",
       "algorithm": "",
       "image_query": "từ khóa ảnh tiếng Anh",
+      "video_query": "từ khóa footage video tiếng Anh (hoặc để trống)",
       "animation": null
+    }}
+  ],
+  "exercises": [
+    {{
+      "question": "một bài toán/tình huống THỰC TẾ ngắn để người xem tự giải",
+      "hint": "",
+      "answer": ""
     }}
   ]
 }}
+
+BÀI TOÁN THỰC TẾ (BẮT BUỘC): tạo mảng "exercises" gồm 3-4 bài toán/tình huống THỰC TẾ
+ngắn gọn liên quan chủ đề, đặt ở cuối. Mỗi bài cụ thể, gắn ứng dụng đời thực.
 
 Lưu ý:
 - Scene đầu = HOOK, scene cuối = CALL-TO-ACTION.
@@ -178,9 +207,26 @@ def write_script(topic: str) -> Script:
     raw = generate(_build_prompt(topic), system=_SYSTEM)
     data = _extract_json(raw)
 
-    scenes = [Scene(**s) for s in data.get("scenes", [])]
+    scenes: list[Scene] = []
+    for s in data.get("scenes", []):
+        if not isinstance(s, dict):
+            continue
+        try:
+            scenes.append(Scene(**s))
+        except Exception as e:  # noqa: BLE001 - bỏ qua scene lỗi, không giết cả run
+            log.warning("Bỏ qua scene lỗi: %s", e)
     if not scenes:
         raise ValueError("Kịch bản không có scene nào")
+
+    exercises: list[Exercise] = []
+    for ex in data.get("exercises", []):
+        try:
+            if isinstance(ex, str):
+                exercises.append(Exercise(question=ex))
+            elif isinstance(ex, dict):
+                exercises.append(Exercise(**ex))
+        except Exception as e:  # noqa: BLE001 - bỏ qua bài lỗi
+            log.warning("Bỏ qua bài toán lỗi: %s", e)
 
     script = Script(
         topic=topic,
@@ -188,6 +234,10 @@ def write_script(topic: str) -> Script:
         description=data.get("description", ""),
         tags=data.get("tags", []),
         scenes=scenes,
+        exercises=exercises,
     )
-    log.info("Kịch bản '%s' có %d scene", script.title, len(scenes))
+    log.info(
+        "Kịch bản '%s' có %d scene, %d bài toán thực tế",
+        script.title, len(scenes), len(exercises),
+    )
     return script

@@ -436,3 +436,79 @@ def render_scene(scene: Scene, out_path: Path) -> Path:
         log.warning("Render %s lỗi (%s), fallback bullets", scene.visual_type, e)
         _render_bullets(scene, out_path)
     return out_path
+
+
+# --------------------------- Overlay cho video b-roll ---------------------------
+
+def _wrap_lines(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
+    """Bọc chữ theo bề rộng pixel (chính xác hơn textwrap theo ký tự)."""
+    words = text.split()
+    lines: list[str] = []
+    cur = ""
+    for w in words:
+        trial = f"{cur} {w}".strip()
+        if _text_w(draw, trial, font) <= max_w or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def render_overlay(scene: Scene, out_path: Path) -> Path:
+    """Render lớp phủ TRONG SUỐT (RGBA PNG) để đặt lên video b-roll.
+
+    Gồm: scrim tối ở trên/dưới cho dễ đọc, heading góc trên, và caption (bullets
+    hoặc câu narration rút gọn) ở dưới. Nền trong suốt -> lộ video phía sau.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+
+    # Scrim tối ở trên và dưới để chữ nổi trên video
+    scrim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(scrim)
+    top_h = int(H * 0.30)
+    bot_h = int(H * 0.42)
+    for y in range(top_h):
+        a = int(150 * (1 - y / top_h))
+        sd.line([(0, y), (W, y)], fill=(5, 8, 16, a))
+    for y in range(H - bot_h, H):
+        a = int(190 * ((y - (H - bot_h)) / bot_h))
+        sd.line([(0, y), (W, y)], fill=(5, 8, 16, a))
+    img = Image.alpha_composite(img, scrim)
+    draw = ImageDraw.Draw(img)
+
+    margin = 90 if W >= 1600 else 70
+    is_vertical = H > W
+
+    heading = scene.heading or ""
+    if heading:
+        hfont = _font(72 if not is_vertical else 76)
+        draw.rectangle([(margin, margin), (margin + 12, margin + 84)], fill=ACCENT)
+        for i, line in enumerate(_wrap_lines(draw, heading, hfont, W - 2 * margin - 40)[:3]):
+            draw.text((margin + 34, margin + i * 90), line, font=hfont, fill=_TEXT)
+
+    caption_font = _font(52 if not is_vertical else 60, bold=False)
+    if scene.bullets:
+        lines: list[str] = []
+        for b in scene.bullets[:4]:
+            lines.extend(_wrap_lines(draw, "• " + b, caption_font, W - 2 * margin))
+    else:
+        text = scene.narration.strip()
+        if len(text) > 160:
+            text = text[:157] + "..."
+        lines = _wrap_lines(draw, text, caption_font, W - 2 * margin)
+
+    lines = lines[:6]
+    asc, desc = caption_font.getmetrics()
+    line_h = asc + desc + 16
+    total = len(lines) * line_h
+    y = H - bot_h + (bot_h - total) // 2 + 30
+    for line in lines:
+        draw.text((margin, y), line, font=caption_font, fill=_TEXT)
+        y += line_h
+
+    img.save(out_path)
+    return out_path

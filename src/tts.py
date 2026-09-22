@@ -25,13 +25,30 @@ def _wav_duration(path: Path) -> float:
 
 
 # ---------- VieNeu-TTS ----------
+_VIENEU_ENGINE = None
+
+
+def _get_vieneu():
+    """Khởi tạo engine VieNeu 1 lần rồi tái dùng (load model tốn ~20s)."""
+    global _VIENEU_ENGINE
+    if _VIENEU_ENGINE is None:
+        from vieneu import Vieneu  # type: ignore
+
+        cfg = CONFIG["tts"].get("vieneu", {})
+        _VIENEU_ENGINE = Vieneu(mode=cfg.get("mode", "v3turbo"))
+    return _VIENEU_ENGINE
+
+
 def _synth_vieneu(text: str, out: Path) -> None:
     try:
-        from vieneu import VieNeuTTS  # type: ignore
+        engine = _get_vieneu()
     except Exception as e:  # noqa: BLE001
         raise TTSError(f"VieNeu-TTS chưa cài được: {e}")
-    tts = VieNeuTTS()
-    tts.synthesize(text, str(out))
+
+    cfg = CONFIG["tts"].get("vieneu", {})
+    voice = cfg.get("voice", "Minh Quân Pro")
+    audio = engine.infer(text, voice=voice)
+    engine.save(audio, str(out))
 
 
 # ---------- ElevenLabs ----------

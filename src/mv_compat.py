@@ -133,6 +133,22 @@ def loop_audio(clip, duration):
     return audio_loop(clip, duration=duration)
 
 
+def loop_video(clip, duration):
+    """Lặp video clip cho đủ ``duration`` (b-roll thường ngắn hơn narration)."""
+    if IS_V2:
+        from moviepy.video.fx import Loop  # type: ignore
+
+        return clip.with_effects([Loop(duration=duration)])
+    from moviepy.video.fx.all import loop  # type: ignore
+
+    return loop(clip, duration=duration)
+
+
+def without_audio(clip):
+    """Bỏ audio của clip (b-roll không cần tiếng gốc)."""
+    return clip.without_audio() if IS_V2 else clip.set_audio(None)
+
+
 __all__ = [
     "AudioFileClip",
     "CompositeAudioClip",
@@ -155,4 +171,6 @@ __all__ = [
     "audio_fadeout",
     "resize",
     "loop_audio",
+    "loop_video",
+    "without_audio",
 ]

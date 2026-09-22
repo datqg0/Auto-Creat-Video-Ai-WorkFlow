@@ -20,7 +20,9 @@ from .config import env
 log = logging.getLogger(__name__)
 
 _CACHE = Path(__file__).resolve().parent.parent / "assets" / "image_cache"
+_VIDEO_CACHE = Path(__file__).resolve().parent.parent / "assets" / "video_cache"
 _TIMEOUT = 15
+_VIDEO_TIMEOUT = 60
 _HEADERS = {"User-Agent": "tech-video-bot/1.0"}
 
 
@@ -112,4 +114,84 @@ def fetch_image(query: str, index: int = 0) -> Path | None:
             return cached
 
     log.info("Không tìm được ảnh cho '%s' #%d, dùng nền gradient", query, index)
+    return None
+
+
+# ------------------------------ VIDEO b-roll ------------------------------
+# Tải clip footage động minh họa (Pexels Videos). Cần PEXELS_API_KEY.
+# Nếu không có key hoặc tải lỗi -> trả None, pipeline dùng ảnh tĩnh như cũ.
+
+def _video_cache_path(query: str, index: int, orientation: str) -> Path:
+    key = hashlib.md5(f"vid|{query.lower()}|{index}|{orientation}".encode("utf-8")).hexdigest()[:16]
+    return _VIDEO_CACHE / f"{key}.mp4"
+
+
+def _download_video(url: str, out: Path) -> bool:
+    try:
+        r = requests.get(url, timeout=_VIDEO_TIMEOUT, headers=_HEADERS, stream=True)
+        r.raise_for_status()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, "wb") as f:
+            for chunk in r.iter_content(1 << 16):
+                f.write(chunk)
+        if out.stat().st_size < 20000:  # file quá nhỏ = hỏng
+            out.unlink(missing_ok=True)
+            return False
+        return True
+    except Exception as e:  # noqa: BLE001
+        log.debug("Tải video lỗi %s: %s", url, e)
+        out.unlink(missing_ok=True)
+        return False
+
+
+def _search_pexels_videos(query: str, orientation: str, count: int = 10) -> list[str]:
+    """Trả về danh sách link file .mp4 từ Pexels Videos (ưu tiên độ phân giải HD gần 1080)."""
+    key = env("PEXELS_API_KEY")
+    if not key:
+        return []
+    try:
+        r = requests.get(
+            "https://api.pexels.com/videos/search",
+            params={"query": query, "per_page": count, "orientation": orientation},
+            headers={"Authorization": key},
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        out: list[str] = []
+        for v in r.json().get("videos", []):
+            files = v.get("video_files", [])
+            if not files:
+                continue
+            # chọn file .mp4 có chiều cao gần 1080 nhất (không quá lớn để tải nhanh)
+            mp4s = [f for f in files if f.get("file_type") == "video/mp4" and f.get("link")]
+            if not mp4s:
+                continue
+            best = min(mp4s, key=lambda f: abs((f.get("height") or 0) - 1080))
+            out.append(best["link"])
+        return out
+    except Exception as e:  # noqa: BLE001
+        log.debug("Pexels Videos lỗi: %s", e)
+    return []
+
+
+def fetch_video(query: str, index: int = 0, vertical: bool = False) -> Path | None:
+    """Tải clip b-roll cho từ khóa. ``vertical`` True cho short 9:16.
+
+    Trả về đường dẫn .mp4 đã cache, hoặc None nếu không có nguồn/không tải được.
+    """
+    query = (query or "").strip()
+    if not query:
+        return None
+    orientation = "portrait" if vertical else "landscape"
+    cached = _video_cache_path(query, index, orientation)
+    if cached.exists():
+        return cached
+
+    urls = _search_pexels_videos(query, orientation)
+    if not urls:
+        return None
+    url = urls[index] if index < len(urls) else urls[index % len(urls)]
+    if _download_video(url, cached):
+        log.info("Video b-roll '%s' #%d (%s) -> %s", query, index, orientation, cached.name)
+        return cached
     return None

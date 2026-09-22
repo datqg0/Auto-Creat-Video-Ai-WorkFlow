@@ -18,26 +18,80 @@ from .models import Script
 log = logging.getLogger(__name__)
 
 
+def _exercise_scenes(script: Script) -> list:
+    """Tạo các scene "bài toán thực tế" đặt ở CUỐI video.
+
+    Một scene mở đầu phần luyện tập + mỗi bài toán 1 scene (visual_type bullets)
+    để có audio đọc đề + gợi ý, hiển thị ở cuối video.
+    """
+    from .models import Scene
+
+    exercises = getattr(script, "exercises", None) or []
+    if not exercises:
+        return []
+
+    scenes: list = [
+        Scene(
+            narration=(
+                "Giờ là lúc bạn luyện tập. Dưới đây là một vài bài toán thực tế "
+                "liên quan tới chủ đề hôm nay. Hãy tạm dừng video và thử tự giải nhé."
+            ),
+            visual_type="title",
+            heading="Bài toán thực tế",
+            image_query="students solving problems notebook",
+        )
+    ]
+    for idx, ex in enumerate(exercises, 1):
+        bullets = [ex.question]
+        if ex.hint:
+            bullets.append("Gợi ý: " + ex.hint)
+        narration = f"Bài {idx}. {ex.question}"
+        if ex.hint:
+            narration += f" Gợi ý: {ex.hint}"
+        scenes.append(
+            Scene(
+                narration=narration,
+                visual_type="bullets",
+                heading=f"Bài {idx}",
+                bullets=bullets,
+                image_query="real world math application",
+            )
+        )
+    return scenes
+
+
 def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
     """Render kịch bản thành file video + thumbnail. Trả về (video, thumbnail)."""
     # Import trễ để apply_mode (đổi W/H) có hiệu lực trước khi module cache kích thước
-    from .visual_engine import render_scene
+    from .visual_engine import render_scene, render_overlay
     from .animation_bridge import build_animation_scene
     from .compositor import compose
     from .metadata import make_thumbnail
     from .subtitles import srt_from_scenes
+    from .image_fetcher import fetch_video
 
     import wave
 
+    is_short = CONFIG.get("active_mode") == "short"
+    video_cfg = CONFIG.get("videos", {}) or {}
+    broll_enabled = bool(video_cfg.get("enabled", False))
+    broll_max = int(video_cfg.get("max_per_video", 6))
+    broll_used = 0
     images: list[Path] = []
     audios: list[Path] = []
     scene_texts: list[str] = []
     durations: list[float] = []
     anim_scenes: list = []
+    broll_videos: list = []
+    scene_overlays: list = []
 
     from .tts import synthesize
+    from .models import Scene
 
-    for i, scene in enumerate(script.scenes):
+    # Ghép các scene chính + các scene "bài toán thực tế" ở CUỐI video.
+    render_scenes = list(script.scenes) + _exercise_scenes(script)
+
+    for i, scene in enumerate(render_scenes):
         img = workdir / f"scene_{i:02d}.png"
         aud = workdir / f"scene_{i:02d}.wav"
         # Luôn render ảnh tĩnh làm fallback
@@ -61,6 +115,27 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
                 anim = None
         anim_scenes.append(anim)
 
+        # Scene b-roll: tải video footage minh họa (chỉ khi không phải animation
+        # và scene có video_query). Nếu không có Pexels key/không tải được -> None.
+        broll = None
+        overlay = None
+        if broll_enabled and broll_used < broll_max and anim is None and scene.video_query:
+            try:
+                broll = fetch_video(scene.video_query, index=i % 3, vertical=is_short)
+            except Exception as e:  # noqa: BLE001
+                log.debug("Tải b-roll scene %d lỗi: %s", i, e)
+                broll = None
+            if broll is not None:
+                broll_used += 1
+                overlay = workdir / f"overlay_{i:02d}.png"
+                try:
+                    render_overlay(scene, overlay)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Render overlay scene %d lỗi: %s", i, e)
+                    overlay = None
+        broll_videos.append(broll)
+        scene_overlays.append(overlay)
+
     # Phụ đề: dùng chính text narration gốc (chính xác 100%), căn theo thời lượng scene
     srt_path: Path | None = None
     if CONFIG["subtitles"].get("enabled"):
@@ -70,7 +145,10 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
             log.warning("Sinh phụ đề lỗi: %s", e)
             srt_path = None
 
-    video_path = compose(images, audios, workdir / "video.mp4", srt_path, anim_scenes)
+    video_path = compose(
+        images, audios, workdir / "video.mp4", srt_path,
+        anim_scenes, broll_videos, scene_overlays,
+    )
 
     thumb_path = make_thumbnail(script, workdir / "thumbnail.png")
     return video_path, thumb_path

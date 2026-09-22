@@ -15,10 +15,13 @@ from pathlib import Path
 from .mv_compat import (
     AudioFileClip,
     CompositeAudioClip,
+    CompositeVideoClip,
     ImageClip,
+    VideoFileClip,
     concatenate_videoclips,
     crossfadein,
     loop_audio,
+    loop_video,
     resize,
     set_audio,
     set_duration,
@@ -26,6 +29,7 @@ from .mv_compat import (
     set_position,
     set_start,
     volumex,
+    without_audio,
 )
 
 from .config import CONFIG
@@ -64,6 +68,39 @@ def _anim_clip(mv_scene, audio_path: Path):
     return set_fps(set_audio(clip, audio), FPS)
 
 
+def _cover_video(clip, w: int, h: int):
+    """Scale + crop clip phủ kín khung wxh (giữ tỉ lệ, cắt phần thừa)."""
+    scale = max(w / clip.w, h / clip.h)
+    clip = resize(clip, newsize=(max(1, int(clip.w * scale)), max(1, int(clip.h * scale))))
+    x = (clip.w - w) // 2
+    y = (clip.h - h) // 2
+    if hasattr(clip, "cropped"):
+        return clip.cropped(x1=x, y1=y, x2=x + w, y2=y + h)  # moviepy 2.x
+    return clip.crop(x1=x, y1=y, x2=x + w, y2=y + h)  # moviepy 1.x
+
+
+def _broll_clip(video_path: Path, overlay_path: Path | None, audio_path: Path):
+    """Scene b-roll: video footage nền (loop cho đủ dài) + overlay chữ + audio narration."""
+    audio = AudioFileClip(str(audio_path))
+    duration = audio.duration
+
+    bg = without_audio(VideoFileClip(str(video_path)))
+    if bg.duration < duration:
+        bg = loop_video(bg, duration)
+    else:
+        bg = bg.subclipped(0, duration) if hasattr(bg, "subclipped") else bg.subclip(0, duration)
+    bg = set_duration(_cover_video(bg, W, H), duration)
+
+    layers = [bg]
+    if overlay_path and overlay_path.exists():
+        ov = set_duration(ImageClip(str(overlay_path), transparent=True), duration)
+        layers.append(set_position(ov, (0, 0)))
+
+    comp = CompositeVideoClip(layers, size=(W, H))
+    comp = set_duration(comp, duration)
+    return set_fps(set_audio(comp, audio), FPS)
+
+
 def _pick_from(dir_key: str, exts=(".mp3", ".wav")) -> Path | None:
     root = Path(__file__).resolve().parent.parent
     d = root / dir_key
@@ -96,24 +133,41 @@ def compose(
     out_path: Path,
     srt_path: Path | None = None,
     anim_scenes: list | None = None,
+    broll_videos: list | None = None,
+    scene_overlays: list | None = None,
 ) -> Path:
     """Ghép các scene thành video.
 
-    ``anim_scenes[i]`` nếu khác None là 1 mathviz.Scene động cho scene thứ i;
-    khi đó ảnh tĩnh ``scene_images[i]`` bị bỏ qua và ta render clip động thay thế.
+    Thứ tự ưu tiên cho mỗi scene:
+      1. ``anim_scenes[i]`` (mathviz) nếu khác None -> clip động.
+      2. ``broll_videos[i]`` (Path video) nếu khác None -> video footage + overlay chữ.
+      3. còn lại -> ảnh tĩnh ``scene_images[i]`` + Ken Burns.
     """
     assert len(scene_images) == len(scene_audios), "Số ảnh và audio phải khớp"
+    n = len(scene_images)
     if anim_scenes is None:
-        anim_scenes = [None] * len(scene_images)
+        anim_scenes = [None] * n
+    if broll_videos is None:
+        broll_videos = [None] * n
+    if scene_overlays is None:
+        scene_overlays = [None] * n
 
     clips = []
-    for img, aud, anim in zip(scene_images, scene_audios, anim_scenes):
+    for img, aud, anim, broll, ov in zip(
+        scene_images, scene_audios, anim_scenes, broll_videos, scene_overlays
+    ):
         if anim is not None:
             try:
                 clips.append(_anim_clip(anim, aud))
                 continue
             except Exception as e:  # noqa: BLE001 - fallback về ảnh tĩnh
                 log.warning("Render clip động lỗi, dùng ảnh tĩnh: %s", e)
+        if broll is not None:
+            try:
+                clips.append(_broll_clip(broll, ov, aud))
+                continue
+            except Exception as e:  # noqa: BLE001 - fallback về ảnh tĩnh
+                log.warning("Ghép b-roll lỗi, dùng ảnh tĩnh: %s", e)
         clips.append(_scene_clip(img, aud))
 
     # Chuyển cảnh crossfade nhẹ giữa các scene

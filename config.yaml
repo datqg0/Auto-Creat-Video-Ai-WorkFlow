@@ -49,8 +49,9 @@ tts:
     - elevenlabs
     - edge
   vieneu:
-    # Đường dẫn model VieNeu-TTS (cài trong workflow)
-    voice: default
+    # Giọng preset của VieNeu-TTS v3 Turbo. Nam: "Minh Quân Pro", "Anh Khôi", "Thái Sơn".
+    voice: "Minh Quân Pro"
+    mode: v3turbo   # v3turbo (48kHz, chất lượng cao) | v3nano (nhanh, máy yếu)
   elevenlabs:
     voice_id: "pNInz6obpgDQGcFmaJgB"  # Adam (giọng nam). Nữ Rachel: 21m00Tcm4TlvDq8ikWAM
     model: eleven_multilingual_v2
@@ -78,6 +79,14 @@ images:
   # Tự tìm & tải ảnh nền minh họa theo image_query của mỗi scene.
   # Nguồn: Openverse (không cần key). Đặt PEXELS_API_KEY để dùng Pexels (đẹp hơn).
   enabled: true
+
+# ---- Video b-roll tự tìm ----
+videos:
+  # Tải footage VIDEO thật (Pexels Videos) theo video_query của mỗi scene, dùng
+  # làm nền động + chữ overlay -> trực quan, sinh động hơn ảnh tĩnh.
+  # CẦN PEXELS_API_KEY (không có key -> tự động fallback về ảnh tĩnh).
+  enabled: true
+  max_per_video: 6        # số scene tối đa dùng b-roll trong 1 video
 
 # ---- Subtitles ----
 subtitles:
