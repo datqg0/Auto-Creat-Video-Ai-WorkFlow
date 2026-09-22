@@ -9,6 +9,12 @@ import logging
 import random
 from pathlib import Path
 
+# Pillow >=10 bỏ Image.ANTIALIAS nhưng moviepy 1.x vẫn gọi -> thêm shim
+from PIL import Image as _PILImage
+
+if not hasattr(_PILImage, "ANTIALIAS"):
+    _PILImage.ANTIALIAS = _PILImage.Resampling.LANCZOS
+
 from moviepy.editor import (
     AudioFileClip,
     CompositeAudioClip,
