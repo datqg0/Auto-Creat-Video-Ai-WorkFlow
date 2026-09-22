@@ -43,10 +43,9 @@ llm:
 
 # ---- TTS ----
 tts:
-  # Thứ tự fallback: vieneu -> elevenlabs -> edge
+  # Thứ tự fallback: vieneu -> edge (đã TẠM BỎ elevenlabs)
   providers:
     - vieneu
-    - elevenlabs
     - edge
   vieneu:
     # Giọng preset của VieNeu-TTS v3 Turbo. Nam: "Minh Quân Pro", "Anh Khôi", "Thái Sơn".

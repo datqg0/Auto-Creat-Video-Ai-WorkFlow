@@ -24,6 +24,26 @@ def _wav_duration(path: Path) -> float:
         return w.getnframes() / float(w.getframerate())
 
 
+def _concat_wavs(parts: list[Path], out: Path) -> None:
+    """Ghép nhiều file wav cùng định dạng thành 1 file."""
+    with wave.open(str(parts[0]), "rb") as first:
+        params = first.getparams()
+    with wave.open(str(out), "wb") as w:
+        w.setparams(params)
+        for p in parts:
+            with wave.open(str(p), "rb") as seg:
+                w.writeframes(seg.readframes(seg.getnframes()))
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Cắt narration thành câu ngắn để đọc lại từng phần khi 1 lần đọc bị lỗi."""
+    import re
+
+    chunks = re.split(r"(?<=[.!?…])\s+", text.strip())
+    chunks = [c.strip() for c in chunks if c.strip()]
+    return chunks or [text.strip()]
+
+
 # ---------- VieNeu-TTS ----------
 _VIENEU_ENGINE = None
 
@@ -106,19 +126,88 @@ _DISPATCH = {
     "edge": _synth_edge,
 }
 
+# Khóa provider cho cả video: scene đầu chọn được provider nào thì mọi scene
+# sau CHỈ dùng đúng provider đó -> giọng đồng nhất, không bị lẫn giọng giữa video.
+_LOCKED_PROVIDER: str | None = None
+
+
+def reset_provider_lock() -> None:
+    """Bỏ khóa provider (gọi ở đầu mỗi video để chọn lại từ đầu)."""
+    global _LOCKED_PROVIDER
+    _LOCKED_PROVIDER = None
+
+
+def _try_provider(name: str, text: str, out_path: Path) -> bool:
+    fn = _DISPATCH.get(name)
+    if not fn:
+        return False
+    log.info("TTS %s: %s...", name, text[:40])
+    fn(text, out_path)
+    return out_path.exists() and out_path.stat().st_size > 0
+
+
+def _synth_by_sentences(name: str, text: str, out_path: Path) -> bool:
+    """Đọc từng câu bằng CÙNG provider rồi ghép lại.
+
+    Dùng khi đọc cả đoạn dài bị lỗi: giữ NGUYÊN giọng thay vì đổi sang provider
+    khác (tránh video bị lẫn giọng ở giữa/cuối).
+    """
+    sentences = _split_sentences(text)
+    if len(sentences) <= 1:
+        return False
+    parts: list[Path] = []
+    for j, sent in enumerate(sentences):
+        part = out_path.with_name(f"{out_path.stem}_p{j:02d}.wav")
+        if not _try_provider(name, sent, part):
+            for p in parts:
+                p.unlink(missing_ok=True)
+            return False
+        parts.append(part)
+    _concat_wavs(parts, out_path)
+    for p in parts:
+        p.unlink(missing_ok=True)
+    return out_path.exists() and out_path.stat().st_size > 0
+
 
 def synthesize(text: str, out_path: Path) -> float:
-    """Đọc text ra file wav, thử lần lượt các provider. Trả về thời lượng (giây)."""
+    """Đọc text ra file wav. Trả về thời lượng (giây).
+
+    Lần đầu: thử lần lượt provider theo config, KHÓA vào provider đầu tiên chạy được.
+    Các lần sau: chỉ dùng provider đã khóa để giữ NGUYÊN một giọng cho cả video.
+    """
+    global _LOCKED_PROVIDER
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Đã khóa provider -> chỉ dùng đúng nó để giọng không đổi.
+    if _LOCKED_PROVIDER is not None:
+        try:
+            if _try_provider(_LOCKED_PROVIDER, text, out_path):
+                return _wav_duration(out_path)
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "TTS %s (đã khóa) đọc cả đoạn lỗi: %s — thử đọc từng câu cùng giọng",
+                _LOCKED_PROVIDER, e,
+            )
+        # Đọc cả đoạn hỏng -> thử đọc TỪNG CÂU bằng đúng giọng đã khóa (giữ giọng).
+        try:
+            if _synth_by_sentences(_LOCKED_PROVIDER, text, out_path):
+                return _wav_duration(out_path)
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "TTS %s (đã khóa) đọc từng câu vẫn lỗi: %s — buộc phải fallback giọng khác",
+                _LOCKED_PROVIDER, e,
+            )
+
     last_err: Exception | None = None
     for name in CONFIG["tts"]["providers"]:
-        fn = _DISPATCH.get(name)
-        if not fn:
+        # Nếu đã khóa và vừa thử thất bại ở trên thì bỏ qua provider đã khóa.
+        if name == _LOCKED_PROVIDER and _LOCKED_PROVIDER is not None:
             continue
         try:
-            log.info("TTS %s: %s...", name, text[:40])
-            fn(text, out_path)
-            if out_path.exists() and out_path.stat().st_size > 0:
+            if _try_provider(name, text, out_path):
+                if _LOCKED_PROVIDER is None:
+                    _LOCKED_PROVIDER = name
+                    log.info("TTS khóa provider cho cả video: %s", name)
                 return _wav_duration(out_path)
         except Exception as e:  # noqa: BLE001
             last_err = e

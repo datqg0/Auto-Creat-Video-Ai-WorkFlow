@@ -141,7 +141,7 @@ def _build_short_prompt(
 Ngôn ngữ: {lang_name}. Yêu cầu BẮT BUỘC cho định dạng Short:
 - Tổng lời đọc chỉ khoảng {min_words}-{approx_words} từ (RẤT NGẮN, đọc trong <{duration}s). TUYỆT ĐỐI không dài hơn.
 - Chia thành 4-6 scene ngắn, mỗi scene narration 1-2 câu (10-25 từ), nhịp nhanh, dứt khoát.
-- Bố cục DỌC: chữ to, ít chữ mỗi màn hình, dễ đọc trên điện thoại.
+- Bố cục DỌC 9:16: chữ TO, RẤT ÍT chữ mỗi màn hình để không tràn khung trên điện thoại.
 
 CẤU TRÚC SHORT (rút gọn từ flow giáo dục, giữ nhịp nhanh):
 1. HOOK cực mạnh trong 2 giây đầu — một câu hỏi sốc hoặc con số gây tò mò.
@@ -150,10 +150,13 @@ CẤU TRÚC SHORT (rút gọn từ flow giáo dục, giữ nhịp nhanh):
 4. ĐIỂM CHỐT — insight/con số đáng nhớ nhất.
 5. CALL-TO-ACTION — "Theo dõi để xem phần tiếp theo" hoặc câu hỏi mở kéo comment.
 
-Yêu cầu hình ảnh cho Short:
+Yêu cầu hình ảnh cho Short (khung DỌC hẹp, tránh tràn chữ):
 - Mỗi scene PHẢI có "image_query" 2-5 từ khóa TIẾNG ANH, ảnh nổi bật, tương phản cao.
 - Nên có 1-2 scene "animation" (counter con số, function, hoặc steps) để bắt mắt.
-- Ưu tiên visual_type: "title", "quote", "animation"; hạn chế bullets dài.
+- Ưu tiên visual_type: "title", "quote", "animation"; hạn chế "bullets".
+- "heading" TỐI ĐA 4-5 từ (chữ to, dễ tràn nếu dài). Mỗi bullet TỐI ĐA 6-8 từ, tối đa 3 bullet/scene.
+- KHÔNG viết câu dài trong heading/bullets; để câu dài cho narration.
+- KHÔNG dùng visual_type "code", "chart", "diagram" (khó đọc trên khung dọc).
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{

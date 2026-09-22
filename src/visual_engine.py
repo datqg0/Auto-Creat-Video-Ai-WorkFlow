@@ -144,6 +144,10 @@ def _photo_panel(
 
 
 _IMAGES_ON = CONFIG.get("images", {}).get("enabled", False)
+# Khung dọc (short 9:16): layout phải khác video ngang để chữ/ảnh không tràn khung.
+IS_VERTICAL = H > W
+# Lề an toàn theo bề rộng khung (dọc hẹp -> lề nhỏ hơn).
+MARGIN = 80 if IS_VERTICAL else 120
 
 
 def _new_canvas(
@@ -175,8 +179,9 @@ def _draw_center_text(
     fill: str = _TEXT,
     max_chars: int = 40,
 ) -> int:
-    """Vẽ text căn giữa, tự xuống dòng. Trả về y sau khi vẽ xong."""
-    lines = textwrap.wrap(text, width=max_chars) or [""]
+    """Vẽ text căn giữa, tự xuống dòng theo BỀ RỘNG PIXEL. Trả về y sau khi vẽ."""
+    max_w = W - 2 * MARGIN
+    lines = _wrap_lines(draw, text, font, max_w) or [""]
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         w = bbox[2] - bbox[0]
@@ -184,6 +189,20 @@ def _draw_center_text(
         draw.text(((W - w) / 2, y), line, font=font, fill=fill)
         y += h + 18
     return y
+
+
+def _fit_font(
+    draw: ImageDraw.ImageDraw, text: str, base_size: int, max_w: int, min_size: int = 28, bold: bool = True
+) -> ImageFont.FreeTypeFont:
+    """Chọn cỡ chữ lớn nhất mà từ dài nhất vẫn vừa bề rộng max_w (chống tràn khung)."""
+    longest = max(text.split(), key=len) if text.split() else text
+    size = base_size
+    while size > min_size:
+        f = _font(size, bold=bold)
+        if _text_w(draw, longest, f) <= max_w:
+            return f
+        size -= 4
+    return _font(min_size, bold=bold)
 
 
 def _icon(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: str, idx: int) -> None:
@@ -209,8 +228,10 @@ def _render_title(scene: Scene, out: Path) -> None:
     heading = scene.heading or scene.narration[:60]
     img, draw = _new_canvas(_seed(heading), blobs=4, image_query=scene.image_query)
     cx, cy = W // 2, H // 2 - 40
-    # vòng tròn đồng tâm trang trí
-    for i, rad in enumerate((320, 250, 180)):
+    # vòng tròn đồng tâm trang trí (thu nhỏ theo khung dọc để không tràn ngang)
+    base_r = min(W, H) // 3
+    rings = (base_r, int(base_r * 0.78), int(base_r * 0.56))
+    for i, rad in enumerate(rings):
         r, g, b = _hex(_PALETTE[i % len(_PALETTE)])
         ring = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         ImageDraw.Draw(ring).ellipse(
@@ -219,12 +240,17 @@ def _render_title(scene: Scene, out: Path) -> None:
         img = Image.alpha_composite(img.convert("RGBA"), ring).convert("RGB")
     draw = ImageDraw.Draw(img)
     draw.rectangle([(cx - 140, cy - 150), (cx + 140, cy - 138)], fill=ACCENT)
-    _draw_center_text(draw, heading, _font(84), cy - 110, max_chars=22)
+    # Cỡ chữ tự co để từ dài nhất vừa bề rộng khung -> không tràn (nhất là short).
+    hfont = _fit_font(draw, heading, 96 if IS_VERTICAL else 84, W - 2 * MARGIN)
+    _draw_center_text(draw, heading, hfont, cy - 110)
     _footer(draw)
     img.save(out)
 
 
 def _render_bullets(scene: Scene, out: Path) -> None:
+    if IS_VERTICAL:
+        _render_bullets_vertical(scene, out)
+        return
     # Bố cục 2 cột: chữ bên trái, ảnh minh họa RÕ NÉT bên phải (nếu có ảnh)
     img = _gradient_bg()
     img = _decor_blobs(img, _seed(scene.heading or scene.narration), 3)
@@ -241,18 +267,19 @@ def _render_bullets(scene: Scene, out: Path) -> None:
         if panel_placed:
             text_right = px0 - 60
 
+    text_left = 170
+    text_w = text_right - text_left
     if scene.heading:
         draw.rectangle([(120, 120), (132, 200)], fill=ACCENT)
-        draw.text((170, 120), textwrap.fill(scene.heading, 22 if panel_placed else 34),
-                  font=_font(60), fill=_TEXT)
+        hfont = _fit_font(draw, scene.heading, 60, text_w)
+        for j, hl in enumerate(_wrap_lines(draw, scene.heading, hfont, text_w)[:3]):
+            draw.text((text_left, 120 + j * (hfont.size + 8)), hl, font=hfont, fill=_TEXT)
     y = 320
     bullet_font = _font(44, bold=False)
-    wrap_w = 30 if panel_placed else 46
     for i, b in enumerate(scene.bullets[:5]):
         color = _PALETTE[i % len(_PALETTE)]
         _icon(draw, 190, y + 8, 34, color, i)
-        wrapped = textwrap.wrap(b, width=wrap_w) or [""]
-        for line in wrapped:
+        for line in _wrap_lines(draw, b, bullet_font, text_right - 260):
             draw.text((260, y), line, font=bullet_font, fill=_TEXT)
             y += 58
         y += 26
@@ -260,11 +287,48 @@ def _render_bullets(scene: Scene, out: Path) -> None:
     img.save(out)
 
 
+def _render_bullets_vertical(scene: Scene, out: Path) -> None:
+    """Bố cục DỌC cho Short: heading trên, ảnh giữa, bullets dưới — chữ to, không tràn."""
+    img = _gradient_bg()
+    img = _decor_blobs(img, _seed(scene.heading or scene.narration), 3)
+    draw = ImageDraw.Draw(img)
+    inner_w = W - 2 * MARGIN
+
+    y = 180
+    if scene.heading:
+        draw.rectangle([(MARGIN, y), (MARGIN + 14, y + 90)], fill=ACCENT)
+        hfont = _fit_font(draw, scene.heading, 88, inner_w - 40)
+        for hl in _wrap_lines(draw, scene.heading, hfont, inner_w - 40)[:3]:
+            draw.text((MARGIN + 40, y), hl, font=hfont, fill=_TEXT)
+            y += hfont.size + 12
+        y += 40
+
+    # Ảnh minh họa vuông ở giữa
+    if _IMAGES_ON and scene.image_query:
+        side = min(inner_w, 760)
+        px0 = (W - side) // 2
+        if _photo_panel(img, scene.image_query, (px0, y, px0 + side, y + side)):
+            draw = ImageDraw.Draw(img)
+            y += side + 60
+
+    bullet_font = _font(52, bold=False)
+    for i, b in enumerate(scene.bullets[:4]):
+        color = _PALETTE[i % len(_PALETTE)]
+        _icon(draw, MARGIN, y + 8, 40, color, i)
+        for line in _wrap_lines(draw, b, bullet_font, inner_w - 80):
+            draw.text((MARGIN + 70, y), line, font=bullet_font, fill=_TEXT)
+            y += 68
+        y += 30
+    img.save(out)
+
+
 def _render_quote(scene: Scene, out: Path) -> None:
     quote = scene.bullets[0] if scene.bullets else scene.narration
     img, draw = _new_canvas(_seed(quote), blobs=4, image_query=scene.image_query)
-    draw.text((W / 2 - 260, H / 2 - 240), "\u201c", font=_font(240), fill=ACCENT)
-    _draw_center_text(draw, quote, _font(56, bold=False), H // 2 - 40, max_chars=34)
+    qfont = _font(200 if IS_VERTICAL else 240)
+    draw.text((MARGIN, H / 2 - (300 if IS_VERTICAL else 240)), "\u201c", font=qfont, fill=ACCENT)
+    body = _fit_font(draw, quote, 64 if IS_VERTICAL else 56, W - 2 * MARGIN, bold=False)
+    _draw_center_text(draw, quote, body, H // 2 - 40)
     _footer(draw)
     img.save(out)
 
@@ -272,20 +336,21 @@ def _render_quote(scene: Scene, out: Path) -> None:
 def _render_code(scene: Scene, out: Path) -> None:
     img, draw = _new_canvas(_seed(scene.heading or "code"), blobs=2)
     if scene.heading:
-        draw.rectangle([(120, 90), (132, 160)], fill=ACCENT)
-        draw.text((170, 96), textwrap.fill(scene.heading, 34), font=_font(52), fill=_TEXT)
-    pad = 140
+        draw.rectangle([(MARGIN, 90), (MARGIN + 12, 160)], fill=ACCENT)
+        hfont = _fit_font(draw, scene.heading, 52, W - 2 * MARGIN - 60)
+        draw.text((MARGIN + 50, 96), scene.heading, font=hfont, fill=_TEXT)
+    pad = MARGIN
     top = 220
     draw.rounded_rectangle([(pad, top), (W - pad, H - 150)], radius=20, fill=_PANEL)
     draw.rounded_rectangle([(pad, top), (W - pad, top + 46)], radius=20, fill="#21262d")
     for k, dot in enumerate(("#ff5f56", "#ffbd2e", "#27c93f")):
         r, g, b = _hex(dot)
         draw.ellipse([pad + 24 + k * 34, top + 16, pad + 40 + k * 34, top + 32], fill=(r, g, b))
-    mono = _font(34, bold=False)
+    mono = _font(30 if IS_VERTICAL else 34, bold=False)
     y = top + 78
-    for line in scene.bullets[:16]:
-        draw.text((pad + 50, y), line, font=mono, fill="#c9d1d9")
-        y += 48
+    for line in scene.bullets[:20]:
+        draw.text((pad + 40, y), line, font=mono, fill="#c9d1d9")
+        y += 46
     _footer(draw)
     img.save(out)
 
@@ -348,12 +413,13 @@ def _render_diagram(scene: Scene, out: Path) -> None:
 
     steps = scene.bullets[:5] or [scene.algorithm or "Bước"]
     n = len(steps)
-    box_w, gap = 640, 52
+    gap = 52
+    box_w = min(760, W - 2 * MARGIN)  # co theo khung, không tràn ngang (short)
     cx = W // 2
     node_font = _font(36, bold=False)
-    wrap_chars = 30
     line_spacing = 8
     pad_v = 26  # đệm trên/dưới trong box
+    text_max_w = box_w - 130  # trừ chỗ badge số + lề trong
 
     # Tính chiều cao từng box theo số dòng chữ (chữ dài -> box cao hơn)
     wrapped: list[str] = []
@@ -361,7 +427,7 @@ def _render_diagram(scene: Scene, out: Path) -> None:
     ascent, descent = node_font.getmetrics()
     line_h = ascent + descent
     for step in steps:
-        text = textwrap.fill(step, width=wrap_chars)
+        text = "\n".join(_wrap_lines(draw, step, node_font, text_max_w))
         wrapped.append(text)
         n_lines = text.count("\n") + 1
         h = pad_v * 2 + n_lines * line_h + (n_lines - 1) * line_spacing

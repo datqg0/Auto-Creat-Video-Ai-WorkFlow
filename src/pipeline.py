@@ -88,6 +88,10 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
     from .tts import synthesize
     from .models import Scene
 
+    # Chọn lại provider TTS từ đầu cho video này rồi khóa -> cả video 1 giọng.
+    from .tts import reset_provider_lock
+    reset_provider_lock()
+
     # Ghép các scene chính + các scene "bài toán thực tế" ở CUỐI video.
     render_scenes = list(script.scenes) + _exercise_scenes(script)
 
