@@ -12,22 +12,20 @@ import traceback
 from pathlib import Path
 
 from . import db
-from .compositor import compose
-from .config import CONFIG, OUTPUT_DIR
-from .metadata import build_metadata, make_thumbnail
+from .config import CONFIG, OUTPUT_DIR, apply_mode
 from .models import Script
-from .script_writer import write_script
-from .subtitles import srt_from_scenes
-from .topic_selector import pick_topic
-from .tts import synthesize
 
 log = logging.getLogger(__name__)
 
 
 def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
     """Render kịch bản thành file video + thumbnail. Trả về (video, thumbnail)."""
+    # Import trễ để apply_mode (đổi W/H) có hiệu lực trước khi module cache kích thước
     from .visual_engine import render_scene
     from .animation_bridge import build_animation_scene
+    from .compositor import compose
+    from .metadata import make_thumbnail
+    from .subtitles import srt_from_scenes
 
     import wave
 
@@ -36,6 +34,8 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
     scene_texts: list[str] = []
     durations: list[float] = []
     anim_scenes: list = []
+
+    from .tts import synthesize
 
     for i, scene in enumerate(script.scenes):
         img = workdir / f"scene_{i:02d}.png"
@@ -77,6 +77,9 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
 
 
 def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
+    from .script_writer import write_script
+    from .topic_selector import pick_topic
+
     db.init_db()
 
     topic = pick_topic()
@@ -103,6 +106,7 @@ def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
             return
 
         from .youtube_uploader import upload
+        from .metadata import build_metadata
 
         meta = build_metadata(script)
         yt_id = upload(video_path, meta, thumb_path)
@@ -123,7 +127,22 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-upload", action="store_true", help="Chỉ render, không upload")
     parser.add_argument("--dry-run", action="store_true", help="Chỉ in kịch bản")
+    parser.add_argument(
+        "--mode",
+        choices=["long", "short"],
+        default=None,
+        help="long = video dài ngang 16:9 (buổi sáng), short = dọc 9:16 <60s (buổi tối)",
+    )
     args = parser.parse_args()
+
+    mode = apply_mode(args.mode)
+    log.info(
+        "Mode: %s (%dx%d, %ds)",
+        mode,
+        CONFIG["visual"]["width"],
+        CONFIG["visual"]["height"],
+        CONFIG["target_duration_seconds"],
+    )
 
     n = int(CONFIG.get("videos_per_run", 1))
     for i in range(n):

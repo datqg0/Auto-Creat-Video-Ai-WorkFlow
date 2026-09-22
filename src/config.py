@@ -28,3 +28,27 @@ def env(key: str, default: str | None = None) -> str | None:
 
 
 CONFIG = load_config()
+
+
+def apply_mode(mode: str | None = None) -> str:
+    """Áp cấu hình theo buổi (long/short) vào CONFIG tại chỗ.
+
+    Ưu tiên: tham số mode > env VIDEO_MODE > config default_mode > "long".
+    Ghi đè target_duration_seconds và visual.width/height. Trả về tên mode đã áp.
+    Phải gọi TRƯỚC khi import các module cache W/H (visual_engine, compositor, mathviz).
+    """
+    modes = CONFIG.get("modes") or {}
+    mode = mode or os.getenv("VIDEO_MODE") or CONFIG.get("default_mode") or "long"
+    if mode not in modes:
+        return mode
+    m = modes[mode]
+    if "target_duration_seconds" in m:
+        CONFIG["target_duration_seconds"] = m["target_duration_seconds"]
+    CONFIG.setdefault("visual", {})
+    if "width" in m:
+        CONFIG["visual"]["width"] = m["width"]
+    if "height" in m:
+        CONFIG["visual"]["height"] = m["height"]
+    CONFIG["active_mode"] = mode
+    os.environ["VIDEO_MODE"] = mode
+    return mode

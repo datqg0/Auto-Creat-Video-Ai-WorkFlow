@@ -24,7 +24,7 @@ class Scene(BaseModel):
     chart: dict | None = None
     # code: ngôn ngữ để tô màu (chỉ hiển thị, không thực thi)
     code_language: str = "python"
-    # algorithm: tên thuật toán để chọn animation Manim có sẵn
+    # algorithm: tên thuật toán để gợi ý animation phù hợp
     algorithm: str = ""
     # từ khóa tiếng Anh để tự tìm ảnh minh họa nền cho scene
     image_query: str = ""

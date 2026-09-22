@@ -89,28 +89,58 @@ def _decor_blobs(img: Image.Image, seed: int, count: int = 3) -> Image.Image:
     return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
 
 
-def _photo_bg(query: str) -> Image.Image | None:
-    """Ảnh minh họa làm nền: crop full khung, blur nhẹ + phủ tối để chữ đọc rõ."""
+def _load_photo(query: str, index: int = 0) -> Image.Image | None:
+    """Tải ảnh gốc theo từ khóa (index để lấy ảnh khác nhau, đa dạng hình)."""
     try:
         from .image_fetcher import fetch_image
 
-        path = fetch_image(query)
+        path = fetch_image(query, index=index)
         if not path:
             return None
-        photo = Image.open(path).convert("RGB")
-        # scale phủ kín 1920x1080 (cover)
-        scale = max(W / photo.width, H / photo.height)
-        photo = photo.resize((int(photo.width * scale), int(photo.height * scale)))
-        left = (photo.width - W) // 2
-        top = (photo.height - H) // 2
-        photo = photo.crop((left, top, left + W, top + H))
-        photo = photo.filter(ImageFilter.GaussianBlur(6))
-        # lớp phủ tối để tăng tương phản chữ
-        overlay = Image.new("RGBA", (W, H), (5, 8, 16, 190))
-        return Image.alpha_composite(photo.convert("RGBA"), overlay).convert("RGB")
+        return Image.open(path).convert("RGB")
     except Exception as e:  # noqa: BLE001
-        log.debug("Nền ảnh lỗi: %s", e)
+        log.debug("Tải ảnh lỗi: %s", e)
         return None
+
+
+def _cover(photo: Image.Image, w: int, h: int) -> Image.Image:
+    """Scale + crop ảnh phủ kín khung wxh (giữ tỉ lệ)."""
+    scale = max(w / photo.width, h / photo.height)
+    photo = photo.resize((max(1, int(photo.width * scale)), max(1, int(photo.height * scale))))
+    left = (photo.width - w) // 2
+    top = (photo.height - h) // 2
+    return photo.crop((left, top, left + w, top + h))
+
+
+def _photo_bg(query: str, index: int = 0) -> Image.Image | None:
+    """Ảnh minh họa làm nền: crop full khung, blur nhẹ + phủ tối để chữ đọc rõ."""
+    photo = _load_photo(query, index)
+    if photo is None:
+        return None
+    photo = _cover(photo, W, H).filter(ImageFilter.GaussianBlur(6))
+    overlay = Image.new("RGBA", (W, H), (5, 8, 16, 190))
+    return Image.alpha_composite(photo.convert("RGBA"), overlay).convert("RGB")
+
+
+def _photo_panel(
+    img: Image.Image, query: str, box: tuple[int, int, int, int], index: int = 0, radius: int = 24
+) -> bool:
+    """Dán 1 ảnh minh họa RÕ NÉT vào vùng box (bo góc + viền). True nếu dán được."""
+    photo = _load_photo(query, index)
+    if photo is None:
+        return False
+    x0, y0, x1, y1 = box
+    w, h = x1 - x0, y1 - y0
+    thumb = _cover(photo, w, h)
+    # mask bo góc
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w, h], radius=radius, fill=255)
+    img.paste(thumb, (x0, y0), mask)
+    # viền accent nhẹ
+    ImageDraw.Draw(img).rounded_rectangle(
+        [x0, y0, x1, y1], radius=radius, outline=ACCENT, width=3
+    )
+    return True
 
 
 _IMAGES_ON = CONFIG.get("images", {}).get("enabled", False)
@@ -195,16 +225,33 @@ def _render_title(scene: Scene, out: Path) -> None:
 
 
 def _render_bullets(scene: Scene, out: Path) -> None:
-    img, draw = _new_canvas(_seed(scene.heading or scene.narration), image_query=scene.image_query)
+    # Bố cục 2 cột: chữ bên trái, ảnh minh họa RÕ NÉT bên phải (nếu có ảnh)
+    img = _gradient_bg()
+    img = _decor_blobs(img, _seed(scene.heading or scene.narration), 3)
+    draw = ImageDraw.Draw(img)
+
+    panel_placed = False
+    text_right = W - 160
+    if _IMAGES_ON and scene.image_query:
+        pw, ph = 620, 620
+        px0 = W - 160 - pw
+        py0 = (H - ph) // 2 + 20
+        panel_placed = _photo_panel(img, scene.image_query, (px0, py0, px0 + pw, py0 + ph))
+        draw = ImageDraw.Draw(img)
+        if panel_placed:
+            text_right = px0 - 60
+
     if scene.heading:
         draw.rectangle([(120, 120), (132, 200)], fill=ACCENT)
-        draw.text((170, 120), textwrap.fill(scene.heading, 34), font=_font(60), fill=_TEXT)
+        draw.text((170, 120), textwrap.fill(scene.heading, 22 if panel_placed else 34),
+                  font=_font(60), fill=_TEXT)
     y = 320
     bullet_font = _font(44, bold=False)
+    wrap_w = 30 if panel_placed else 46
     for i, b in enumerate(scene.bullets[:5]):
         color = _PALETTE[i % len(_PALETTE)]
         _icon(draw, 190, y + 8, 34, color, i)
-        wrapped = textwrap.wrap(b, width=46) or [""]
+        wrapped = textwrap.wrap(b, width=wrap_w) or [""]
         for line in wrapped:
             draw.text((260, y), line, font=bullet_font, fill=_TEXT)
             y += 58
@@ -301,24 +348,48 @@ def _render_diagram(scene: Scene, out: Path) -> None:
 
     steps = scene.bullets[:5] or [scene.algorithm or "Bước"]
     n = len(steps)
-    box_w, box_h, gap = 560, 120, 56
-    total_h = n * box_h + (n - 1) * gap
-    y = max((H - total_h) // 2 + 40, 220)
+    box_w, gap = 640, 52
     cx = W // 2
     node_font = _font(36, bold=False)
+    wrap_chars = 30
+    line_spacing = 8
+    pad_v = 26  # đệm trên/dưới trong box
 
-    for i, step in enumerate(steps):
+    # Tính chiều cao từng box theo số dòng chữ (chữ dài -> box cao hơn)
+    wrapped: list[str] = []
+    box_hs: list[int] = []
+    ascent, descent = node_font.getmetrics()
+    line_h = ascent + descent
+    for step in steps:
+        text = textwrap.fill(step, width=wrap_chars)
+        wrapped.append(text)
+        n_lines = text.count("\n") + 1
+        h = pad_v * 2 + n_lines * line_h + (n_lines - 1) * line_spacing
+        box_hs.append(max(110, h))
+
+    total_h = sum(box_hs) + (n - 1) * gap
+    y = max((H - total_h) // 2 + 30, 200)
+
+    for i, (step, box_h) in enumerate(zip(wrapped, box_hs)):
         r, g, b = _hex(_PALETTE[i % len(_PALETTE)])
         x0 = cx - box_w // 2
+        mid = y + box_h // 2
         draw.rounded_rectangle(
             [x0, y, x0 + box_w, y + box_h], radius=18, outline=(r, g, b), width=4, fill=_PANEL
         )
-        draw.ellipse([x0 + 20, y + box_h // 2 - 24, x0 + 68, y + box_h // 2 + 24], fill=(r, g, b))
+        # badge số thứ tự, căn giữa dọc
+        draw.ellipse([x0 + 22, mid - 24, x0 + 70, mid + 24], fill=(r, g, b))
         num = str(i + 1)
         nw = _text_w(draw, num, _font(34))
-        draw.text((x0 + 44 - nw / 2, y + box_h // 2 - 24), num, font=_font(34), fill="#0d1117")
+        draw.text((x0 + 46 - nw / 2, mid - 22), num, font=_font(34), fill="#0d1117")
+        # chữ căn giữa dọc trong box
         draw.multiline_text(
-            (x0 + 90, y + 22), textwrap.fill(step, width=28), font=node_font, fill=_TEXT, spacing=6
+            (x0 + 96, mid),
+            step,
+            font=node_font,
+            fill=_TEXT,
+            spacing=line_spacing,
+            anchor="lm",
         )
         if i < n - 1:
             ay = y + box_h

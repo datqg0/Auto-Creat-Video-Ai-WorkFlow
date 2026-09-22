@@ -1,13 +1,23 @@
 name: Tạo & upload video tech
 
 on:
-  # Chạy tự động 2 lần/ngày (giờ UTC). 00:00 và 12:00 UTC = 7h và 19h giờ VN.
+  # Chạy tự động 2 lần/ngày (giờ UTC).
+  #  00:00 UTC = 7h VN  -> SÁNG: video dài (long, ngang 16:9)
+  #  12:00 UTC = 19h VN -> TỐI:  video short (dọc 9:16, <60s)
   schedule:
     - cron: "0 0 * * *"
     - cron: "0 12 * * *"
   # Cho phép chạy tay từ tab Actions
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Chế độ video (long = dài 16:9, short = dọc 9:16)"
+        required: false
+        type: choice
+        default: "long"
+        options:
+          - long
+          - short
       no_upload:
         description: "Chỉ render, không upload (true/false)"
         required: false
@@ -21,23 +31,17 @@ concurrency:
 jobs:
   create-video:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Repo public: Actions miễn phí không giới hạn, để trần cao cho video dài/nhiều ảnh
+    timeout-minutes: 360
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cài ffmpeg + system deps cho Manim
+      - name: Cài ffmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            ffmpeg \
-            fonts-dejavu-core \
-            build-essential \
-            python3-dev \
-            pkg-config \
-            libcairo2-dev \
-            libpango1.0-dev
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -58,6 +62,20 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-${{ runner.os }}
 
+      - name: Xác định mode theo giờ chạy
+        id: mode
+        run: |
+          # Chạy tay: dùng input. Chạy theo lịch: 00:00 UTC = long (sáng), 12:00 UTC = short (tối).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ github.event.inputs.mode }}"
+          elif [ "${{ github.event.schedule }}" = "0 12 * * *" ]; then
+            MODE="short"
+          else
+            MODE="long"
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Mode đã chọn: $MODE"
+
       - name: Chạy pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -66,10 +84,11 @@ jobs:
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
         run: |
+          MODE="${{ steps.mode.outputs.mode }}"
           if [ "${{ github.event.inputs.no_upload }}" = "true" ]; then
-            python -m src.pipeline --no-upload
+            python -m src.pipeline --mode "$MODE" --no-upload
           else
-            python -m src.pipeline
+            python -m src.pipeline --mode "$MODE"
           fi
 
       - name: Lưu artifact khi test (không upload)

@@ -24,8 +24,8 @@ _TIMEOUT = 15
 _HEADERS = {"User-Agent": "tech-video-bot/1.0"}
 
 
-def _cache_path(query: str) -> Path:
-    key = hashlib.md5(query.lower().encode("utf-8")).hexdigest()[:16]
+def _cache_path(query: str, index: int = 0) -> Path:
+    key = hashlib.md5(f"{query.lower()}|{index}".encode("utf-8")).hexdigest()[:16]
     return _CACHE / f"{key}.jpg"
 
 
@@ -48,33 +48,32 @@ def _download(url: str, out: Path) -> bool:
         return False
 
 
-def _search_pexels(query: str) -> str | None:
+def _search_pexels(query: str, count: int = 8) -> list[str]:
     key = env("PEXELS_API_KEY")
     if not key:
-        return None
+        return []
     try:
         r = requests.get(
             "https://api.pexels.com/v1/search",
-            params={"query": query, "per_page": 5, "orientation": "landscape"},
+            params={"query": query, "per_page": count, "orientation": "landscape"},
             headers={"Authorization": key},
             timeout=_TIMEOUT,
         )
         r.raise_for_status()
         photos = r.json().get("photos", [])
-        if photos:
-            return photos[0]["src"]["large2x"]
+        return [p["src"]["large2x"] for p in photos if p.get("src")]
     except Exception as e:  # noqa: BLE001
         log.debug("Pexels lỗi: %s", e)
-    return None
+    return []
 
 
-def _search_openverse(query: str) -> str | None:
+def _search_openverse(query: str, count: int = 8) -> list[str]:
     try:
         r = requests.get(
             "https://api.openverse.org/v1/images/",
             params={
                 "q": query,
-                "page_size": 5,
+                "page_size": count,
                 "license_type": "all",
                 "aspect_ratio": "wide",
                 "mature": "false",
@@ -84,30 +83,33 @@ def _search_openverse(query: str) -> str | None:
         )
         r.raise_for_status()
         results = r.json().get("results", [])
-        for item in results:
-            url = item.get("url")
-            if url:
-                return url
+        return [it["url"] for it in results if it.get("url")]
     except Exception as e:  # noqa: BLE001
         log.debug("Openverse lỗi: %s", e)
-    return None
+    return []
 
 
-def fetch_image(query: str) -> Path | None:
-    """Trả về đường dẫn ảnh cho từ khóa, hoặc None nếu không tìm được."""
+def fetch_image(query: str, index: int = 0) -> Path | None:
+    """Trả về ảnh thứ ``index`` cho từ khóa (cho phép nhiều ảnh khác nhau/1 từ khóa).
+
+    index=0 lấy ảnh đầu, index=1 ảnh thứ 2... để scene khác nhau có hình khác nhau.
+    """
     query = (query or "").strip()
     if not query:
         return None
 
-    cached = _cache_path(query)
+    cached = _cache_path(query, index)
     if cached.exists():
         return cached
 
     for search in (_search_pexels, _search_openverse):
-        url = search(query)
-        if url and _download(url, cached):
-            log.info("Ảnh minh họa '%s' -> %s", query, cached.name)
+        urls = search(query)
+        if not urls:
+            continue
+        url = urls[index] if index < len(urls) else urls[index % len(urls)]
+        if _download(url, cached):
+            log.info("Ảnh '%s' #%d -> %s", query, index, cached.name)
             return cached
 
-    log.info("Không tìm được ảnh cho '%s', dùng nền gradient", query)
+    log.info("Không tìm được ảnh cho '%s' #%d, dùng nền gradient", query, index)
     return None

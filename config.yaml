@@ -6,8 +6,22 @@ videos_per_run: 1
 # Ngôn ngữ nội dung: vi | en
 language: vi
 
-# Độ dài video mục tiêu (giây). ~300 = 5 phút
+# Độ dài video mục tiêu (giây). ~300 = 5 phút (bị mode ghi đè khi chạy)
 target_duration_seconds: 300
+
+# ---- Chế độ video theo buổi ----
+# Sáng làm video dài (ngang 16:9), tối làm short (dọc 9:16, dưới 60s).
+# pipeline chọn mode qua --mode; nếu không có thì dùng default_mode.
+default_mode: long
+modes:
+  long:
+    target_duration_seconds: 300
+    width: 1920
+    height: 1080
+  short:
+    target_duration_seconds: 55
+    width: 1080
+    height: 1920
 
 # ---- LLM ----
 llm:
@@ -38,12 +52,12 @@ tts:
     # Đường dẫn model VieNeu-TTS (cài trong workflow)
     voice: default
   elevenlabs:
-    voice_id: "21m00Tcm4TlvDq8ikWAM"  # Rachel (đổi nếu muốn)
+    voice_id: "pNInz6obpgDQGcFmaJgB"  # Adam (giọng nam). Nữ Rachel: 21m00Tcm4TlvDq8ikWAM
     model: eleven_multilingual_v2
   edge:
-    # Giọng tiếng Việt tự nhiên của Edge
-    voice_vi: "vi-VN-HoaiMyNeural"
-    voice_en: "en-US-AriaNeural"
+    # Giọng NAM tiếng Việt của Edge (NamMinh). Nữ: vi-VN-HoaiMyNeural
+    voice_vi: "vi-VN-NamMinhNeural"
+    voice_en: "en-US-GuyNeural"
 
 # ---- Visual ----
 visual:

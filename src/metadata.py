@@ -15,14 +15,26 @@ log = logging.getLogger(__name__)
 
 def build_metadata(script: Script) -> dict:
     yt = CONFIG["youtube"]
-    tags = list(dict.fromkeys([*script.tags, *yt.get("default_tags", [])]))[:15]
+    is_short = CONFIG.get("active_mode") == "short"
+
+    tags = list(dict.fromkeys([*script.tags, *yt.get("default_tags", [])]))
+    if is_short and "shorts" not in [t.lower() for t in tags]:
+        tags.insert(0, "shorts")
+    tags = tags[:15]
+
+    # YouTube nhận diện Short qua #Shorts trong tiêu đề/mô tả (kèm khung hình dọc <60s)
+    title = script.title[:100]
+    if is_short and "#shorts" not in title.lower():
+        title = (title[:90] + " #Shorts")[:100]
 
     description = script.description.strip()
+    if is_short and "#shorts" not in description.lower():
+        description = "#Shorts\n\n" + description
     description += "\n\n" + "\n".join(f"#{t.replace(' ', '')}" for t in tags[:5])
     description += "\n\nVideo được tạo tự động bằng visualization engine."
 
     return {
-        "title": script.title[:100],
+        "title": title,
         "description": description[:4900],
         "tags": tags,
         "categoryId": str(yt.get("category_id", "28")),
