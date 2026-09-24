@@ -18,12 +18,13 @@ class LLMError(RuntimeError):
     pass
 
 
-# Timeout mặc định cho MỘT request (giây). Provider proxy hay treo (Cloudflare 524)
-# nên phải chặn cứng để fail nhanh rồi fallback thay vì đợi 120s×N của SDK.
-_DEFAULT_TIMEOUT = 60
+# Timeout mặc định cho MỘT request. None = không giới hạn (để Opus sinh kịch bản
+# dài bao lâu cũng được, giống bản gốc). Có thể override qua provider['timeout'].
+_DEFAULT_TIMEOUT: float | None = None
 # Giới hạn thời gian tối đa chịu chờ khi 429 báo retry_delay; dài hơn thì bỏ qua
-# provider để chuyển sang cái kế cho nhanh.
-_MAX_RETRY_WAIT = 20.0
+# provider để chuyển sang cái kế cho nhanh. Gemini free-tier thường báo ~20-40s,
+# nên để đủ rộng để chờ hết cửa sổ rate-limit thay vì bỏ luôn provider cuối.
+_MAX_RETRY_WAIT = 65.0
 
 
 def _retry_after(e: Exception) -> float | None:
@@ -62,11 +63,12 @@ def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -
         raise LLMError("Thiếu GEMINI_API_KEY")
     genai.configure(api_key=api_key)
     gm = genai.GenerativeModel(provider["model"], system_instruction=system or None)
-    timeout = float(provider.get("timeout", _DEFAULT_TIMEOUT))
+    timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
+    req_opts = {"timeout": float(timeout)} if timeout is not None else {}
     resp = gm.generate_content(
         prompt,
         generation_config={"temperature": temperature},
-        request_options={"timeout": timeout},
+        request_options=req_opts,
     )
     text = (resp.text or "").strip()
     if not text:
@@ -82,12 +84,12 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
         raise LLMError("Thiếu ANTHROPIC_API_KEY")
     kwargs: dict = {
         "api_key": api_key,
-        # Chặn cứng timeout để 524 fail nhanh thay vì treo tới read-timeout của proxy.
-        "timeout": float(provider.get("timeout", _DEFAULT_TIMEOUT)),
-        # Tắt retry nội bộ của SDK (mặc định 2 lần, mỗi lần backoff ~ tới 120s).
-        # generate() bên dưới tự quản lý retry/fallback nên không cần SDK nhân đôi.
+        # Tắt retry nội bộ của SDK; generate() tự quản lý retry/fallback.
         "max_retries": 0,
     }
+    timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
+    if timeout is not None:
+        kwargs["timeout"] = float(timeout)
     if provider.get("base_url"):
         kwargs["base_url"] = provider["base_url"]
     client = Anthropic(**kwargs)
@@ -126,7 +128,7 @@ def generate(prompt: str, system: str = "") -> str:
 
     llm_cfg = CONFIG["llm"]
     temperature = float(llm_cfg.get("temperature", 0.9))
-    retries = int(llm_cfg.get("max_retries", 2))
+    default_retries = int(llm_cfg.get("max_retries", 2))
 
     last_err: Exception | None = None
     for provider in llm_cfg["providers"]:
@@ -135,6 +137,8 @@ def generate(prompt: str, system: str = "") -> str:
         if not fn:
             log.warning("Provider không hỗ trợ: %s", name)
             continue
+        # Số lần thử của riêng provider (vd Opus 3 lần) rồi mới fallback.
+        retries = int(provider.get("retries", default_retries))
         for attempt in range(1, retries + 1):
             try:
                 log.info("LLM %s (%s) attempt %d", name, provider["model"], attempt)

@@ -35,6 +35,8 @@ llm:
       max_output_tokens: 16000
       # provider này không nhận tham số temperature
       supports_temperature: false
+      # thử lại Opus 3 lần trước khi fallback sang gemini
+      retries: 3
     - name: gemini
       model: gemini-flash-latest
       # API key đọc từ env GEMINI_API_KEY
