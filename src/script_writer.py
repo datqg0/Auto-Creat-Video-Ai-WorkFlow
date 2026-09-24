@@ -17,6 +17,16 @@ _SYSTEM = (
 )
 
 
+def _as_question(title: str) -> str:
+    """Đảm bảo tiêu đề ở dạng câu hỏi (kết thúc bằng '?')."""
+    t = (title or "").strip().rstrip(".!…")
+    if not t:
+        return t
+    if t.endswith("?"):
+        return t
+    return t + "?"
+
+
 def _build_prompt(topic: str) -> str:
     lang = CONFIG.get("language", "vi")
     lang_name = "tiếng Việt" if lang == "vi" else "English"
@@ -74,11 +84,34 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
   * sắp xếp: {{"preset": "sorting", "data": [5,2,8,1,9,3]}}
   * con số đếm lên: {{"preset": "counter", "to_value": 1000000, "unit": "người dùng"}}
   * quy trình từng bước: {{"preset": "steps", "steps": ["Bước 1", "Bước 2", "Bước 3"]}}
+  * TỰ THIẾT KẾ animation riêng (giống 3Blue1Brown, ƯU TIÊN DÙNG để minh họa
+    phong phú hơn): {{"preset": "custom", "objects": [...], "timeline": [...]}}
+    - "objects": danh sách phần tử, mỗi phần tử có "id" (duy nhất) + "type":
+      · text  : {{"id":"t1","type":"text","text":"E=mc^2","x":"0.5W","y":160,"size":72,"color":"accent","bold":true,"anchor":"mm"}}
+      · axes  : {{"id":"ax","type":"axes","x0":"0.14W","y0":320,"x1":"0.86W","y1":"0.85H","x_range":[-6.28,6.28],"y_range":[-1.4,1.4]}}
+      · graph : {{"id":"g","type":"graph","axes":"ax","expr":"sin(x)","color":"c1"}}  (expr chỉ dùng x, sin,cos,tan,exp,log,sqrt,abs,tanh, +-*/^, pi,e)
+      · rect  : {{"id":"b","type":"rect","x0":"0.3W","y0":500,"x1":"0.7W","y1":620,"fill":"panel","outline":"accent","radius":16}}
+      · circle: {{"id":"c","type":"circle","x":"0.5W","y":"0.5H","radius":80,"outline":"accent"}}
+      · line/arrow: {{"id":"ar","type":"arrow","x1":"0.5W","y1":640,"x2":"0.5W","y2":760,"color":"muted"}}
+      · dot   : {{"id":"d","type":"dot","x":"0.5W","y":"0.5H","radius":12,"color":"c3"}}
+      · neural_net: {{"id":"nn","type":"neural_net","layers":[3,5,4,2],"x0":"0.2W","y0":320,"x1":"0.8W","y1":"0.85H"}}
+      · bar_chart: {{"id":"bc","type":"bar_chart","values":[3,7,5],"labels":["A","B","C"],"x0":"0.16W","y0":340,"x1":"0.84W","y1":"0.85H"}}
+    - Toạ độ: số px (khung 1920x1080), hoặc chuỗi "0.5W"/"0.85H" (phần trăm khung).
+    - Màu: hex "#3fb950", tên theme (accent/text/muted/panel/grid), hoặc "c0".."c6".
+    - "timeline": danh sách bước, mỗi bước LÀ MỘT trong:
+      · {{"play": [{{"anim":"write","target":"t1","run_time":1.0}}, ...]}}  (chạy song song các anim trong list)
+      · {{"wait": 0.5}}
+      anim hợp lệ: "fade_in"(shift), "fade_out", "write"(chữ), "draw"(line/arrow/graph/bar_chart),
+      "grow", "move"(dx,dy), "count_up"(from,to,fmt), "pulse"(amount,cycles), "signal"(neural_net).
+    - Hãy sáng tạo: kết hợp nhiều phần tử + bước để "kể" ý tưởng bằng chuyển động,
+      ví dụ vẽ trục -> kéo đồ thị -> chạy điểm -> nhấn mạnh công thức.
 
 QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animation, không được nhàm):
 - Đa dạng visual_type: dùng ÍT NHẤT 5 loại khác nhau, KHÔNG để 2 scene bullets liên tiếp.
 - BẮT BUỘC có TỐI THIỂU 3-5 scene "animation" rải đều trong video (hàm số, mạng neural,
   số liệu, thuật toán, quy trình) để video sinh động như 3Blue1Brown.
+- NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để
+  minh họa đúng ý tưởng cốt lõi của video một cách độc đáo, sinh động.
 - MỌI scene (trừ code) đều PHẢI có "image_query": 2-5 từ khóa TIẾNG ANH mô tả ảnh minh họa nền
   cụ thể, sinh động (ví dụ "neural network brain glowing", "data center servers blue",
   "encryption padlock circuit", "quantum computer chip"). Không để trống.
@@ -91,7 +124,7 @@ QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animati
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{
-  "title": "tiêu đề video hấp dẫn, có yếu tố tò mò, dưới 70 ký tự",
+  "title": "tiêu đề là MỘT CÂU HỎI mà video sẽ trả lời (kết thúc bằng dấu ?), gây tò mò, dưới 70 ký tự",
   "description": "mô tả 3-4 câu cho YouTube, có hashtag ở cuối",
   "tags": ["tag1", "tag2", "..."],
   "scenes": [
@@ -123,6 +156,9 @@ gắn với ứng dụng đời thực (con số, tình huống công việc/cu�
 kèm "hint" ngắn và "answer" gợi hướng làm. KHÔNG hỏi lý thuyết suông.
 
 Lưu ý:
+- "title" BẮT BUỘC là MỘT CÂU HỎI (kết thúc bằng "?") mà nội dung video sẽ giải đáp;
+  ưu tiên dạng "Tại sao...?", "Làm thế nào...?", "Điều gì xảy ra khi...?", "Có thật là...?".
+  Scene HOOK mở đầu phải đặt lại đúng câu hỏi này, và scene TỔNG KẾT phải trả lời rõ nó.
 - narration phải liền mạch, kể chuyện, KHÔNG đọc gạch đầu dòng, KHÔNG quá ngắn.
 - Scene đầu là HOOK (visual_type "title"), scene gần cuối là TỔNG KẾT ("quote"),
   scene cuối cùng là MỞ SANG VIDEO TIẾP THEO (gợi mở + call-to-action đăng ký).
@@ -160,7 +196,7 @@ Yêu cầu hình ảnh cho Short (khung DỌC hẹp, tránh tràn chữ):
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{
-  "title": "tiêu đề Short giật tít, có emoji hoặc con số, dưới 60 ký tự",
+  "title": "tiêu đề là MỘT CÂU HỎI giật tít mà Short sẽ trả lời (kết thúc bằng ?), dưới 60 ký tự",
   "description": "1-2 câu + hashtag (#Shorts và 3-4 hashtag chủ đề) ở cuối",
   "tags": ["shorts", "tag2", "..."],
   "scenes": [
@@ -190,6 +226,8 @@ BÀI TOÁN THỰC TẾ (BẮT BUỘC): tạo mảng "exercises" gồm 3-4 bài t
 ngắn gọn liên quan chủ đề, đặt ở cuối. Mỗi bài cụ thể, gắn ứng dụng đời thực.
 
 Lưu ý:
+- "title" BẮT BUỘC là MỘT CÂU HỎI (kết thúc bằng "?") mà Short sẽ giải đáp.
+  Scene HOOK phải đặt lại đúng câu hỏi này, và điểm chốt phải trả lời rõ nó.
 - Scene đầu = HOOK, scene cuối = CALL-TO-ACTION.
 - Tổng lời đọc phải NGẮN để lọt dưới {duration} giây. Ưu tiên súc tích hơn đầy đủ.
 - Chỉ trả JSON, không markdown, không ```."""
@@ -233,7 +271,7 @@ def write_script(topic: str) -> Script:
 
     script = Script(
         topic=topic,
-        title=data.get("title", topic)[:100],
+        title=_as_question(data.get("title", topic))[:100],
         description=data.get("description", ""),
         tags=data.get("tags", []),
         scenes=scenes,

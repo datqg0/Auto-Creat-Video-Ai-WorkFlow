@@ -567,7 +567,15 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
         asc, desc = caption_font.getmetrics()
         line_h = asc + desc + 16
         total = len(lines) * line_h
-        y = H - bot_h + (bot_h - total) // 2 + 30
+        # Phụ đề burn-in nằm ở ĐÁY màn hình (ffmpeg subtitles, FontSize=22,
+        # BorderStyle=3). Dành riêng ~18% chiều cao đáy cho phụ đề và ĐẶT
+        # caption NẰM TRÊN vùng đó -> chữ overlay luôn ở trên phụ đề, không
+        # còn chồng lên nhau dù phụ đề xuất hiện giữa scene.
+        sub_reserve = int(H * 0.18)
+        bottom_limit = H - sub_reserve
+        y = bottom_limit - total
+        # Tránh đè lên heading ở góc trên khi caption quá dài.
+        y = max(y, top_h + 20)
         for line in lines:
             draw.text((margin, y), line, font=caption_font, fill=_TEXT)
             y += line_h
