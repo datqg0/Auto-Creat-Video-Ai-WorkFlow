@@ -556,25 +556,21 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
         for i, line in enumerate(_wrap_lines(draw, heading, hfont, W - 2 * margin - 40)[:3]):
             draw.text((margin + 34, margin + i * 90), line, font=hfont, fill=_TEXT)
 
-    caption_font = _font(52 if not is_vertical else 60, bold=False)
+    # Chỉ vẽ caption khi có bullets (ý chính); narration đã hiện ở phụ đề burn-in
+    # nên KHÔNG vẽ lại để tránh trùng/chồng chữ.
     if scene.bullets:
+        caption_font = _font(52 if not is_vertical else 60, bold=False)
         lines: list[str] = []
         for b in scene.bullets[:4]:
             lines.extend(_wrap_lines(draw, "• " + b, caption_font, W - 2 * margin))
-    else:
-        text = scene.narration.strip()
-        if len(text) > 160:
-            text = text[:157] + "..."
-        lines = _wrap_lines(draw, text, caption_font, W - 2 * margin)
-
-    lines = lines[:6]
-    asc, desc = caption_font.getmetrics()
-    line_h = asc + desc + 16
-    total = len(lines) * line_h
-    y = H - bot_h + (bot_h - total) // 2 + 30
-    for line in lines:
-        draw.text((margin, y), line, font=caption_font, fill=_TEXT)
-        y += line_h
+        lines = lines[:6]
+        asc, desc = caption_font.getmetrics()
+        line_h = asc + desc + 16
+        total = len(lines) * line_h
+        y = H - bot_h + (bot_h - total) // 2 + 30
+        for line in lines:
+            draw.text((margin, y), line, font=caption_font, fill=_TEXT)
+            y += line_h
 
     img.save(out_path)
     return out_path

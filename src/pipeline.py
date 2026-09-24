@@ -154,7 +154,18 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
         anim_scenes, broll_videos, scene_overlays,
     )
 
-    thumb_path = make_thumbnail(script, workdir / "thumbnail.png")
+    thumb_path = workdir / "thumbnail.png"
+    made = None
+    if CONFIG.get("thumbnail", {}).get("ai_enabled"):
+        try:
+            from .thumbnail_ai import make_ai_thumbnail
+            made = make_ai_thumbnail(script, thumb_path)
+        except Exception as e:  # noqa: BLE001 - lỗi bất kỳ -> fallback
+            log.warning("Thumbnail AI thất bại (%s) -> dùng thumbnail thường", e)
+    if made is None:
+        thumb_path = make_thumbnail(script, thumb_path)
+    else:
+        thumb_path = made
     return video_path, thumb_path
 
 

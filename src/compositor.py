@@ -170,26 +170,44 @@ def compose(
                 log.warning("Ghép b-roll lỗi, dùng ảnh tĩnh: %s", e)
         clips.append(_scene_clip(img, aud))
 
-    # Chuyển cảnh crossfade nhẹ giữa các scene
+    # Mốc bắt đầu audio của từng scene (tuần tự) - dùng cho cả video lẫn whoosh.
+    starts: list[float] = []
+    t = 0.0
+    for c in clips:
+        starts.append(t)
+        t += c.duration
+    total = t
+
     if _XFADE > 0 and len(clips) > 1:
-        faded = [clips[0]]
-        for c in clips[1:]:
-            faded.append(crossfadein(c, _XFADE))
-        video = concatenate_videoclips(faded, method="compose", padding=-_XFADE)
+        # Audio GIỮ tuần tự (đúng thời lượng) để tránh "giọng đi trước hình".
+        # Video crossfade kiểu "hình dẫn": mỗi cảnh hiện đủ NGAY KHI lời bắt đầu
+        # (fade hoàn tất tại mốc starts[i], nơi narration scene i mới cất lời).
+        seq_audio = [set_start(c.audio, starts[i]) for i, c in enumerate(clips)]
+        video_layers = []
+        for i, c in enumerate(clips):
+            v = without_audio(c)
+            try:
+                v = set_duration(v, c.duration + _XFADE)  # phần đuôi để chồng dissolve
+            except Exception:  # noqa: BLE001 - clip không kéo dài được -> giữ nguyên
+                pass
+            if i == 0:
+                video_layers.append(set_start(v, 0.0))
+            else:
+                video_layers.append(set_start(crossfadein(v, _XFADE), max(starts[i] - _XFADE, 0.0)))
+        video = set_duration(CompositeVideoClip(video_layers, size=(W, H)), total)
+        video = set_audio(video, CompositeAudioClip(seq_audio))
     else:
         video = concatenate_videoclips(clips, method="compose")
 
     audio_layers = [video.audio]
 
-    # Hiệu ứng whoosh tại mỗi điểm chuyển cảnh
+    # Hiệu ứng whoosh tại mỗi ranh giới scene (đồng bộ với lời)
     whoosh_path = _whoosh()
     if whoosh_path and len(clips) > 1:
         vol = float(CONFIG.get("sfx", {}).get("volume", 0.3))
-        t = 0.0
-        for c in clips[:-1]:
-            t += c.duration - _XFADE
+        for st in starts[1:]:
             try:
-                sfx = set_start(volumex(AudioFileClip(str(whoosh_path)), vol), max(t, 0))
+                sfx = set_start(volumex(AudioFileClip(str(whoosh_path)), vol), max(st - _XFADE, 0))
                 audio_layers.append(sfx)
             except Exception:  # noqa: BLE001
                 break

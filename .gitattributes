@@ -1,0 +1,6 @@
+# DB nhị phân: KHÔNG được convert CRLF (autocrlf làm hỏng file SQLite)
+output/state.db binary
+*.db binary
+
+# Lịch sử topic: text, luôn dùng LF để git merge nối dòng sạch, không lệ thuộc OS
+output/topics_history.txt text eol=lf

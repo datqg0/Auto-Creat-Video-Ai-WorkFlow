@@ -37,6 +37,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Đồng bộ lịch sử mới nhất
+        run: git pull --rebase --autostash origin main || echo "không pull được (bỏ qua)"
 
       - name: Cài ffmpeg
         run: |
@@ -106,6 +111,7 @@ jobs:
         run: |
           git config user.name "video-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f output/state.db || true
+          git add -f output/state.db output/topics_history.txt || true
           git commit -m "chore: cập nhật lịch sử video [skip ci]" || echo "Không có thay đổi"
+          git pull --rebase --autostash origin main || true
           git push || echo "Không push được (bỏ qua)"

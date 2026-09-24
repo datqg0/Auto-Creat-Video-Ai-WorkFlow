@@ -14,7 +14,8 @@ media/
 *.log
 .DS_Store
 
-# Bỏ toàn bộ output trừ file DB lịch sử (cần track để chống trùng chủ đề)
+# Bỏ toàn bộ output trừ lịch sử chống trùng chủ đề (cần track qua git)
 output/*
 !output/state.db
+!output/topics_history.txt
 

@@ -87,6 +87,17 @@ videos:
   enabled: true
   max_per_video: 6        # số scene tối đa dùng b-roll trong 1 video
 
+# ---- Thumbnail AI (phong cách Kurzgesagt) ----
+thumbnail:
+  # Sinh NỀN bằng AI + overlay tiêu đề tiếng Việt bằng PIL (font BeVietnamPro-Bold).
+  ai_enabled: true
+  # Nguồn chính: HuggingFace FLUX.1-schnell (đẹp, không logo, free-tier). Cần HF_TOKEN.
+  hf_model: "black-forest-labs/FLUX.1-schnell"
+  pollinations_fallback: true       # HF lỗi/cold -> Pollinations Flux (không cần key)
+  gemini_fallback: false            # bật nếu bạn đã mở billing cho Gemini image
+  model: "gemini-2.5-flash-image"   # chỉ dùng khi gemini_fallback: true
+  style: kurzgesagt
+
 # ---- Subtitles ----
 subtitles:
   enabled: true
