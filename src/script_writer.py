@@ -58,6 +58,13 @@ Ngôn ngữ: {lang_name}. Đây là yêu cầu độ dài BẮT BUỘC:
 - Chia thành {n_scenes_min}-{n_scenes_max} scene, phủ ĐỦ 10 bước cấu trúc bên dưới.
 - Mỗi scene narration 3-6 câu (khoảng 60-110 từ), KHÔNG viết narration 1 câu cụt.
 
+HOOK 5 GIÂY ĐẦU (QUYẾT ĐỊNH GIỮ CHÂN NGƯỜI XEM — cực kỳ quan trọng):
+- Câu ĐẦU TIÊN của narration scene 1 phải là một cú móc mạnh: một con số gây sốc, một
+  nghịch lý, một câu hỏi khiến người xem KHÔNG THỂ lướt qua ("Bạn có biết...?",
+  "Điều gì xảy ra nếu...?", một tuyên bố phản trực giác).
+- TUYỆT ĐỐI không mở đầu bằng "Xin chào", "Trong video này", "Hôm nay chúng ta" hay
+  giới thiệu lê thê. Vào thẳng cú móc trong 1-2 câu đầu, hứa hẹn giá trị người xem sẽ nhận.
+
 CẤU TRÚC BẮT BUỘC (theo flow video giáo dục kiểu 3Blue1Brown, đi theo ĐÚNG thứ tự này,
 mỗi bước là một hoặc vài scene liền mạch):
 1. HOOK — câu hỏi/tình huống gây tò mò trong 10 giây đầu, khiến người xem muốn biết đáp án.
@@ -115,7 +122,7 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
       "camera"(zoom/pan toàn cảnh: {{"anim":"camera","zoom":1.8,"cx":"0.5W","cy":"0.4H","run_time":1.2}} — KHÔNG cần target),
       "transform"/"morph"(biến hình A->B: {{"anim":"transform","target":"c","to":"b","run_time":1.0}} — cần "to" là id đích),
       "move_along"(chạy 1 dot dọc theo graph/parametric: {{"anim":"move_along","target":"d","path":"p","trace":true,"run_time":2.0}} — "path" là id graph/parametric, "trace":true vẽ dần nét ngay dưới điểm chạy),
-      "vmorph"(biến hình THỬeC theo đỉnh: {{"anim":"vmorph","target":"pg","from":"c","to":"b","run_time":1.5}} — "target" phải là polygon, "from"/"to" là id circle/rect/polygon; mượt hơn "transform").
+      "vmorph"(biến hình THỰC theo đỉnh: {{"anim":"vmorph","target":"pg","from":"c","to":"b","run_time":1.5}} — "target" phải là polygon, "from"/"to" là id circle/rect/polygon; mượt hơn "transform").
     - Hãy sáng tạo: kết hợp nhiều phần tử + bước để "kể" ý tưởng bằng chuyển động,
       ví dụ vẽ trục -> kéo đồ thị (glow) -> cho dot chạy dọc đường cong -> zoom camera vào -> nhấn mạnh công thức LaTeX.
   * TỰ VIẾT CODE Python (matplotlib) để vẽ animation phức tạp mà preset/custom chưa làm được:
@@ -287,8 +294,12 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
-def write_script(topic: str) -> Script:
-    raw = generate(_build_prompt(topic), system=_SYSTEM)
+def _count_words(scenes: list[Scene]) -> int:
+    """Đếm tổng số từ lời đọc (narration) để kiểm tra kịch bản đủ dài chưa."""
+    return sum(len((s.narration or "").split()) for s in scenes)
+
+
+def _parse_script(topic: str, raw: str) -> Script:
     data = _extract_json(raw)
 
     scenes: list[Scene] = []
@@ -312,7 +323,7 @@ def write_script(topic: str) -> Script:
         except Exception as e:  # noqa: BLE001 - bỏ qua bài lỗi
             log.warning("Bỏ qua bài toán lỗi: %s", e)
 
-    script = Script(
+    return Script(
         topic=topic,
         title=_title_case(_as_question(data.get("title", topic)))[:100],
         description=data.get("description", ""),
@@ -320,8 +331,31 @@ def write_script(topic: str) -> Script:
         scenes=scenes,
         exercises=exercises,
     )
+
+
+def write_script(topic: str) -> Script:
+    duration = int(CONFIG.get("target_duration_seconds", 300))
+    mode = CONFIG.get("active_mode", "long")
+    approx_words = int(duration / 60 * 155)
+    # Ngưỡng tối thiểu: long cần ~75% mục tiêu; short vốn ngắn nên không ép dài.
+    min_words = int(approx_words * 0.75) if mode != "short" else 0
+    min_scenes = max((duration // 60) * 2, 8) if mode != "short" else 3
+
+    script: Script | None = None
+    for attempt in range(2):  # thử tối đa 2 lần nếu kịch bản quá ngắn/thiếu scene
+        raw = generate(_build_prompt(topic), system=_SYSTEM)
+        script = _parse_script(topic, raw)
+        words = _count_words(script.scenes)
+        if words >= min_words and len(script.scenes) >= min_scenes:
+            break
+        log.warning(
+            "Kịch bản lần %d chưa đạt (%d từ / %d scene, cần >=%d từ, >=%d scene), thử lại.",
+            attempt + 1, words, len(script.scenes), min_words, min_scenes,
+        )
+
+    assert script is not None
     log.info(
-        "Kịch bản '%s' có %d scene, %d bài toán thực tế",
-        script.title, len(scenes), len(exercises),
+        "Kịch bản '%s' có %d scene, %d bài toán thực tế, %d từ lời đọc",
+        script.title, len(script.scenes), len(script.exercises), _count_words(script.scenes),
     )
     return script

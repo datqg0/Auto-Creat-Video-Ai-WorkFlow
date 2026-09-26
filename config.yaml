@@ -155,7 +155,9 @@ animation:
   # Nếu manim chưa cài / render lỗi -> tự fallback về pycode (matplotlib) rồi custom spec.
   manim_enabled: true
   # Chất lượng render manim: low_quality|medium_quality|high_quality|production_quality
-  manim_quality: "medium_quality"
+  manim_quality: "high_quality"
+  # FPS riêng cho manim (60 cho animation mượt kiểu 3Blue1Brown).
+  manim_fps: 60
   # Timeout cứng cho 1 lần render manim (giây); vượt -> bỏ, fallback.
   # Repo public nên CI không giới hạn phút -> để rộng 10 phút cho scene phức tạp.
   manim_timeout: 600

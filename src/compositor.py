@@ -241,16 +241,9 @@ def compose(
             except Exception:  # noqa: BLE001
                 break
 
-    # Nhạc nền
-    music_path = _pick_music()
-    if music_path:
-        vol = float(CONFIG["music"].get("volume", 0.12))
-        bg = volumex(AudioFileClip(str(music_path)), vol)
-        if bg.duration < video.duration:
-            bg = loop_audio(bg, video.duration)
-        else:
-            bg = bg.subclipped(0, video.duration) if hasattr(bg, "subclipped") else bg.subclip(0, video.duration)
-        audio_layers.append(bg)
+    # Nhạc nền: KHÔNG trộn ở đây nữa. Để pass ffmpeg cuối (_finalize) trộn bằng
+    # sidechaincompress -> nhạc tự động nhỏ lại khi có giọng (ducking thật).
+    music_path = _pick_music() if CONFIG.get("music", {}).get("enabled") else None
 
     if len(audio_layers) > 1:
         video = set_audio(video, CompositeAudioClip(audio_layers))
@@ -262,7 +255,9 @@ def compose(
         audio_codec="aac",
         fps=FPS,
         threads=4,
-        preset="medium",
+        preset="slow",
+        # CRF 18 = gần lossless, hết banding vùng gradient/chữ; yuv420p cho YouTube.
+        ffmpeg_params=["-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart"],
         logger=None,
     )
     for c in clips:
@@ -274,32 +269,55 @@ def compose(
         c.close()
     video.close()
 
-    # Burn phụ đề vào video bằng ffmpeg (nếu bật)
-    if srt_path and CONFIG["subtitles"].get("burn_in") and srt_path.exists():
-        out_path = _burn_subtitles(out_path, srt_path)
-    return out_path
+    # Burn phụ đề + chuẩn hóa âm lượng giọng (loudnorm) + trộn nhạc ducking ở pass cuối.
+    burn = bool(srt_path and CONFIG["subtitles"].get("burn_in") and srt_path.exists())
+    return _finalize(out_path, srt_path if burn else None, music_path)
 
 
-def _burn_subtitles(video_path: Path, srt_path: Path) -> Path:
+def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) -> Path:
+    """Pass ffmpeg cuối: loudnorm giọng (-14 LUFS) + ducking nhạc nền + burn phụ đề."""
     import subprocess
 
-    burned = video_path.with_name(video_path.stem + "_sub.mp4")
-    # escape đường dẫn srt cho filter subtitles
-    srt_arg = str(srt_path).replace("\\", "/").replace(":", "\\:")
-    style = "FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=3"
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(video_path),
-            "-vf",
-            f"subtitles='{srt_arg}':force_style='{style}'",
-            "-c:a",
-            "copy",
-            str(burned),
-        ],
-        check=True,
-        capture_output=True,
-    )
-    return burned
+    out = video_path.with_name(video_path.stem + "_final.mp4")
+    music_vol = float(CONFIG.get("music", {}).get("volume", 0.12))
+
+    cmd = ["ffmpeg", "-y", "-i", str(video_path)]
+    if music_path is not None:
+        cmd += ["-stream_loop", "-1", "-i", str(music_path)]
+
+    # Chuỗi filter audio: chuẩn giọng -> (nếu có nhạc) nhạc bị nén theo giọng rồi amix.
+    if music_path is not None:
+        af = (
+            "[0:a]loudnorm=I=-14:TP=-1.5:LRA=11,asplit=2[voice][vkey];"
+            f"[1:a]volume={music_vol}[bg];"
+            "[bg][vkey]sidechaincompress=threshold=0.03:ratio=8:attack=5:release=350[duck];"
+            "[voice][duck]amix=inputs=2:duration=first:dropout_transition=0,"
+            "loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+        )
+        audio_map = ["-filter_complex", af, "-map", "0:v", "-map", "[aout]"]
+    else:
+        audio_map = ["-af", "loudnorm=I=-14:TP=-1.5:LRA=11"]
+
+    if srt_path is not None:
+        srt_arg = str(srt_path).replace("\\", "/").replace(":", "\\:")
+        # Font Việt đậm, viền đen, nền mờ bán trong suốt, sát đáy (MarginV) dễ đọc mọi nền.
+        style = (
+            "FontName=Be Vietnam Pro,Fontsize=24,Bold=1,"
+            "PrimaryColour=&H00FFFFFF,OutlineColour=&HC8000000,BackColour=&H99000000,"
+            "BorderStyle=4,Outline=2,Shadow=1,MarginV=60,Alignment=2"
+        )
+        # fontsdir để libass nạp font Việt cục bộ (CI không cài sẵn Be Vietnam Pro).
+        fonts_dir = (Path(__file__).resolve().parent.parent / "assets" / "fonts")
+        fdir_arg = str(fonts_dir).replace("\\", "/").replace(":", "\\:")
+        vf = f"subtitles='{srt_arg}':fontsdir='{fdir_arg}':force_style='{style}'"
+        video_enc = ["-vf", vf, "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-pix_fmt", "yuv420p"]
+    else:
+        video_enc = ["-c:v", "copy"]
+
+    cmd += audio_map + video_enc + ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except Exception as e:  # noqa: BLE001 - lỗi pass cuối -> trả video gốc
+        log.warning("Pass finalize (loudnorm/duck/subtitle) lỗi, dùng video gốc: %s", e)
+        return video_path
+    return out

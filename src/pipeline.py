@@ -136,10 +136,10 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
                     duration=dur,
                     width=CONFIG["visual"]["width"],
                     height=CONFIG["visual"]["height"],
-                    fps=CONFIG["visual"]["fps"],
-                    quality=str(anim_cfg.get("manim_quality", "medium_quality")),
+                    fps=int(anim_cfg.get("manim_fps", 60)),
+                    quality=str(anim_cfg.get("manim_quality", "high_quality")),
                     background_color=str(CONFIG["visual"].get("background_color", "#0d1117")),
-                    timeout=int(anim_cfg.get("manim_timeout", 240)),
+                    timeout=int(anim_cfg.get("manim_timeout", 600)),
                 )
             if code_video is None and acfg.get("pycode"):
                 from .ai_code_runner import run_ai_code
@@ -248,7 +248,7 @@ def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
         from .youtube_uploader import upload
         from .metadata import build_metadata
 
-        meta = build_metadata(script)
+        meta = build_metadata(script, durations)
         yt_id = upload(video_path, meta, thumb_path)
         db.update_video(video_id_db, status="uploaded", youtube_id=yt_id)
         log.info("HOÀN TẤT: https://youtu.be/%s", yt_id)
