@@ -96,6 +96,12 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # HF_TOKEN: thumbnail AI qua HuggingFace FLUX (không có -> fallback Pollinations)
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          # VieNeu ONNX dùng external-data; symlink của HF Hub làm .onnx và .data
+          # nằm khác thư mục blob -> ONNXRuntime báo "path escapes". Copy file thật.
+          HF_HUB_DISABLE_SYMLINKS: "1"
           # Ảnh đẹp + footage VIDEO b-roll (không có -> tự fallback ảnh tĩnh/Openverse)
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
