@@ -24,22 +24,94 @@ modes:
     height: 1920
 
 # ---- LLM ----
+# Chuỗi fallback nhiều tầng: thử provider đầu, lỗi thì rớt sang tầng kế.
+#   type          -> bộ gọi: anthropic | gemini | groq | openai
+#   api_key_env   -> tên biến môi trường chứa API key (mặc định theo type)
+#   base_url      -> endpoint; hỗ trợ ${ENV_VAR} để chèn từ môi trường
+#   supports_temperature: false nếu endpoint không nhận 'temperature'
+#   retries       -> số lần thử của riêng provider trước khi fallback
 llm:
-  # Thứ tự ưu tiên: dùng provider đầu tiên, lỗi thì fallback sang cái kế
   providers:
+    # Tier 0 — Anthropic (Opus, chính)
     - name: anthropic
+      type: anthropic
       model: claude-opus-4-8
-      # base_url của provider tương thích Anthropic (bỏ phần /v1/messages, SDK tự thêm)
-      base_url: https://api.justwoker.icu
-      # API key đọc từ env ANTHROPIC_API_KEY
+      base_url: https://api.justwoker.icu   # provider tương thích Anthropic
+      api_key_env: ANTHROPIC_API_KEY
       max_output_tokens: 16000
-      # provider này không nhận tham số temperature
-      supports_temperature: false
-      # thử lại Opus 3 lần trước khi fallback sang gemini
-      retries: 3
+      supports_temperature: false           # provider này không nhận temperature
+      retries: 3                            # thử Opus 3 lần trước khi fallback
+
+    # Tier 1 — Gemini
     - name: gemini
+      type: gemini
       model: gemini-flash-latest
-      # API key đọc từ env GEMINI_API_KEY
+      api_key_env: GEMINI_API_KEY
+
+    # Tier 2 — Groq (gpt-oss)
+    - name: groq
+      type: groq
+      model: openai/gpt-oss-120b            # dự phòng: openai/gpt-oss-20b
+      api_key_env: GROQ_API_KEY
+      max_output_tokens: 8192
+
+    # Tier 3 — OpenRouter (free models, tương thích OpenAI)
+    - name: openrouter
+      type: openai
+      model: meta-llama/llama-3.3-70b-instruct:free
+      base_url: https://openrouter.ai/api/v1
+      api_key_env: OPENROUTER_API_KEY
+      max_output_tokens: 8192
+      headers:
+        HTTP-Referer: https://github.com/datqg0/Auto-Creat-Video-Ai-WorkFlow
+        X-Title: Auto Video AI
+
+    # Tier 3.5 — Z.ai GLM Flash (tương thích Anthropic SDK)
+    - name: zai
+      type: anthropic
+      model: glm-4-flash
+      base_url: https://api.z.ai/api/anthropic
+      api_key_env: ZAI_API_KEY
+      max_output_tokens: 8192
+      supports_temperature: true
+
+    # Tier 4 — Mistral (tương thích OpenAI)
+    - name: mistral
+      type: openai
+      model: mistral-large-latest
+      base_url: https://api.mistral.ai/v1
+      api_key_env: MISTRAL_API_KEY
+      max_output_tokens: 8192
+
+    # Tier 4.5 — NVIDIA NIM (tương thích OpenAI)
+    - name: nvidia
+      type: openai
+      model: meta/llama-3.3-70b-instruct
+      base_url: https://integrate.api.nvidia.com/v1
+      api_key_env: NVIDIA_API_KEY
+      max_output_tokens: 8192
+
+    # Tier 5 — free, không cần thẻ (tương thích OpenAI). Bật cái nào có key.
+    - name: github_models
+      type: openai
+      model: gpt-4o-mini
+      base_url: https://models.inference.ai.azure.com
+      api_key_env: GITHUB_MODELS_TOKEN
+      max_output_tokens: 8192
+    - name: sambanova
+      type: openai
+      model: Meta-Llama-3.3-70B-Instruct
+      base_url: https://api.sambanova.ai/v1
+      api_key_env: SAMBANOVA_API_KEY
+      max_output_tokens: 8192
+    - name: cloudflare
+      type: openai
+      model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      # ${CF_ACCOUNT_ID} được thay từ env lúc chạy
+      base_url: https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/v1
+      api_key_env: CLOUDFLARE_API_TOKEN
+      max_output_tokens: 8192
+
   temperature: 0.9
   max_retries: 2
 

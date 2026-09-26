@@ -192,6 +192,28 @@ class Rect(Drawable):
             alpha=self._a(),
         )
 
+    def get_outline(self, n: int = 64) -> list[tuple[float, float]]:
+        """Đường bao (scene px): n điểm rải đều quanh chu vi, phục vụ morph."""
+        cx, cy = self.bounds_center()
+        x0, y0, x1, y1 = self.box
+        hw = (x1 - x0) / 2 * self.scale
+        hh = (y1 - y0) / 2 * self.scale
+        corners = [
+            (cx - hw, cy - hh),
+            (cx + hw, cy - hh),
+            (cx + hw, cy + hh),
+            (cx - hw, cy + hh),
+        ]
+        per = max(1, n // 4)
+        pts: list[tuple[float, float]] = []
+        for i in range(4):
+            ax, ay = corners[i]
+            bx, by = corners[(i + 1) % 4]
+            for k in range(per):
+                f = k / per
+                pts.append((ax + (bx - ax) * f + self.dx, ay + (by - ay) * f + self.dy))
+        return pts
+
 
 # ---------------------------------------------------------------- Circle
 class Circle(Drawable):
@@ -223,6 +245,17 @@ class Circle(Drawable):
             width=self.width,
             alpha=self._a(),
         )
+
+    def get_outline(self, n: int = 64) -> list[tuple[float, float]]:
+        """Đường bao (scene px): n điểm rải đều quanh vòng tròn, phục vụ morph."""
+        cx = self.center[0] + self.dx
+        cy = self.center[1] + self.dy
+        r = self.radius * self.scale
+        pts: list[tuple[float, float]] = []
+        for k in range(n):
+            ang = 2 * math.pi * k / n
+            pts.append((cx + r * math.cos(ang), cy + r * math.sin(ang)))
+        return pts
 
 
 # ---------------------------------------------------------------- Axes
@@ -290,6 +323,7 @@ class FunctionGraph(Drawable):
         color: Optional[str] = None,
         width: float = 5,
         samples: int = 240,
+        glow: float = 0.0,
     ) -> None:
         super().__init__()
         self.axes = axes
@@ -297,6 +331,7 @@ class FunctionGraph(Drawable):
         self.color = color or THEME.accent
         self.width = width
         self.samples = samples
+        self.glow = glow  # 0..1 hào quang neon quanh nét
         self.reveal: float = 1.0  # 0..1 vẽ dần từ trái sang
 
     def _snapshot_extra(self) -> None:
@@ -307,6 +342,19 @@ class FunctionGraph(Drawable):
 
     def bounds_center(self) -> tuple[float, float]:
         return self.axes.bounds_center()
+
+    def point_at(self, alpha: float) -> Optional[tuple[float, float]]:
+        """Điểm trên đường cong tại tham số alpha∈[0,1] (scene px). None nếu lỗi."""
+        xr0, xr1 = self.axes.x_range
+        x = xr0 + (xr1 - xr0) * max(0.0, min(1.0, alpha))
+        try:
+            y = self.fn(x)
+        except Exception:  # noqa: BLE001
+            return None
+        if not math.isfinite(y):
+            return None
+        px, py = self.axes.to_px(x, y)
+        return (px, py)
 
     def draw(self, canvas: Canvas) -> None:
         xr0, xr1 = self.axes.x_range
@@ -323,7 +371,302 @@ class FunctionGraph(Drawable):
             px, py = self.axes.to_px(x, y)
             pts.append((px + self.dx, py + self.dy))
         if len(pts) >= 2:
-            canvas.polyline(pts, self.color, width=self.width, alpha=self._a())
+            canvas.polyline(
+                pts, self.color, width=self.width, alpha=self._a(), glow=self.glow
+            )
+
+
+# ---------------------------------------------------------------- ParametricCurve
+class ParametricCurve(Drawable):
+    """Đường cong tham số (x(t), y(t)) trên 1 Axes; vẽ dần qua ``reveal``."""
+
+    def __init__(
+        self,
+        axes: "Axes",
+        fx: Callable[[float], float],
+        fy: Callable[[float], float],
+        t_range: tuple[float, float] = (0.0, 6.283185307179586),
+        color: Optional[str] = None,
+        width: float = 5,
+        samples: int = 320,
+        glow: float = 0.0,
+    ) -> None:
+        super().__init__()
+        self.axes = axes
+        self.fx = fx
+        self.fy = fy
+        self.t_range = t_range
+        self.color = color or THEME.accent
+        self.width = width
+        self.samples = samples
+        self.glow = glow
+        self.reveal: float = 1.0
+
+    def _snapshot_extra(self) -> None:
+        self._base_reveal = self.reveal
+
+    def _reset_extra(self) -> None:
+        self.reveal = getattr(self, "_base_reveal", 1.0)
+
+    def bounds_center(self) -> tuple[float, float]:
+        return self.axes.bounds_center()
+
+    def point_at(self, alpha: float) -> Optional[tuple[float, float]]:
+        """Điểm trên đường cong tham số tại alpha∈[0,1] (scene px). None nếu lỗi."""
+        t0, t1 = self.t_range
+        t = t0 + (t1 - t0) * max(0.0, min(1.0, alpha))
+        try:
+            x = self.fx(t)
+            y = self.fy(t)
+        except Exception:  # noqa: BLE001
+            return None
+        if not (math.isfinite(x) and math.isfinite(y)):
+            return None
+        px, py = self.axes.to_px(x, y)
+        return (px, py)
+
+    def draw(self, canvas: Canvas) -> None:
+        t0, t1 = self.t_range
+        n = max(2, int(self.samples * max(0.0, min(1.0, self.reveal))))
+        pts: list[tuple[float, float]] = []
+        for i in range(n):
+            t = t0 + (t1 - t0) * i / (self.samples - 1)
+            try:
+                x = self.fx(t)
+                y = self.fy(t)
+            except Exception:  # noqa: BLE001
+                continue
+            if not (math.isfinite(x) and math.isfinite(y)):
+                continue
+            px, py = self.axes.to_px(x, y)
+            pts.append((px + self.dx, py + self.dy))
+        if len(pts) >= 2:
+            canvas.polyline(
+                pts, self.color, width=self.width, alpha=self._a(), glow=self.glow
+            )
+
+
+# ---------------------------------------------------------------- Polygon
+class Polygon(Drawable):
+    """Đa giác đóng từ danh sách đỉnh (scene px). Hỗ trợ morph qua get_outline.
+
+    ``progress`` (0..1) cho phép vẽ dần đường bao như DrawLine; khi <1 chỉ nối
+    một phần chu vi (không tô fill). ``_live_pts`` nếu được set (bởi MorphShape)
+    sẽ ghi đè hình học tĩnh cho frame đó.
+    """
+
+    def __init__(
+        self,
+        points: Sequence[tuple[float, float]],
+        fill: Optional[str] = None,
+        outline: Optional[str] = None,
+        width: float = 4,
+        glow: float = 0.0,
+    ) -> None:
+        super().__init__()
+        self.points = [(float(x), float(y)) for x, y in points]
+        self.fill = fill
+        self.outline = outline or THEME.accent
+        self.width = width
+        self.glow = glow
+        self.progress: float = 1.0
+        self._live_pts: Optional[list[tuple[float, float]]] = None
+
+    def _snapshot_extra(self) -> None:
+        self._base_progress = self.progress
+
+    def _reset_extra(self) -> None:
+        self.progress = getattr(self, "_base_progress", 1.0)
+        self._live_pts = None
+
+    def bounds_center(self) -> tuple[float, float]:
+        pts = self.points
+        return (
+            sum(p[0] for p in pts) / len(pts),
+            sum(p[1] for p in pts) / len(pts),
+        )
+
+    def get_outline(self, n: int = 64) -> list[tuple[float, float]]:
+        """Rải đều n điểm dọc chu vi đa giác (theo chiều dài cạnh), cho morph."""
+        src = self.points
+        m = len(src)
+        seg = [
+            math.hypot(src[(i + 1) % m][0] - src[i][0], src[(i + 1) % m][1] - src[i][1])
+            for i in range(m)
+        ]
+        total = sum(seg) or 1.0
+        out: list[tuple[float, float]] = []
+        for k in range(n):
+            d = total * k / n
+            acc = 0.0
+            for i in range(m):
+                if acc + seg[i] >= d or i == m - 1:
+                    f = (d - acc) / (seg[i] or 1.0)
+                    ax, ay = src[i]
+                    bx, by = src[(i + 1) % m]
+                    out.append(
+                        (ax + (bx - ax) * f + self.dx, ay + (by - ay) * f + self.dy)
+                    )
+                    break
+                acc += seg[i]
+        return out
+
+    def draw(self, canvas: Canvas) -> None:
+        pts = self._live_pts if self._live_pts is not None else [
+            (x + self.dx, y + self.dy) for x, y in self.points
+        ]
+        if len(pts) < 3:
+            return
+        p = max(0.0, min(1.0, self.progress))
+        if p < 0.999:
+            # vẽ dần đường bao (không tô), nối vòng theo tỉ lệ p
+            loop = pts + [pts[0]]
+            n_edges = len(loop) - 1
+            shown = max(2, int(round(n_edges * p)) + 1)
+            canvas.polyline(
+                loop[:shown], self.outline, width=self.width,
+                alpha=self._a(), glow=self.glow,
+            )
+            return
+        canvas.polygon(
+            pts,
+            fill=self.fill,
+            outline=self.outline,
+            width=self.width,
+            alpha=self._a(),
+            glow=self.glow,
+        )
+
+
+# ---------------------------------------------------------------- Formula
+class Formula(Drawable):
+    """Công thức toán "kiểu LaTeX" render bằng matplotlib mathtext -> ảnh RGBA.
+
+    KHÔNG cần cài LaTeX (mathtext là engine thuần Python của matplotlib). Ảnh
+    được cache theo (text,size,color) và ghép lên canvas ở đúng vị trí + anchor.
+    Hỗ trợ hiệu ứng ``reveal`` (fade như Write) và scale/opacity như Drawable.
+    """
+
+    _CACHE: dict = {}
+
+    def __init__(
+        self,
+        text: str,
+        pos: tuple[float, float],
+        size: int = 60,
+        color: Optional[str] = None,
+        anchor: str = "mm",
+    ) -> None:
+        super().__init__()
+        self.text = text
+        self.pos = pos
+        self.size = size
+        self.color = color or THEME.text
+        self.anchor = anchor
+        self.reveal: float = 1.0
+
+    def _snapshot_extra(self) -> None:
+        self._base_reveal = self.reveal
+
+    def _reset_extra(self) -> None:
+        self.reveal = getattr(self, "_base_reveal", 1.0)
+
+    def bounds_center(self) -> tuple[float, float]:
+        return self.pos
+
+    @classmethod
+    def _render_image(cls, text: str, size: int, color: str, ss: int):
+        key = (text, size, color, ss)
+        img = cls._CACHE.get(key)
+        if img is not None:
+            return img
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from matplotlib.mathtext import MathTextParser  # noqa: F401
+        except Exception:  # noqa: BLE001
+            cls._CACHE[key] = None
+            return None
+        # bọc trong $...$ nếu người dùng chưa bọc
+        s = text.strip()
+        if not (s.startswith("$") and s.endswith("$")):
+            s = f"${s}$"
+        dpi = 200
+        fontsize = max(6, int(size * ss * 72 / dpi))
+        fig = plt.figure(figsize=(0.01, 0.01), dpi=dpi)
+        fig.patch.set_alpha(0.0)
+        try:
+            t = fig.text(0, 0, s, fontsize=fontsize, color=color)
+            fig.canvas.draw()
+            bbox = t.get_window_extent(fig.canvas.get_renderer())
+            w = max(1, int(math.ceil(bbox.width)) + 8)
+            h = max(1, int(math.ceil(bbox.height)) + 8)
+            fig.set_size_inches(w / dpi, h / dpi)
+            t.set_position((4 / w, 4 / h))
+            fig.canvas.draw()
+            buf = fig.canvas.buffer_rgba()
+            rgba = Image.frombuffer(
+                "RGBA", fig.canvas.get_width_height(), bytes(buf), "raw", "RGBA", 0, 1
+            ).copy()
+        except Exception:  # noqa: BLE001
+            plt.close(fig)
+            cls._CACHE[key] = None
+            return None
+        plt.close(fig)
+        cls._CACHE[key] = rgba
+        return rgba
+
+    def draw(self, canvas: Canvas) -> None:
+        ss = canvas.ss
+        img = self._render_image(self.text, int(self.size * self.scale), self.color, ss)
+        if img is None:
+            # fallback: vẽ dạng text thường (bỏ ký hiệu $)
+            canvas.text(
+                (self.pos[0] + self.dx, self.pos[1] + self.dy),
+                self.text.strip("$"),
+                THEME.font_bold,
+                int(self.size * self.scale),
+                self.color,
+                alpha=self._a(),
+                anchor=self.anchor,
+            )
+            return
+        iw, ih = img.size
+        if self.reveal < 1.0:
+            cut = max(1, int(iw * max(0.0, min(1.0, self.reveal))))
+            img = img.crop((0, 0, cut, ih))
+            iw = cut
+        a = self._a()
+        if a < 255:
+            alpha = img.split()[3].point(lambda p: int(p * a / 255))
+            img = img.copy()
+            img.putalpha(alpha)
+        # scale ảnh theo zoom camera để công thức cũng zoom/pan cùng cảnh
+        zoom = getattr(canvas, "cam_zoom", 1.0)
+        if abs(zoom - 1.0) > 1e-3:
+            nw = max(1, int(iw * zoom))
+            nh = max(1, int(ih * zoom))
+            img = img.resize((nw, nh), Image.LANCZOS)
+            iw, ih = nw, nh
+        # anchor -> góc trái-trên (theo hệ pixel supersample, đã áp camera)
+        cx, cy = canvas._px(self.pos[0] + self.dx, self.pos[1] + self.dy)
+        h_a = self.anchor[0] if len(self.anchor) >= 1 else "m"
+        v_a = self.anchor[1] if len(self.anchor) >= 2 else "m"
+        if h_a == "m":
+            left = int(cx - iw / 2)
+        elif h_a == "r":
+            left = int(cx - iw)
+        else:
+            left = int(cx)
+        if v_a == "m":
+            top = int(cy - ih / 2)
+        elif v_a in ("d", "b", "s"):
+            top = int(cy - ih)
+        else:
+            top = int(cy)
+        canvas.paste_rgba(img, (left, top))
 
 
 # ---------------------------------------------------------------- NeuralNet

@@ -30,10 +30,10 @@ tuỳ ý của LLM (không eval/exec). Thay vào đó LLM mô tả cảnh bằng
       ]
     }
 
-Loại đối tượng: text, dot, line, arrow, rect, circle, axes, graph, neural_net,
-bar_chart.
+Loại đối tượng: text, dot, line, arrow, rect, circle, axes, graph, parametric,
+formula, neural_net, bar_chart.
 Loại animation: fade_in, fade_out, write, draw, grow, move, count_up, pulse,
-signal.
+signal, camera (zoom/pan), transform/morph (biến hình A -> B).
 
 Toạ độ: số px tuyệt đối, HOẶC chuỗi dạng "0.5W" / "0.85H" (phần trăm khung).
 Màu: hex "#rrggbb" HOẶC tên theme (accent/text/muted/panel/grid) HOẶC "c0".."c6".
@@ -54,21 +54,28 @@ from .objects import (
     BarChart,
     Circle,
     Dot,
+    Formula,
     FunctionGraph,
     Line,
     NeuralNet,
+    ParametricCurve,
+    Polygon,
     Rect,
     Text,
 )
 from .anims import (
+    CameraMove,
     CountUp,
     DrawLine,
     FadeIn,
     FadeOut,
     GrowFromCenter,
+    MorphShape,
     Move,
+    MoveAlongPath,
     Pulse,
     Signal,
+    Transform,
     Write,
 )
 from .theme import THEME
@@ -204,6 +211,23 @@ def _build_object(spec: dict, safe_fn_maker, objs: dict):
             outline=_color(spec.get("outline"), THEME.accent),
             width=max(1, min(20, _num(spec.get("width", 3), 3))),
         )
+    if typ == "polygon":
+        raw_pts = spec.get("points", [])
+        pts: list[tuple[float, float]] = []
+        if isinstance(raw_pts, (list, tuple)):
+            for p in raw_pts[:64]:
+                if isinstance(p, (list, tuple)) and len(p) >= 2:
+                    pts.append((_coord(p[0], "x"), _coord(p[1], "y")))
+        if len(pts) < 3:
+            log.warning("polygon cần >=3 điểm hợp lệ: %r", raw_pts)
+            return None
+        return Polygon(
+            pts,
+            fill=_color(spec.get("fill"), None),
+            outline=_color(spec.get("outline"), THEME.accent),
+            width=max(1, min(20, _num(spec.get("width", 4), 4))),
+            glow=max(0.0, min(1.0, _num(spec.get("glow", 0.0), 0.0))),
+        )
     if typ == "axes":
         return Axes(
             box=(
@@ -227,6 +251,33 @@ def _build_object(spec: dict, safe_fn_maker, objs: dict):
             fn,
             color=_color(spec.get("color"), THEME.accent),
             width=max(1, min(14, _num(spec.get("width", 5), 5))),
+            glow=max(0.0, min(1.0, _num(spec.get("glow", 0.0), 0.0))),
+        )
+    if typ == "parametric":
+        ax = objs.get(str(spec.get("axes", "")))
+        if not isinstance(ax, Axes):
+            log.warning("parametric thiếu axes hợp lệ: %r", spec.get("axes"))
+            return None
+        # hai biểu thức theo biến t, đi qua evaluator an toàn (không exec)
+        fx = safe_fn_maker(str(spec.get("expr_x", "cos(t)")), var="t")
+        fy = safe_fn_maker(str(spec.get("expr_y", "sin(t)")), var="t")
+        return ParametricCurve(
+            ax,
+            fx,
+            fy,
+            t_range=_range2(spec.get("t_range"), (0.0, 6.283185307179586)),
+            color=_color(spec.get("color"), THEME.accent),
+            width=max(1, min(14, _num(spec.get("width", 5), 5))),
+            samples=int(max(16, min(1200, _num(spec.get("samples", 320), 320)))),
+            glow=max(0.0, min(1.0, _num(spec.get("glow", 0.0), 0.0))),
+        )
+    if typ == "formula":
+        return Formula(
+            str(spec.get("text", "")),
+            (_coord(spec.get("x", "0.5W"), "x"), _coord(spec.get("y", 200), "y")),
+            size=int(max(12, min(240, _num(spec.get("size", 60), 60)))),
+            color=_color(spec.get("color"), THEME.text),
+            anchor=str(spec.get("anchor", "mm")),
         )
     if typ == "neural_net":
         layers = spec.get("layers", [3, 5, 4, 2])
@@ -268,9 +319,58 @@ def _build_object(spec: dict, safe_fn_maker, objs: dict):
 
 
 # tên anim -> hàm dựng Animation(target, **kwargs an toàn)
-def _make_anim(name: str, target, spec: dict):
+def _make_anim(name: str, target, spec: dict, objs: Optional[dict] = None):
     rt = max(0.05, min(_MAX_RUN_TIME, _num(spec.get("run_time", 1.0), 1.0)))
     name = name.strip().lower()
+    if name == "camera":
+        # camera KHÔNG có target: zoom/pan toàn cảnh
+        cx = spec.get("cx")
+        cy = spec.get("cy")
+        return CameraMove(
+            zoom=max(0.1, min(10.0, _num(spec.get("zoom", 1.0), 1.0))),
+            cx=_coord(cx, "x") if cx is not None else None,
+            cy=_coord(cy, "y") if cy is not None else None,
+            run_time=rt,
+        )
+    if name in ("transform", "morph"):
+        dest = None
+        if objs is not None:
+            dest = objs.get(str(spec.get("to", spec.get("dest", ""))))
+        if target is None or dest is None:
+            log.warning("transform thiếu source/dest hợp lệ: %r", spec)
+            return None
+        return Transform(target, dest, run_time=rt)
+    if name in ("move_along", "along_path"):
+        path = None
+        if objs is not None:
+            path = objs.get(str(spec.get("path", "")))
+        if target is None or path is None or not hasattr(path, "point_at"):
+            log.warning("move_along thiếu target/path hợp lệ: %r", spec)
+            return None
+        return MoveAlongPath(
+            target, path, run_time=rt, trace=_bool(spec.get("trace", False), False)
+        )
+    if name in ("vmorph", "morph_shape"):
+        # biến hình thực: target là polygon, source/dest có get_outline()
+        src = dst = None
+        if objs is not None:
+            src = objs.get(str(spec.get("from", spec.get("source", ""))))
+            dst = objs.get(str(spec.get("to", spec.get("dest", ""))))
+        ok = (
+            target is not None
+            and src is not None
+            and dst is not None
+            and hasattr(target, "_live_pts")
+            and hasattr(src, "get_outline")
+            and hasattr(dst, "get_outline")
+        )
+        if not ok:
+            log.warning("vmorph thiếu target(polygon)/from/to hợp lệ: %r", spec)
+            return None
+        return MorphShape(
+            target, src, dst, run_time=rt,
+            n=int(max(12, min(200, _num(spec.get("n", 96), 96)))),
+        )
     if name == "fade_in":
         return FadeIn(target, run_time=rt, shift=_num(spec.get("shift", 0), 0))
     if name == "fade_out":
@@ -377,10 +477,15 @@ def build_custom_scene(
             for ad in raw_anims[:_MAX_ANIMS_PER_STEP]:
                 if not isinstance(ad, dict):
                     continue
-                target = objs.get(str(ad.get("target", "")))
-                if target is None:
-                    continue
-                a = _make_anim(str(ad.get("anim", "")), target, ad)
+                aname = str(ad.get("anim", "")).strip().lower()
+                # camera không cần target; các anim khác thì bắt buộc có target
+                if aname == "camera":
+                    a = _make_anim(aname, None, ad, objs)
+                else:
+                    target = objs.get(str(ad.get("target", "")))
+                    if target is None:
+                        continue
+                    a = _make_anim(aname, target, ad, objs)
                 if a is not None:
                     anims.append(a)
             if anims:

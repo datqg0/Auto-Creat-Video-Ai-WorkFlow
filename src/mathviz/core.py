@@ -52,10 +52,26 @@ class Canvas:
         w, h = width * self.ss, height * self.ss
         self.img = Image.new("RGBA", (w, h), hex_to_rgba(bg, 255))
         self.draw = ImageDraw.Draw(self.img, "RGBA")
+        # --- camera: zoom quanh (cam_cx, cam_cy); 1.0 = không đổi ---
+        self.cam_zoom: float = 1.0
+        self.cam_cx: float = width / 2
+        self.cam_cy: float = height / 2
 
-    # --- toạ độ: nhân theo supersample ---
+    def set_camera(self, zoom: float, cx: float, cy: float) -> None:
+        self.cam_zoom = max(0.05, float(zoom))
+        self.cam_cx = float(cx)
+        self.cam_cy = float(cy)
+
+    # --- toạ độ: áp camera rồi nhân theo supersample ---
     def _s(self, v: float) -> float:
-        return v * self.ss
+        """Độ dài (width/radius/size): scale theo zoom + supersample."""
+        return v * self.cam_zoom * self.ss
+
+    def _px(self, x: float, y: float) -> tuple[float, float]:
+        """1 điểm scene px -> screen px (đã áp camera + supersample)."""
+        sx = (x - self.cam_cx) * self.cam_zoom + self.width / 2
+        sy = (y - self.cam_cy) * self.cam_zoom + self.height / 2
+        return (sx * self.ss, sy * self.ss)
 
     def font(self, path: str, size: int) -> ImageFont.FreeTypeFont:
         return load_font(path, int(size * self.ss))
@@ -69,8 +85,10 @@ class Canvas:
         width: float = 3,
         alpha: int = 255,
     ) -> None:
+        a = self._px(p1[0], p1[1])
+        b = self._px(p2[0], p2[1])
         self.draw.line(
-            [self._s(p1[0]), self._s(p1[1]), self._s(p2[0]), self._s(p2[1])],
+            [a[0], a[1], b[0], b[1]],
             fill=hex_to_rgba(color, alpha),
             width=max(1, int(self._s(width))),
         )
@@ -81,12 +99,24 @@ class Canvas:
         color: str,
         width: float = 3,
         alpha: int = 255,
+        glow: float = 0.0,
     ) -> None:
         if len(pts) < 2:
             return
-        flat = [self._s(v) for pt in pts for v in pt]
+        flat = [c for pt in pts for c in self._px(pt[0], pt[1])]
+        base_w = max(1, int(self._s(width)))
+        # hào quang (neon): vẽ vài lớp rộng dần, alpha thấp dần ở dưới nét chính
+        if glow > 0.0:
+            g = max(0.0, min(1.0, glow))
+            layers = ((3.2, 0.10), (2.2, 0.16), (1.6, 0.24))
+            for mult, a_frac in layers:
+                gw = max(base_w + 1, int(base_w * mult * (0.6 + g)))
+                ga = max(1, int(alpha * a_frac * g))
+                self.draw.line(
+                    flat, fill=hex_to_rgba(color, ga), width=gw, joint="curve"
+                )
         self.draw.line(
-            flat, fill=hex_to_rgba(color, alpha), width=max(1, int(self._s(width))), joint="curve"
+            flat, fill=hex_to_rgba(color, alpha), width=base_w, joint="curve"
         )
 
     def circle(
@@ -98,7 +128,8 @@ class Canvas:
         width: float = 2,
         alpha: int = 255,
     ) -> None:
-        cx, cy, r = self._s(center[0]), self._s(center[1]), self._s(radius)
+        cx, cy = self._px(center[0], center[1])
+        r = self._s(radius)
         box = [cx - r, cy - r, cx + r, cy + r]
         self.draw.ellipse(
             box,
@@ -116,7 +147,8 @@ class Canvas:
         radius: float = 0,
         alpha: int = 255,
     ) -> None:
-        x0, y0, x1, y1 = (self._s(v) for v in box)
+        x0, y0 = self._px(box[0], box[1])
+        x1, y1 = self._px(box[2], box[3])
         f = hex_to_rgba(fill, alpha) if fill else None
         o = hex_to_rgba(outline, alpha) if outline else None
         w = max(1, int(self._s(width))) if outline else 1
@@ -126,6 +158,38 @@ class Canvas:
             )
         else:
             self.draw.rectangle([x0, y0, x1, y1], fill=f, outline=o, width=w)
+
+    def polygon(
+        self,
+        pts: list[tuple[float, float]],
+        fill: Optional[str] = None,
+        outline: Optional[str] = None,
+        width: float = 3,
+        alpha: int = 255,
+        glow: float = 0.0,
+    ) -> None:
+        if len(pts) < 3:
+            return
+        flat = [c for pt in pts for c in self._px(pt[0], pt[1])]
+        base_w = max(1, int(self._s(width)))
+        if glow > 0.0 and outline:
+            g = max(0.0, min(1.0, glow))
+            for mult, a_frac in ((3.2, 0.10), (2.2, 0.16), (1.6, 0.24)):
+                gw = max(base_w + 1, int(base_w * mult * (0.6 + g)))
+                ga = max(1, int(alpha * a_frac * g))
+                self.draw.line(
+                    flat + flat[:2], fill=hex_to_rgba(outline, ga), width=gw, joint="curve"
+                )
+        f = hex_to_rgba(fill, alpha) if fill else None
+        if f:
+            self.draw.polygon(flat, fill=f)
+        if outline:
+            self.draw.line(
+                flat + flat[:2],
+                fill=hex_to_rgba(outline, alpha),
+                width=base_w,
+                joint="curve",
+            )
 
     def text(
         self,
@@ -138,10 +202,11 @@ class Canvas:
         anchor: str = "la",
         align: str = "left",
     ) -> None:
+        px, py = self._px(pos[0], pos[1])
         self.draw.text(
-            (self._s(pos[0]), self._s(pos[1])),
+            (px, py),
             text,
-            font=self.font(font_path, size),
+            font=self.font(font_path, size * self.cam_zoom),
             fill=hex_to_rgba(color, alpha),
             anchor=anchor,
             align=align,
@@ -219,7 +284,6 @@ class Drawable:
 
 class Animation:
     """Base animation: chỉnh thuộc tính target theo alpha (đã qua easing)."""
-
     def __init__(self, target, run_time: float = 1.0, easing="smooth") -> None:
         from .easing import get_easing
 
@@ -246,9 +310,28 @@ class Animation:
         self.apply(self.alpha_at(t))
 
 
+class Camera:
+    """Trạng thái camera của Scene: zoom + tâm (scene px). Reset mỗi frame.
+
+    Animation CameraMove chỉnh các thuộc tính này theo thời gian; _render_frame
+    đọc chúng ra và bơm vào Canvas.set_camera trước khi vẽ.
+    """
+
+    def __init__(self, width: int, height: int) -> None:
+        self.zoom: float = 1.0
+        self.cx: float = width / 2
+        self.cy: float = height / 2
+        self._base = (1.0, width / 2, height / 2)
+
+    def snapshot_base(self) -> None:
+        self._base = (self.zoom, self.cx, self.cy)
+
+    def reset_state(self) -> None:
+        self.zoom, self.cx, self.cy = self._base
+
+
 class Scene:
     """Timeline động: add / play / wait rồi render_mp4 hoặc render_png."""
-
     def __init__(
         self,
         duration: Optional[float] = None,
@@ -265,6 +348,7 @@ class Scene:
         self.playhead: float = 0.0
         self._fixed_duration = duration
         self._bg_layers: list[Callable[[Canvas], None]] = []
+        self.camera = Camera(self.width, self.height)
 
     # ---------- xây timeline ----------
     def add(self, *objs: Drawable) -> "Scene":
@@ -286,10 +370,17 @@ class Scene:
             if run_time is not None:
                 a.run_time = run_time
             a.start = self.playhead
-            if a.target is not None and a.target not in self._objects:
+            if getattr(a, "is_camera", False):
+                a.bind(self.camera)
+            elif a.target is not None and a.target not in self._objects:
                 a.target._visible_from = self.playhead
                 a.target.snapshot_base()
                 self._objects.append(a.target)
+            for extra in getattr(a, "extra_targets", ()):  # vd Transform.dest
+                if extra is not None and extra not in self._objects:
+                    extra._visible_from = self.playhead
+                    extra.snapshot_base()
+                    self._objects.append(extra)
             self._anims.append(a)
             longest = max(longest, a.run_time)
         self.playhead += longest
@@ -334,10 +425,12 @@ class Scene:
         for fn in self._bg_layers:
             fn(canvas)
         # reset trạng thái động rồi áp animation tới thời điểm t
+        self.camera.reset_state()
         for o in self._objects:
             o.reset_state()
         for a in self._anims:
             a.apply_at(t)
+        canvas.set_camera(self.camera.zoom, self.camera.cx, self.camera.cy)
         for o in sorted(self._objects, key=lambda x: x.z):
             if t + 1e-6 < o._visible_from:
                 continue

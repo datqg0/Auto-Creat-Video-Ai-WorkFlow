@@ -60,36 +60,40 @@ _BIN_OPS = {
 _UNARY_OPS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
 
 
-def make_safe_fn(expr: str) -> Callable[[float], float]:
-    """Biến chuỗi 'sin(x)*x' thành hàm f(x) an toàn (chỉ toán học, không exec tuỳ ý)."""
+def make_safe_fn(expr: str, var: str = "x") -> Callable[[float], float]:
+    """Biến chuỗi 'sin(x)*x' thành hàm f(v) an toàn (chỉ toán học, không exec tuỳ ý).
+
+    ``var`` = tên biến tự do trong biểu thức (mặc định 'x'; dùng 't' cho đường
+    cong tham số). Chỉ đúng 1 biến; mọi tên khác (ngoài hằng pi/e/tau) bị chặn.
+    """
     tree = ast.parse(expr, mode="eval").body
 
-    def _eval(node, x: float) -> float:
+    def _eval(node, v: float) -> float:
         if isinstance(node, ast.Constant):
             if isinstance(node.value, (int, float)):
                 return float(node.value)
             raise ValueError("hằng không hợp lệ")
         if isinstance(node, ast.Name):
-            if node.id == "x":
-                return x
+            if node.id == var:
+                return v
             if node.id in _ALLOWED_CONSTS:
                 return _ALLOWED_CONSTS[node.id]
             raise ValueError(f"tên không cho phép: {node.id}")
         if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
-            return _BIN_OPS[type(node.op)](_eval(node.left, x), _eval(node.right, x))
+            return _BIN_OPS[type(node.op)](_eval(node.left, v), _eval(node.right, v))
         if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY_OPS:
-            return _UNARY_OPS[type(node.op)](_eval(node.operand, x))
+            return _UNARY_OPS[type(node.op)](_eval(node.operand, v))
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             fn = _ALLOWED_FUNCS.get(node.func.id)
             if fn is None:
                 raise ValueError(f"hàm không cho phép: {node.func.id}")
-            args = [_eval(a, x) for a in node.args]
+            args = [_eval(a, v) for a in node.args]
             return float(fn(*args))
         raise ValueError("biểu thức không hợp lệ")
 
-    def f(x: float) -> float:
+    def f(v: float) -> float:
         try:
-            return _eval(tree, x)
+            return _eval(tree, v)
         except Exception:  # noqa: BLE001
             return float("nan")
 

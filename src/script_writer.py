@@ -27,6 +27,13 @@ def _as_question(title: str) -> str:
     return t + "?"
 
 
+def _title_case(title: str) -> str:
+    """Viết hoa chữ cái đầu mỗi từ, giữ nguyên phần còn lại (giữ acronym AI/GPU)."""
+    def cap(w: str) -> str:
+        return w[:1].upper() + w[1:] if w else w
+    return " ".join(cap(w) for w in (title or "").split(" "))
+
+
 def _build_prompt(topic: str) -> str:
     lang = CONFIG.get("language", "vi")
     lang_name = "tiếng Việt" if lang == "vi" else "English"
@@ -89,9 +96,12 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
     - "objects": danh sách phần tử, mỗi phần tử có "id" (duy nhất) + "type":
       · text  : {{"id":"t1","type":"text","text":"E=mc^2","x":"0.5W","y":160,"size":72,"color":"accent","bold":true,"anchor":"mm"}}
       · axes  : {{"id":"ax","type":"axes","x0":"0.14W","y0":320,"x1":"0.86W","y1":"0.85H","x_range":[-6.28,6.28],"y_range":[-1.4,1.4]}}
-      · graph : {{"id":"g","type":"graph","axes":"ax","expr":"sin(x)","color":"c1"}}  (expr chỉ dùng x, sin,cos,tan,exp,log,sqrt,abs,tanh, +-*/^, pi,e)
+      · graph : {{"id":"g","type":"graph","axes":"ax","expr":"sin(x)","color":"c1","glow":0.6}}  (expr chỉ dùng x, sin,cos,tan,exp,log,sqrt,abs,tanh, +-*/^, pi,e; "glow" 0..1 tạo hào quang neon)
+      · parametric: {{"id":"p","type":"parametric","axes":"ax","expr_x":"cos(t)","expr_y":"sin(t)","t_range":[0,6.28],"color":"c2","glow":0.6}}  (đường cong tham số theo biến t; toán an toàn giống graph; "glow" neon tuỳ chọn)
+      · formula: {{"id":"f","type":"formula","text":"\\\\frac{{d}}{{dx}}e^x = e^x","x":"0.5W","y":180,"size":72,"color":"accent"}}  (công thức đẹp KIỂU LaTeX; dùng cho phương trình toán học)
       · rect  : {{"id":"b","type":"rect","x0":"0.3W","y0":500,"x1":"0.7W","y1":620,"fill":"panel","outline":"accent","radius":16}}
       · circle: {{"id":"c","type":"circle","x":"0.5W","y":"0.5H","radius":80,"outline":"accent"}}
+      · polygon: {{"id":"pg","type":"polygon","points":[["0.4W",400],["0.6W",400],["0.5W",600]],"outline":"accent","fill":"panel","glow":0.5}}  (đa giác đóng >=3 đỉnh; dùng làm target cho "vmorph")
       · line/arrow: {{"id":"ar","type":"arrow","x1":"0.5W","y1":640,"x2":"0.5W","y2":760,"color":"muted"}}
       · dot   : {{"id":"d","type":"dot","x":"0.5W","y":"0.5H","radius":12,"color":"c3"}}
       · neural_net: {{"id":"nn","type":"neural_net","layers":[3,5,4,2],"x0":"0.2W","y0":320,"x1":"0.8W","y1":"0.85H"}}
@@ -101,10 +111,14 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
     - "timeline": danh sách bước, mỗi bước LÀ MỘT trong:
       · {{"play": [{{"anim":"write","target":"t1","run_time":1.0}}, ...]}}  (chạy song song các anim trong list)
       · {{"wait": 0.5}}
-      anim hợp lệ: "fade_in"(shift), "fade_out", "write"(chữ), "draw"(line/arrow/graph/bar_chart),
-      "grow", "move"(dx,dy), "count_up"(from,to,fmt), "pulse"(amount,cycles), "signal"(neural_net).
+      anim hợp lệ: "fade_in"(shift), "fade_out", "write"(chữ), "draw"(line/arrow/graph/parametric/bar_chart),
+      "grow", "move"(dx,dy), "count_up"(from,to,fmt), "pulse"(amount,cycles), "signal"(neural_net),
+      "camera"(zoom/pan toàn cảnh: {{"anim":"camera","zoom":1.8,"cx":"0.5W","cy":"0.4H","run_time":1.2}} — KHÔNG cần target),
+      "transform"/"morph"(biến hình A->B: {{"anim":"transform","target":"c","to":"b","run_time":1.0}} — cần "to" là id đích),
+      "move_along"(chạy 1 dot dọc theo graph/parametric: {{"anim":"move_along","target":"d","path":"p","trace":true,"run_time":2.0}} — "path" là id graph/parametric, "trace":true vẽ dần nét ngay dưới điểm chạy),
+      "vmorph"(biến hình THỬeC theo đỉnh: {{"anim":"vmorph","target":"pg","from":"c","to":"b","run_time":1.5}} — "target" phải là polygon, "from"/"to" là id circle/rect/polygon; mượt hơn "transform").
     - Hãy sáng tạo: kết hợp nhiều phần tử + bước để "kể" ý tưởng bằng chuyển động,
-      ví dụ vẽ trục -> kéo đồ thị -> chạy điểm -> nhấn mạnh công thức.
+      ví dụ vẽ trục -> kéo đồ thị (glow) -> cho dot chạy dọc đường cong -> zoom camera vào -> nhấn mạnh công thức LaTeX.
 
 QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animation, không được nhàm):
 - Đa dạng visual_type: dùng ÍT NHẤT 5 loại khác nhau, KHÔNG để 2 scene bullets liên tiếp.
@@ -271,7 +285,7 @@ def write_script(topic: str) -> Script:
 
     script = Script(
         topic=topic,
-        title=_as_question(data.get("title", topic))[:100],
+        title=_title_case(_as_question(data.get("title", topic)))[:100],
         description=data.get("description", ""),
         tags=data.get("tags", []),
         scenes=scenes,

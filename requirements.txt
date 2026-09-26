@@ -1,6 +1,10 @@
 # --- LLM ---
 google-generativeai>=0.8.0
 anthropic>=0.39.0
+groq>=0.11.0
+# OpenAI SDK dùng chung cho OpenRouter / Mistral / NVIDIA NIM / GitHub Models /
+# SambaNova / Cloudflare Workers AI (mọi endpoint tương thích OpenAI)
+openai>=1.40.0
 
 # --- Thumbnail AI (sinh ảnh nền Kurzgesagt) ---
 huggingface_hub>=0.25.0

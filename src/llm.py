@@ -1,10 +1,25 @@
-"""LLM client với rotation: Gemini Flash (chính) -> Opus (fallback).
+"""LLM client đa tầng: thử provider theo thứ tự, lỗi thì fallback sang tầng kế.
 
+Các tầng (cấu hình trong config.yaml -> llm.providers):
+  Tier 0  Anthropic (Opus, chính)
+  Tier 1  Gemini
+  Tier 2  Groq (gpt-oss)
+  Tier 3  OpenRouter (free models)          -> OpenAI-compatible
+  Tier 3.5 Z.ai GLM Flash                    -> Anthropic-compatible (dùng lại _call_anthropic)
+  Tier 4  Mistral                            -> OpenAI-compatible
+  Tier 4.5 NVIDIA NIM                         -> OpenAI-compatible
+  Tier 5  Cloudflare Workers AI / GitHub Models / SambaNova -> OpenAI-compatible
+
+Mỗi provider khai báo:
+  type         : anthropic | gemini | groq | openai  (bộ gọi tương ứng)
+  api_key_env  : tên biến môi trường chứa API key
+  base_url     : endpoint (hỗ trợ ${ENV_VAR} để chèn từ môi trường)
 Trả về text. Tự thử provider kế tiếp nếu provider hiện tại lỗi.
 """
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from typing import Any
@@ -55,12 +70,25 @@ def _is_rate_limit(e: Exception) -> bool:
     return "ratelimit" in name or "resourceexhausted" in name or "429" in msg or "quota" in msg
 
 
+def _api_key(provider: dict, default_env: str) -> str:
+    key_env = provider.get("api_key_env", default_env)
+    val = env(key_env)
+    if not val:
+        raise LLMError(f"Thiếu {key_env}")
+    return val
+
+
+def _resolve_base_url(url: str | None) -> str | None:
+    """Chèn ${ENV_VAR} trong base_url từ môi trường (vd Cloudflare account id)."""
+    if not url:
+        return url
+    return re.sub(r"\$\{(\w+)\}", lambda m: os.getenv(m.group(1), ""), url)
+
+
 def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -> str:
     import google.generativeai as genai
 
-    api_key = env("GEMINI_API_KEY")
-    if not api_key:
-        raise LLMError("Thiếu GEMINI_API_KEY")
+    api_key = _api_key(provider, "GEMINI_API_KEY")
     genai.configure(api_key=api_key)
     gm = genai.GenerativeModel(provider["model"], system_instruction=system or None)
     timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
@@ -79,9 +107,7 @@ def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -
 def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float) -> str:
     from anthropic import Anthropic
 
-    api_key = env("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise LLMError("Thiếu ANTHROPIC_API_KEY")
+    api_key = _api_key(provider, "ANTHROPIC_API_KEY")
     kwargs: dict = {
         "api_key": api_key,
         # Tắt retry nội bộ của SDK; generate() tự quản lý retry/fallback.
@@ -90,8 +116,9 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
     timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
     if timeout is not None:
         kwargs["timeout"] = float(timeout)
-    if provider.get("base_url"):
-        kwargs["base_url"] = provider["base_url"]
+    base_url = _resolve_base_url(provider.get("base_url"))
+    if base_url:
+        kwargs["base_url"] = base_url
     client = Anthropic(**kwargs)
     kw: dict = {
         "model": provider["model"],
@@ -110,9 +137,75 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
     return text
 
 
+def _call_groq(provider: dict, prompt: str, system: str, temperature: float) -> str:
+    from groq import Groq
+
+    api_key = _api_key(provider, "GROQ_API_KEY")
+    kwargs: dict = {"api_key": api_key}
+    timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
+    if timeout is not None:
+        kwargs["timeout"] = float(timeout)
+    base_url = _resolve_base_url(provider.get("base_url"))
+    if base_url:
+        kwargs["base_url"] = base_url
+    client = Groq(**kwargs)
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    resp = client.chat.completions.create(
+        model=provider["model"],
+        max_tokens=int(provider.get("max_output_tokens", 8192)),
+        temperature=temperature,
+        messages=messages,
+    )
+    text = (resp.choices[0].message.content or "").strip()
+    if not text:
+        raise LLMError("Groq trả về rỗng")
+    return text
+
+
+def _call_openai(provider: dict, prompt: str, system: str, temperature: float) -> str:
+    """Bộ gọi chung cho mọi endpoint tương thích OpenAI (OpenRouter, Mistral,
+    NVIDIA NIM, GitHub Models, SambaNova, Cloudflare Workers AI...)."""
+    from openai import OpenAI
+
+    api_key = _api_key(provider, "OPENAI_API_KEY")
+    kwargs: dict = {"api_key": api_key}
+    base_url = _resolve_base_url(provider.get("base_url"))
+    if base_url:
+        kwargs["base_url"] = base_url
+    timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
+    if timeout is not None:
+        kwargs["timeout"] = float(timeout)
+    # OpenRouter khuyến nghị 2 header nhận diện; vô hại với provider khác.
+    default_headers = provider.get("headers") or None
+    if default_headers:
+        kwargs["default_headers"] = default_headers
+    client = OpenAI(**kwargs)
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    create_kw: dict = {
+        "model": provider["model"],
+        "max_tokens": int(provider.get("max_output_tokens", 8192)),
+        "messages": messages,
+    }
+    if provider.get("supports_temperature", True):
+        create_kw["temperature"] = temperature
+    resp = client.chat.completions.create(**create_kw)
+    text = (resp.choices[0].message.content or "").strip()
+    if not text:
+        raise LLMError(f"{provider['name']} trả về rỗng")
+    return text
+
+
 _DISPATCH = {
     "gemini": _call_gemini,
     "anthropic": _call_anthropic,
+    "groq": _call_groq,
+    "openai": _call_openai,
 }
 
 
@@ -133,9 +226,11 @@ def generate(prompt: str, system: str = "") -> str:
     last_err: Exception | None = None
     for provider in llm_cfg["providers"]:
         name = provider["name"]
-        fn = _DISPATCH.get(name)
+        # 'type' chọn bộ gọi; mặc định suy ra từ name để tương thích cấu hình cũ.
+        kind = provider.get("type", name)
+        fn = _DISPATCH.get(kind)
         if not fn:
-            log.warning("Provider không hỗ trợ: %s", name)
+            log.warning("Provider không hỗ trợ: %s (type=%s)", name, kind)
             continue
         # Số lần thử của riêng provider (vd Opus 3 lần) rồi mới fallback.
         retries = int(provider.get("retries", default_retries))
