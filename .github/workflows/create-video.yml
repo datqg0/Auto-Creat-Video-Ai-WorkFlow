@@ -43,6 +43,14 @@ jobs:
       - name: Đồng bộ lịch sử mới nhất
         run: git pull --rebase --autostash origin main || echo "không pull được (bỏ qua)"
 
+      - name: Thêm swap chống OOM khi ghép video
+        run: |
+          sudo fallocate -l 12G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Cài ffmpeg
         run: |
           sudo apt-get update

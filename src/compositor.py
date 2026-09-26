@@ -79,12 +79,29 @@ def _cover_video(clip, w: int, h: int):
     return clip.crop(x1=x, y1=y, x2=x + w, y2=y + h)  # moviepy 1.x
 
 
+def _code_clip(video_path: Path, audio_path: Path):
+    """Scene do CODE AI sinh: mp4 render sẵn + audio narration, phủ kín khung."""
+    audio = AudioFileClip(str(audio_path))
+    duration = audio.duration
+    src = VideoFileClip(str(video_path))  # giữ nguồn để đóng sau, tránh rò rỉ ffmpeg reader
+    bg = without_audio(src)
+    if bg.duration < duration:
+        bg = loop_video(bg, duration)
+    else:
+        bg = bg.subclipped(0, duration) if hasattr(bg, "subclipped") else bg.subclip(0, duration)
+    bg = set_duration(_cover_video(bg, W, H), duration)
+    out = set_fps(set_audio(bg, audio), FPS)
+    out._src_clips = [src, audio]  # moviepy không đóng đệ quy -> tự dọn ở compose()
+    return out
+
+
 def _broll_clip(video_path: Path, overlay_path: Path | None, audio_path: Path):
     """Scene b-roll: video footage nền (loop cho đủ dài) + overlay chữ + audio narration."""
     audio = AudioFileClip(str(audio_path))
     duration = audio.duration
 
-    bg = without_audio(VideoFileClip(str(video_path)))
+    src = VideoFileClip(str(video_path))  # giữ nguồn để đóng sau, tránh rò rỉ ffmpeg reader
+    bg = without_audio(src)
     if bg.duration < duration:
         bg = loop_video(bg, duration)
     else:
@@ -98,7 +115,9 @@ def _broll_clip(video_path: Path, overlay_path: Path | None, audio_path: Path):
 
     comp = CompositeVideoClip(layers, size=(W, H))
     comp = set_duration(comp, duration)
-    return set_fps(set_audio(comp, audio), FPS)
+    out = set_fps(set_audio(comp, audio), FPS)
+    out._src_clips = [src, audio]  # moviepy không đóng đệ quy -> tự dọn ở compose()
+    return out
 
 
 def _pick_from(dir_key: str, exts=(".mp3", ".wav")) -> Path | None:
@@ -135,13 +154,15 @@ def compose(
     anim_scenes: list | None = None,
     broll_videos: list | None = None,
     scene_overlays: list | None = None,
+    code_videos: list | None = None,
 ) -> Path:
     """Ghép các scene thành video.
 
     Thứ tự ưu tiên cho mỗi scene:
-      1. ``anim_scenes[i]`` (mathviz) nếu khác None -> clip động.
-      2. ``broll_videos[i]`` (Path video) nếu khác None -> video footage + overlay chữ.
-      3. còn lại -> ảnh tĩnh ``scene_images[i]`` + Ken Burns.
+      1. ``code_videos[i]`` (mp4 do code AI sinh) nếu khác None -> clip code.
+      2. ``anim_scenes[i]`` (mathviz) nếu khác None -> clip động.
+      3. ``broll_videos[i]`` (Path video) nếu khác None -> video footage + overlay chữ.
+      4. còn lại -> ảnh tĩnh ``scene_images[i]`` + Ken Burns.
     """
     assert len(scene_images) == len(scene_audios), "Số ảnh và audio phải khớp"
     n = len(scene_images)
@@ -151,11 +172,19 @@ def compose(
         broll_videos = [None] * n
     if scene_overlays is None:
         scene_overlays = [None] * n
+    if code_videos is None:
+        code_videos = [None] * n
 
     clips = []
-    for img, aud, anim, broll, ov in zip(
-        scene_images, scene_audios, anim_scenes, broll_videos, scene_overlays
+    for img, aud, anim, broll, ov, codev in zip(
+        scene_images, scene_audios, anim_scenes, broll_videos, scene_overlays, code_videos
     ):
+        if codev is not None:
+            try:
+                clips.append(_code_clip(codev, aud))
+                continue
+            except Exception as e:  # noqa: BLE001 - fallback về ảnh tĩnh
+                log.warning("Ghép clip code AI lỗi, dùng ảnh tĩnh: %s", e)
         if anim is not None:
             try:
                 clips.append(_anim_clip(anim, aud))
@@ -237,6 +266,11 @@ def compose(
         logger=None,
     )
     for c in clips:
+        for s in getattr(c, "_src_clips", []):
+            try:
+                s.close()
+            except Exception:  # noqa: BLE001
+                pass
         c.close()
     video.close()
 

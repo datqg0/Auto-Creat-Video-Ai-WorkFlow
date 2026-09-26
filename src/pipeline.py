@@ -84,6 +84,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
     anim_scenes: list = []
     broll_videos: list = []
     scene_overlays: list = []
+    code_videos: list = []
 
     from .tts import synthesize
     from .models import Scene
@@ -111,19 +112,40 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
 
         # Scene động: nếu visual_type == "animation" và có cấu hình
         anim = None
-        if scene.visual_type == "animation" and scene.animation:
+        code_video = None
+        acfg = scene.animation or {}
+        if scene.visual_type == "animation" and str(acfg.get("preset", "")) == "pycode" and acfg.get("code"):
+            # Code AI (matplotlib) chạy trong sandbox env-rỗng; lỗi/timeout -> fallback custom.
+            from .ai_code_runner import run_ai_code
+
+            code_video = run_ai_code(
+                str(acfg["code"]),
+                workdir / f"aicode_{i:02d}",
+                duration=dur,
+                width=CONFIG["visual"]["width"],
+                height=CONFIG["visual"]["height"],
+                fps=CONFIG["visual"]["fps"],
+            )
+            if code_video is None and acfg.get("objects"):
+                # Fallback: nếu LLM cũng gửi spec khai báo -> dựng custom.
+                try:
+                    anim = build_animation_scene(scene, dur)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Fallback custom scene %d lỗi: %s", i, e)
+        elif scene.visual_type == "animation" and scene.animation:
             try:
                 anim = build_animation_scene(scene, dur)
             except Exception as e:  # noqa: BLE001
                 log.warning("Bỏ animation scene %d: %s", i, e)
                 anim = None
         anim_scenes.append(anim)
+        code_videos.append(code_video)
 
         # Scene b-roll: tải video footage minh họa (chỉ khi không phải animation
         # và scene có video_query). Nếu không có Pexels key/không tải được -> None.
         broll = None
         overlay = None
-        if broll_enabled and broll_used < broll_max and anim is None and scene.video_query:
+        if broll_enabled and broll_used < broll_max and anim is None and code_video is None and scene.video_query:
             try:
                 broll = fetch_video(scene.video_query, index=i % 3, vertical=is_short)
             except Exception as e:  # noqa: BLE001
@@ -151,7 +173,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
 
     video_path = compose(
         images, audios, workdir / "video.mp4", srt_path,
-        anim_scenes, broll_videos, scene_overlays,
+        anim_scenes, broll_videos, scene_overlays, code_videos,
     )
 
     thumb_path = workdir / "thumbnail.png"

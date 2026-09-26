@@ -92,8 +92,7 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
   * con số đếm lên: {{"preset": "counter", "to_value": 1000000, "unit": "người dùng"}}
   * quy trình từng bước: {{"preset": "steps", "steps": ["Bước 1", "Bước 2", "Bước 3"]}}
   * TỰ THIẾT KẾ animation riêng (giống 3Blue1Brown, ƯU TIÊN DÙNG để minh họa
-    phong phú hơn): {{"preset": "custom", "objects": [...], "timeline": [...]}}
-    - "objects": danh sách phần tử, mỗi phần tử có "id" (duy nhất) + "type":
+    phong phú hơn): {{"preset": "custom", "objects": [...], "timeline": [...]}}    - "objects": danh sách phần tử, mỗi phần tử có "id" (duy nhất) + "type":
       · text  : {{"id":"t1","type":"text","text":"E=mc^2","x":"0.5W","y":160,"size":72,"color":"accent","bold":true,"anchor":"mm"}}
       · axes  : {{"id":"ax","type":"axes","x0":"0.14W","y0":320,"x1":"0.86W","y1":"0.85H","x_range":[-6.28,6.28],"y_range":[-1.4,1.4]}}
       · graph : {{"id":"g","type":"graph","axes":"ax","expr":"sin(x)","color":"c1","glow":0.6}}  (expr chỉ dùng x, sin,cos,tan,exp,log,sqrt,abs,tanh, +-*/^, pi,e; "glow" 0..1 tạo hào quang neon)
@@ -119,6 +118,17 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
       "vmorph"(biến hình THỬeC theo đỉnh: {{"anim":"vmorph","target":"pg","from":"c","to":"b","run_time":1.5}} — "target" phải là polygon, "from"/"to" là id circle/rect/polygon; mượt hơn "transform").
     - Hãy sáng tạo: kết hợp nhiều phần tử + bước để "kể" ý tưởng bằng chuyển động,
       ví dụ vẽ trục -> kéo đồ thị (glow) -> cho dot chạy dọc đường cong -> zoom camera vào -> nhấn mạnh công thức LaTeX.
+  * TỰ VIẾT CODE Python (matplotlib) để vẽ animation phức tạp mà preset/custom chưa làm được:
+    {{"preset": "pycode", "code": "..."}}
+    - "code" là code Python DÙNG matplotlib (đã import sẵn backend Agg). Có sẵn các biến:
+      WIDTH, HEIGHT, FPS, DURATION (giây), OUT_PATH (đường dẫn mp4 phải lưu vào).
+    - BẮT BUỘC lưu animation vào file OUT_PATH dạng mp4, ví dụ:
+      dùng matplotlib.animation.FuncAnimation rồi ani.save(OUT_PATH, fps=FPS, writer="ffmpeg").
+    - Đặt figure đúng khung: fig = plt.figure(figsize=(WIDTH/100, HEIGHT/100), dpi=100).
+    - Số frame nên = int(DURATION * FPS) để khớp thời lượng lời đọc.
+    - CHỈ dùng matplotlib + numpy để VẼ. Code chạy trong sandbox KHÔNG có mạng, KHÔNG có
+      biến môi trường/secret; đừng đọc file ngoài, đừng gọi mạng — sẽ vô ích.
+    - Nếu code lỗi/quá lâu, hệ thống tự chuyển về ảnh tĩnh -> hãy viết code gọn, chắc chắn chạy.
 
 QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animation, không được nhàm):
 - Đa dạng visual_type: dùng ÍT NHẤT 5 loại khác nhau, KHÔNG để 2 scene bullets liên tiếp.
