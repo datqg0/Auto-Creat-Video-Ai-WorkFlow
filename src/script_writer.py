@@ -130,12 +130,31 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
       biến môi trường/secret; đừng đọc file ngoài, đừng gọi mạng — sẽ vô ích.
     - Nếu code lỗi/quá lâu, hệ thống tự chuyển về ảnh tĩnh -> hãy viết code gọn, chắc chắn chạy.
 
+    {{"preset": "manim", "code": "..."}}
+    - "code" là code Python DÙNG thư viện manim để tạo animation chất lượng cao (kiểu 3Blue1Brown).
+    - BẮT BUỘC định nghĩa MỘT class kế thừa Scene với method construct(self), ví dụ:
+      "class AIScene(Scene):\\n    def construct(self):\\n        t = Text('Xin chào'); self.play(Write(t)); self.wait(1)"
+    - Đã import sẵn `from manim import *`. Có sẵn biến DURATION (giây) để canh nhịp;
+      độ phân giải/fps do hệ thống cấu hình — KHÔNG tự set config.
+    - LaTeX chỉ cài BẢN SLIM (texlive-base + recommended) -> ƯU TIÊN Text/MarkupText;
+      TRÁNH MathTex/Tex phức tạp (dễ lỗi biên dịch). Công thức đơn giản mới dùng MathTex.
+    - Giữ animation NGẮN GỌN (vài giây, ít object) để không bị timeout khi render.
+    - Code chạy trong sandbox KHÔNG có mạng, KHÔNG có secret; đừng đọc file ngoài/gọi mạng.
+    - Nếu manim chưa cài hoặc render lỗi/timeout, hệ thống tự fallback sang pycode/ảnh tĩnh.
+    - CHỈ dùng preset "manim" cho 1-2 scene quan trọng nhất (render manim CHẬM & nặng).
+
 QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animation, không được nhàm):
 - Đa dạng visual_type: dùng ÍT NHẤT 5 loại khác nhau, KHÔNG để 2 scene bullets liên tiếp.
 - BẮT BUỘC có TỐI THIỂU 3-5 scene "animation" rải đều trong video (hàm số, mạng neural,
   số liệu, thuật toán, quy trình) để video sinh động như 3Blue1Brown.
+- BẮT BUỘC có ÍT NHẤT 2 scene animation preset "pycode" (tự viết code Python/matplotlib
+  vẽ hình ảnh minh họa) rải ở các phần khác nhau của video — để mỗi video có tối thiểu 2
+  hình minh họa do code sinh ra, không chỉ 1.
 - NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để
   minh họa đúng ý tưởng cốt lõi của video một cách độc đáo, sinh động.
+- Với scene animation "custom" hoặc "pycode": nếu đã TỰ ĐẶT chữ tiêu đề bên trong (một
+  object text/formula ở phía trên, hoặc dòng title trong code), thì để "heading" TRỐNG ("")
+  để tránh CHỒNG CHỮ (2 lớp tiêu đề đè lên nhau).
 - MỌI scene (trừ code) đều PHẢI có "image_query": 2-5 từ khóa TIẾNG ANH mô tả ảnh minh họa nền
   cụ thể, sinh động (ví dụ "neural network brain glowing", "data center servers blue",
   "encryption padlock circuit", "quantum computer chip"). Không để trống.
@@ -174,10 +193,10 @@ Trả về DUY NHẤT một object JSON theo schema:
   ]
 }}
 
-BÀI TOÁN THỰC TẾ (BẮT BUỘC): tạo mảng "exercises" gồm 4-6 bài toán/tình huống THỰC TẾ
-liên quan trực tiếp tới chủ đề, để người xem tự luyện ở CUỐI video. Mỗi bài phải cụ thể,
-gắn với ứng dụng đời thực (con số, tình huống công việc/cuộc sống), tăng dần độ khó,
-kèm "hint" ngắn và "answer" gợi hướng làm. KHÔNG hỏi lý thuyết suông.
+BÀI TẬP VÍ DỤ (BẮT BUỘC): tạo mảng "exercises" gồm ĐÚNG 1 bài toán/tình huống THỰC TẾ
+tiêu biểu nhất, để người xem tự luyện ở CUỐI video. Bài phải cụ thể, gắn với ứng dụng
+đời thực (con số, tình huống công việc/cuộc sống), kèm "hint" ngắn và "answer" gợi hướng làm.
+KHÔNG hỏi lý thuyết suông. CHỈ 1 bài — không tạo nhiều bài tập.
 
 Lưu ý:
 - "title" BẮT BUỘC là MỘT CÂU HỎI (kết thúc bằng "?") mà nội dung video sẽ giải đáp;
@@ -246,8 +265,8 @@ Trả về DUY NHẤT một object JSON theo schema:
   ]
 }}
 
-BÀI TOÁN THỰC TẾ (BẮT BUỘC): tạo mảng "exercises" gồm 3-4 bài toán/tình huống THỰC TẾ
-ngắn gọn liên quan chủ đề, đặt ở cuối. Mỗi bài cụ thể, gắn ứng dụng đời thực.
+BÀI TẬP VÍ DỤ (BẮT BUỘC): tạo mảng "exercises" gồm ĐÚNG 1 bài toán/tình huống THỰC TẾ
+ngắn gọn tiêu biểu, đặt ở cuối. Bài cụ thể, gắn ứng dụng đời thực. CHỈ 1 bài.
 
 Lưu ý:
 - "title" BẮT BUỘC là MỘT CÂU HỎI (kết thúc bằng "?") mà Short sẽ giải đáp.

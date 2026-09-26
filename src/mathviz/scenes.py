@@ -216,10 +216,11 @@ def steps_scene(
     scene = Scene(duration=duration)
     W, H = THEME.width, THEME.height
     _title_block(scene, title, subtitle)
+    # Bỏ các bước rỗng/khoảng trắng -> tránh vẽ ô trống không có chữ (chồng ô đen).
+    steps = [str(s).strip() for s in steps if str(s).strip()]
     n = len(steps)
     if n == 0:
         return scene
-    top = 380
     box_h = min(110, (H - top - 120) / n - 20)
     prev_center = None
     for i, s in enumerate(steps):

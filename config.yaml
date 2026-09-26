@@ -149,6 +149,17 @@ visual:
   # Thời gian chuyển cảnh crossfade giữa các scene (giây)
   crossfade: 0.4
 
+# ---- Animation code do AI viết ----
+animation:
+  # Cho phép LLM viết code manim (đẹp hơn matplotlib nhưng nặng: cần LaTeX + cairo).
+  # Nếu manim chưa cài / render lỗi -> tự fallback về pycode (matplotlib) rồi custom spec.
+  manim_enabled: true
+  # Chất lượng render manim: low_quality|medium_quality|high_quality|production_quality
+  manim_quality: "medium_quality"
+  # Timeout cứng cho 1 lần render manim (giây); vượt -> bỏ, fallback.
+  # Repo public nên CI không giới hạn phút -> để rộng 10 phút cho scene phức tạp.
+  manim_timeout: 600
+
 # ---- Ảnh minh họa tự tìm ----
 images:
   # Tự tìm & tải ảnh nền minh họa theo image_query của mỗi scene.

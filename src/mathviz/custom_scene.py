@@ -421,8 +421,22 @@ def build_custom_scene(
     scene = Scene(duration=duration)
     W = THEME.width
 
+    # Tránh CHỒNG CHỮ: nếu spec đã tự đặt 1 text/formula ở vùng trên cùng
+    # (y < 260) thì đó chính là "tiêu đề" do LLM thiết kế -> KHÔNG vẽ thêm
+    # heading tự động (nếu không 2 lớp chữ sẽ đè lên nhau).
+    raw_objs_peek = spec.get("objects", [])
+    has_top_text = False
+    if isinstance(raw_objs_peek, list):
+        for od in raw_objs_peek:
+            if not isinstance(od, dict):
+                continue
+            if str(od.get("type", "")).strip().lower() in ("text", "formula"):
+                if _coord(od.get("y", 200), "y") < 260:
+                    has_top_text = True
+                    break
+
     # tiêu đề trên cùng (tuỳ chọn) — dùng chung phong cách với các preset khác
-    if title:
+    if title and not has_top_text:
         t = Text(title, (W / 2, 120), size=64, color=THEME.text, anchor="mm")
         scene.play(FadeIn(t, shift=30, run_time=0.6))
         if subtitle:

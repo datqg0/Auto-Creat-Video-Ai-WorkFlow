@@ -19,10 +19,10 @@ log = logging.getLogger(__name__)
 
 
 def _exercise_scenes(script: Script) -> list:
-    """Tạo các scene "bài toán thực tế" đặt ở CUỐI video.
+    """Tạo DUY NHẤT một scene "bài tập ví dụ" đặt ở CUỐI video.
 
-    Một scene mở đầu phần luyện tập + mỗi bài toán 1 scene (visual_type bullets)
-    để có audio đọc đề + gợi ý, hiển thị ở cuối video.
+    Một video chỉ nên có 1 bài tập ví dụ ở cuối: lấy bài toán ĐẦU TIÊN (nếu LLM
+    sinh nhiều) làm ví dụ luyện tập, phần còn lại bỏ qua để không lê thê.
     """
     from .models import Scene
 
@@ -30,34 +30,25 @@ def _exercise_scenes(script: Script) -> list:
     if not exercises:
         return []
 
-    scenes: list = [
+    ex = exercises[0]
+    bullets = [ex.question]
+    if ex.hint:
+        bullets.append("Gợi ý: " + ex.hint)
+    narration = (
+        "Trước khi kết thúc, đây là một bài tập nhỏ để bạn tự luyện. "
+        f"{ex.question}"
+    )
+    if ex.hint:
+        narration += f" Gợi ý: {ex.hint}"
+    return [
         Scene(
-            narration=(
-                "Giờ là lúc bạn luyện tập. Dưới đây là một vài bài toán thực tế "
-                "liên quan tới chủ đề hôm nay. Hãy tạm dừng video và thử tự giải nhé."
-            ),
-            visual_type="title",
-            heading="Bài toán thực tế",
-            image_query="students solving problems notebook",
+            narration=narration,
+            visual_type="bullets",
+            heading="Bài tập ví dụ",
+            bullets=bullets,
+            image_query="real world math application",
         )
     ]
-    for idx, ex in enumerate(exercises, 1):
-        bullets = [ex.question]
-        if ex.hint:
-            bullets.append("Gợi ý: " + ex.hint)
-        narration = f"Bài {idx}. {ex.question}"
-        if ex.hint:
-            narration += f" Gợi ý: {ex.hint}"
-        scenes.append(
-            Scene(
-                narration=narration,
-                visual_type="bullets",
-                heading=f"Bài {idx}",
-                bullets=bullets,
-                image_query="real world math application",
-            )
-        )
-    return scenes
 
 
 def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
@@ -128,6 +119,40 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
             )
             if code_video is None and acfg.get("objects"):
                 # Fallback: nếu LLM cũng gửi spec khai báo -> dựng custom.
+                try:
+                    anim = build_animation_scene(scene, dur)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Fallback custom scene %d lỗi: %s", i, e)
+        elif scene.visual_type == "animation" and str(acfg.get("preset", "")) == "manim" and acfg.get("code"):
+            # Code AI (manim) chạy trong sandbox env-rỗng; nếu manim chưa cài / lỗi /
+            # timeout -> thử pycode (nếu có), rồi custom spec.
+            anim_cfg = CONFIG.get("animation", {}) or {}
+            if anim_cfg.get("manim_enabled", True):
+                from .ai_code_runner import run_manim_code
+
+                code_video = run_manim_code(
+                    str(acfg["code"]),
+                    workdir / f"aimanim_{i:02d}",
+                    duration=dur,
+                    width=CONFIG["visual"]["width"],
+                    height=CONFIG["visual"]["height"],
+                    fps=CONFIG["visual"]["fps"],
+                    quality=str(anim_cfg.get("manim_quality", "medium_quality")),
+                    background_color=str(CONFIG["visual"].get("background_color", "#0d1117")),
+                    timeout=int(anim_cfg.get("manim_timeout", 240)),
+                )
+            if code_video is None and acfg.get("pycode"):
+                from .ai_code_runner import run_ai_code
+
+                code_video = run_ai_code(
+                    str(acfg["pycode"]),
+                    workdir / f"aimanim_{i:02d}_mpl",
+                    duration=dur,
+                    width=CONFIG["visual"]["width"],
+                    height=CONFIG["visual"]["height"],
+                    fps=CONFIG["visual"]["fps"],
+                )
+            if code_video is None and acfg.get("objects"):
                 try:
                     anim = build_animation_scene(scene, dur)
                 except Exception as e:  # noqa: BLE001

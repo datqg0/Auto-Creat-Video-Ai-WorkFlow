@@ -57,6 +57,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-dejavu-core
+          # Phụ thuộc cho manim: cairo/pango để render + LaTeX bản SLIM cho MathTex.
+          # Nếu lỗi vẫn tiếp tục (manim có fallback sang pycode/ảnh tĩnh).
+          sudo apt-get install -y \
+            libcairo2-dev libpango1.0-dev pkg-config \
+            texlive-latex-base texlive-latex-recommended texlive-fonts-recommended \
+            texlive-latex-extra tipa dvisvgm || echo "deps manim bỏ qua, dùng fallback"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -70,6 +76,8 @@ jobs:
           pip install -r requirements.txt
           # VieNeu-TTS (cài từ git; nếu lỗi vẫn tiếp tục vì có fallback Edge/ElevenLabs)
           pip install git+https://github.com/pnnbao97/VieNeu-TTS.git || echo "VieNeu-TTS bỏ qua, dùng fallback"
+          # manim: nếu cài lỗi vẫn tiếp tục vì đã có fallback pycode/ảnh tĩnh.
+          pip install manim || echo "manim bỏ qua, dùng fallback pycode"
 
       - name: Cache model Whisper
         uses: actions/cache@v4
