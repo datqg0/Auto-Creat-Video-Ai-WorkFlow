@@ -45,10 +45,12 @@ jobs:
 
       - name: Thêm swap chống OOM khi ghép video
         run: |
-          sudo fallocate -l 12G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          sudo swapoff -a || true
+          sudo rm -f /mnt/ci-swapfile
+          sudo fallocate -l 12G /mnt/ci-swapfile || sudo dd if=/dev/zero of=/mnt/ci-swapfile bs=1M count=12288
+          sudo chmod 600 /mnt/ci-swapfile
+          sudo mkswap /mnt/ci-swapfile
+          sudo swapon /mnt/ci-swapfile
           free -h
 
       - name: Cài ffmpeg
