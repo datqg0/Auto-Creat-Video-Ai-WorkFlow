@@ -51,7 +51,7 @@ def _exercise_scenes(script: Script) -> list:
     ]
 
 
-def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
+def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float]]:
     """Render kịch bản thành file video + thumbnail. Trả về (video, thumbnail)."""
     # Import trễ để apply_mode (đổi W/H) có hiệu lực trước khi module cache kích thước
     from .visual_engine import render_scene, render_overlay
@@ -213,7 +213,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path]:
         thumb_path = make_thumbnail(script, thumb_path)
     else:
         thumb_path = made
-    return video_path, thumb_path
+    return video_path, thumb_path, durations
 
 
 def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
@@ -237,7 +237,7 @@ def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
         workdir = OUTPUT_DIR / f"video_{video_id_db}"
         workdir.mkdir(parents=True, exist_ok=True)
 
-        video_path, thumb_path = _render_video(script, workdir)
+        video_path, thumb_path, durations = _render_video(script, workdir)
         db.update_video(video_id_db, status="rendered")
 
         if not upload_video:
