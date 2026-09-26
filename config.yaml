@@ -40,6 +40,8 @@ llm:
       api_key_env: ANTHROPIC_API_KEY
       max_output_tokens: 16000
       supports_temperature: false           # provider này không nhận temperature
+      stream: true                          # BẮT BUỘC: proxy Cloudflare cắt 524 sau 120s nếu không stream
+      timeout: 300                           # trần chờ 1 request (giây); stream dài vẫn ổn
       retries: 3                            # thử Opus 3 lần trước khi fallback
 
     # Tier 1 — Gemini

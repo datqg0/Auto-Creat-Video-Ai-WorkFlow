@@ -129,9 +129,18 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
     # provider justwoker.icu không nhận 'temperature'; chỉ gửi khi được bật
     if provider.get("supports_temperature", False):
         kw["temperature"] = temperature
-    resp = client.messages.create(**kw)
-    parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
-    text = "".join(parts).strip()
+    # Streaming: token chảy liên tục nên proxy (Cloudflare) không cắt bằng 524
+    # dù kịch bản dài sinh quá 120s. Tắt bằng provider['stream']=false nếu cần.
+    if provider.get("stream", True):
+        parts: list[str] = []
+        with client.messages.stream(**kw) as stream:
+            for chunk in stream.text_stream:
+                parts.append(chunk)
+        text = "".join(parts).strip()
+    else:
+        resp = client.messages.create(**kw)
+        parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
+        text = "".join(parts).strip()
     if not text:
         raise LLMError("Anthropic trả về rỗng")
     return text
