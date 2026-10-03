@@ -34,6 +34,8 @@ class Scene(BaseModel):
     # animation: cấu hình clip động render bằng thư viện mathviz.
     # {"preset": "function|neural_net|bar_chart|sorting|counter|steps", ...tham số}
     animation: dict | None = None
+    # visual_prompt: mô tả chi tiết thuật toán/hình ảnh trực quan để giao cho LLM chuyên code (DeepSeek R1 / Qwen Coder) sinh animation
+    visual_prompt: str = ""
 
     @field_validator("animation", "chart", mode="before")
     @classmethod

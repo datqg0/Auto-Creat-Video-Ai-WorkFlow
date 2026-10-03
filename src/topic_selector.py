@@ -53,6 +53,6 @@ Yeu cau:
 
 Chi tra ve DUY NHAT ten chu de tren mot dong, khong giai thich, khong danh so, khong dau ngoac kep."""
 
-    topic = generate(prompt).strip().splitlines()[0].strip().strip('"').strip("-").strip()
+    topic = generate(prompt, task="topic").strip().splitlines()[0].strip().strip('"').strip("-").strip()
     log.info("Chu de da chon: %s", topic)
     return topic

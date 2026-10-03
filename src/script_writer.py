@@ -160,6 +160,7 @@ QUAN TRỌNG VỀ NHỊP VĂN & GIỌNG ĐỌC (giữ chân người xem):
 QUAN TRỌNG VỀ HÌNH ẢNH & ANIMATION (video phải chuyển động liên tục, TUYỆT ĐỐI KHÔNG làm slideshow tĩnh):
 - BẮT BUỘC có ÍT NHẤT 35% - 50% số scene có visual_type: "animation" (với preset "pycode", "manim", hoặc preset toán/số liệu).
 - KHÔNG để 2 scene bullets hoặc 2 ảnh tĩnh liên tiếp. Phải xen kẽ: Animation -> B-roll video -> Slide kinetic -> Animation.
+- BẮT BUỘC MỖI SCENE CÓ "visual_prompt": một prompt chi tiết mô tả thuật toán trực quan hoặc chuyển động animation cần vẽ (bằng tiếng Anh hoặc tiếng Việt). Ví dụ: "Animated visualization of Dijkstra algorithm finding shortest path on 7-node graph with glowing neon edges" hoặc "AVL Tree Left-Right rotation step-by-step with moving nodes and arrows". Prompt này sẽ được chuyển thẳng cho AI chuyên code (DeepSeek-Reasoner R1 / Qwen-2.5-Coder) để viết code animation tương ứng.
 - BẮT BUỘC có ÍT NHẤT 2-3 scene animation preset "pycode" hoặc "manim" (tự viết code Python/matplotlib/manim vẽ hình ảnh minh họa cụ thể cho chủ đề).
 - NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để minh họa đúng ý tưởng cốt lõi của video.
 - Với scene animation "custom" hoặc "pycode": nếu đã TỰ ĐẶT chữ tiêu đề bên trong, thì để "heading" TRỐNG ("") để tránh CHỒNG CHỮ.
@@ -176,6 +177,7 @@ Trả về DUY NHẤT một object JSON theo schema:
       "narration": "lời đọc tự nhiên, câu ngắn dưới 20 từ, có *từ khóa* nhấn nhá",
       "visual_type": "bullets",
       "heading": "tiêu đề ngắn hiển thị trên màn hình",
+      "visual_prompt": "prompt chi tiết mô tả thuật toán hoặc chuyển động visual cần vẽ cho scene này",
       "bullets": ["ý 1", "ý 2"],
       "chart": null,
       "code_language": "python",
@@ -253,6 +255,7 @@ Trả về DUY NHẤT một object JSON theo schema:
       "narration": "lời đọc ngắn, dứt khoát",
       "visual_type": "title",
       "heading": "chữ to hiển thị",
+      "visual_prompt": "prompt mô tả animation hoặc hình ảnh visual trực quan",
       "bullets": [],
       "chart": null,
       "code_language": "python",
@@ -341,7 +344,7 @@ Chỉ trả về JSON:
 {{"candidates": ["tiêu đề 1", "tiêu đề 2", "tiêu đề 3", "tiêu đề 4", "tiêu đề 5"], "best": "tiêu đề được chọn"}}"""
 
     try:
-        raw = generate(prompt, system="Bạn là chuyên gia tối ưu tiêu đề YouTube. Chỉ trả JSON hợp lệ.")
+        raw = generate(prompt, system="Bạn là chuyên gia tối ưu tiêu đề YouTube. Chỉ trả JSON hợp lệ.", task="topic")
         data = _extract_json(raw)
         best = (data.get("best") or "").strip()
         candidates = data.get("candidates", [])
@@ -399,7 +402,7 @@ def write_script(topic: str) -> Script:
 
     script: Script | None = None
     for attempt in range(2):  # thử tối đa 2 lần nếu kịch bản quá ngắn/thiếu scene
-        raw = generate(_build_prompt(topic), system=_SYSTEM)
+        raw = generate(_build_prompt(topic), system=_SYSTEM, task="script")
         script = _parse_script(topic, raw)
         words = _count_words(script.scenes)
         if words >= min_words and len(script.scenes) >= min_scenes:

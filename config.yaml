@@ -31,29 +31,76 @@ modes:
 #   supports_temperature: false nếu endpoint không nhận 'temperature'
 #   retries       -> số lần thử của riêng provider trước khi fallback
 llm:
+  # ---- Phân chia định tuyến LLM theo từng tác vụ (Task Routing) ----
+  tasks:
+    # 1. Chọn chủ đề & Tối ưu tiêu đề: Nhanh, nhẹ, đón trend tốt -> Gemini Flash -> Groq Llama
+    topic:
+      - gemini_37
+      - gemini_latest
+      - groq
+
+    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Pollinations -> Groq
+    script:
+      - anthropic
+      - gemini_37
+      - gemini_latest
+      - pollinations
+      - groq
+      - openrouter
+      - mistral
+
+    # 3. Viết code thuật toán Visual / Animation: DeepSeek-Reasoner (R1) / Qwen Coder / Claude -> fallback Groq -> Gemini
+    code:
+      - pollinations_coder       # DeepSeek-Reasoner (R1) hoặc Qwen-2.5-Coder qua Pollinations
+      - anthropic                # Claude Opus 4.8
+      - groq                     # Llama 3.3 70B siêu tốc độ
+      - gemini_37                # Gemini 3.7 Flash
+
   providers:
-    # Tier 0 — Anthropic (Opus, chính)
+    # Tier 0 — Anthropic (Opus 4.8 qua justwoker.icu — Model suy luận và viết kịch bản mạnh nhất)
     - name: anthropic
       type: anthropic
       model: claude-opus-4-8
-      base_url: https://api.justwoker.icu   # provider tương thích Anthropic
+      base_url: https://api.justwoker.icu
       api_key_env: ANTHROPIC_API_KEY
       max_output_tokens: 16000
-      supports_temperature: false           # provider này không nhận temperature
-      stream: true                          # BẮT BUỘC: proxy Cloudflare cắt 524 sau 120s nếu không stream
-      timeout: 300                           # trần chờ 1 request (giây); stream dài vẫn ổn
-      retries: 3                            # thử Opus 3 lần trước khi fallback
+      supports_temperature: false
+      stream: false                         # Proxy justwoker không hỗ trợ stream content chunk, tắt stream để nhận đầy đủ văn bản
+      timeout: 180
+      retries: 2
 
-    # Tier 1 — Gemini
-    - name: gemini
+    # Tier 1.1 — Google Gemini 3.7 Flash (Mạnh nhất dòng Flash, tốc độ cao, context rộng)
+    - name: gemini_37
+      type: gemini
+      model: gemini-3.7-flash
+      api_key_env: GEMINI_API_KEY
+
+    # Tier 1.2 — Google Gemini Flash Latest (Dự phòng khi 3.7 chạm quota)
+    - name: gemini_latest
       type: gemini
       model: gemini-flash-latest
       api_key_env: GEMINI_API_KEY
 
-    # Tier 2 — Groq (gpt-oss)
+    # Tier 2.1 — Pollinations AI Coder (DeepSeek Reasoner R1 / Qwen 2.5 Coder — Trùm viết code thuật toán & Animation)
+    - name: pollinations_coder
+      type: openai
+      model: deepseek-reasoner              # Hoặc: qwen-2.5-coder
+      base_url: https://gen.pollinations.ai/v1
+      api_key_env: POLLINATIONS_API_KEY
+      max_output_tokens: 8192
+
+    # Tier 2.2 — Pollinations AI Chat (DeepSeek V3 — Suy luận & văn bản)
+    - name: pollinations
+      type: openai
+      model: deepseek-chat
+      base_url: https://gen.pollinations.ai/v1
+      api_key_env: POLLINATIONS_API_KEY
+      max_output_tokens: 8192
+
+    # Tier 3 — Groq (Llama 3.3 70B — Siêu tốc độ LPU)
     - name: groq
       type: groq
-      model: openai/gpt-oss-120b            # dự phòng: openai/gpt-oss-20b
+      model: llama-3.3-70b-versatile
       api_key_env: GROQ_API_KEY
       max_output_tokens: 8192
 

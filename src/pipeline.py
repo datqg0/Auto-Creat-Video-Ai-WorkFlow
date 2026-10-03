@@ -120,36 +120,40 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         code_video = None
         acfg = scene.animation or {}
         if scene.visual_type == "animation":
-            from .ai_code_runner import run_ai_code, run_manim_code, generate_matplotlib_from_prompt
+            from .ai_code_runner import run_ai_code, run_manim_code, generate_matplotlib_from_prompt, generate_manim_from_prompt
 
             preset = str(acfg.get("preset", ""))
             anim_cfg = CONFIG.get("animation", {}) or {}
+            visual_desc = scene.visual_prompt or scene.heading or scene.narration[:120]
 
             # Tầng 1: Manim nếu preset yêu cầu và được bật
-            if preset == "manim" and acfg.get("code") and anim_cfg.get("manim_enabled", True):
-                try:
-                    code_video = run_manim_code(
-                        str(acfg["code"]),
-                        workdir / f"aimanim_{i:02d}",
-                        duration=dur,
-                        width=CONFIG["visual"]["width"],
-                        height=CONFIG["visual"]["height"],
-                        fps=int(anim_cfg.get("manim_fps", 60)),
-                        quality=str(anim_cfg.get("manim_quality", "high_quality")),
-                        background_color=str(CONFIG["visual"].get("background_color", "#0d1117")),
-                        timeout=int(anim_cfg.get("manim_timeout", 300)),
-                        auto_repair=True,
-                    )
-                except Exception as e:  # noqa: BLE001
-                    log.warning("Manim scene %d lỗi: %s", i, e)
+            if anim_cfg.get("manim_enabled", True) and (preset == "manim" or "manim" in visual_desc.lower()):
+                manim_code = acfg.get("code") if preset == "manim" else None
+                if not manim_code and visual_desc:
+                    manim_code = generate_manim_from_prompt(visual_desc, duration=dur)
+                if manim_code:
+                    try:
+                        code_video = run_manim_code(
+                            str(manim_code),
+                            workdir / f"aimanim_{i:02d}",
+                            duration=dur,
+                            width=CONFIG["visual"]["width"],
+                            height=CONFIG["visual"]["height"],
+                            fps=int(anim_cfg.get("manim_fps", 60)),
+                            quality=str(anim_cfg.get("manim_quality", "high_quality")),
+                            background_color=str(CONFIG["visual"].get("background_color", "#0d1117")),
+                            timeout=int(anim_cfg.get("manim_timeout", 300)),
+                            auto_repair=True,
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("Manim scene %d lỗi: %s", i, e)
 
             # Tầng 2: PyCode (Matplotlib) nếu đã có code hoặc Manim thất bại
             if code_video is None:
                 pycode = acfg.get("code") if preset == "pycode" else acfg.get("pycode")
-                # Nếu preset là manim/pycode nhưng chưa có code -> Nhờ AI sinh code Matplotlib
-                if not pycode and (preset in ("manim", "pycode") or scene.narration):
-                    desc = scene.heading or scene.narration[:120]
-                    pycode = generate_matplotlib_from_prompt(desc, duration=dur)
+                # Nếu chưa có code -> Nhờ AI sinh code Matplotlib từ visual_prompt
+                if not pycode and (preset in ("manim", "pycode") or scene.visual_prompt or scene.narration):
+                    pycode = generate_matplotlib_from_prompt(visual_desc, duration=dur)
 
                 if pycode:
                     try:

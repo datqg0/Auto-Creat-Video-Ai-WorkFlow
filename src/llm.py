@@ -123,24 +123,31 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
     kw: dict = {
         "model": provider["model"],
         "max_tokens": int(provider.get("max_output_tokens", 4096)),
-        "system": system or "",
         "messages": [{"role": "user", "content": prompt}],
     }
+    if system and system.strip():
+        kw["system"] = system.strip()
     # provider justwoker.icu không nhận 'temperature'; chỉ gửi khi được bật
     if provider.get("supports_temperature", False):
         kw["temperature"] = temperature
-    # Streaming: token chảy liên tục nên proxy (Cloudflare) không cắt bằng 524
-    # dù kịch bản dài sinh quá 120s. Tắt bằng provider['stream']=false nếu cần.
-    if provider.get("stream", True):
-        parts: list[str] = []
-        with client.messages.stream(**kw) as stream:
-            for chunk in stream.text_stream:
-                parts.append(chunk)
-        text = "".join(parts).strip()
-    else:
+
+    text = ""
+    if provider.get("stream", False):
+        try:
+            parts: list[str] = []
+            with client.messages.stream(**kw) as stream:
+                for chunk in stream.text_stream:
+                    parts.append(chunk)
+            text = "".join(parts).strip()
+        except Exception as e:
+            logger.warning(f"Anthropic streaming failed ({e}), thử gọi non-streaming...")
+            text = ""
+
+    if not text:
         resp = client.messages.create(**kw)
         parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
         text = "".join(parts).strip()
+
     if not text:
         raise LLMError("Anthropic trả về rỗng")
     return text
@@ -218,9 +225,11 @@ _DISPATCH = {
 }
 
 
-def generate(prompt: str, system: str = "") -> str:
+def generate(prompt: str, system: str = "", task: str | None = None) -> str:
     """Gọi LLM theo thứ tự provider trong config, fallback khi lỗi.
 
+    - Hỗ trợ routing theo task ('topic', 'script', 'code'): nếu task được chỉ định
+      và có trong config['llm']['tasks'], sẽ ưu tiên gọi danh sách provider của task đó.
     - Timeout cứng mỗi request (xem _call_*): tránh treo lâu vì proxy 524.
     - 429 (rate limit): nếu retry_delay ngắn thì đợi rồi thử lại 1 lần trên
       cùng provider; nếu dài hơn _MAX_RETRY_WAIT thì bỏ qua sang provider kế.
@@ -232,8 +241,31 @@ def generate(prompt: str, system: str = "") -> str:
     temperature = float(llm_cfg.get("temperature", 0.9))
     default_retries = int(llm_cfg.get("max_retries", 2))
 
+    all_providers = llm_cfg.get("providers", [])
+    prov_map = {p["name"]: p for p in all_providers}
+
+    # Chọn danh sách provider để thử theo task:
+    # 1. Ưu tiên danh sách provider được gán cho task
+    # 2. Tự động dự phòng thêm các provider còn lại ở cuối để không bao giờ bị đứt
+    providers_to_try = []
+    if task and "tasks" in llm_cfg and task in llm_cfg["tasks"]:
+        task_names = llm_cfg["tasks"][task]
+        for name in task_names:
+            if name in prov_map and prov_map[name] not in providers_to_try:
+                providers_to_try.append(prov_map[name])
+            elif name not in prov_map:
+                log.warning("Task %s yêu cầu provider '%s' nhưng không tìm thấy trong config", task, name)
+        # Dự phòng các provider còn lại
+        for p in all_providers:
+            if p not in providers_to_try:
+                providers_to_try.append(p)
+
+    # Nếu không chỉ định task, dùng toàn bộ providers
+    if not providers_to_try:
+        providers_to_try = all_providers
+
     last_err: Exception | None = None
-    for provider in llm_cfg["providers"]:
+    for provider in providers_to_try:
         name = provider["name"]
         # 'type' chọn bộ gọi; mặc định suy ra từ name để tương thích cấu hình cũ.
         kind = provider.get("type", name)
@@ -245,7 +277,7 @@ def generate(prompt: str, system: str = "") -> str:
         retries = int(provider.get("retries", default_retries))
         for attempt in range(1, retries + 1):
             try:
-                log.info("LLM %s (%s) attempt %d", name, provider["model"], attempt)
+                log.info("LLM %s (%s) [task=%s] attempt %d", name, provider["model"], task or "default", attempt)
                 return fn(provider, prompt, system, temperature)
             except Exception as e:  # noqa: BLE001 - muốn fallback mọi lỗi
                 last_err = e
@@ -270,10 +302,10 @@ def generate(prompt: str, system: str = "") -> str:
                 if not is_last_attempt:
                     sleep_s = min(2.0 * attempt, 5.0) + random.uniform(0.1, 0.5)
                     time.sleep(sleep_s)
-    raise LLMError(f"Tất cả LLM provider đều lỗi. Cuối: {last_err}")
+    raise LLMError(f"Tất cả LLM provider cho task '{task or 'default'}' đều lỗi. Cuối: {last_err}")
 
 
 # Alias tiện ích cho các module khác
-def generate_text(prompt: str, system: str | None = None, max_tokens: int | None = None) -> str:
+def generate_text(prompt: str, system: str | None = None, max_tokens: int | None = None, task: str | None = None) -> str:
     """Wrapper gọi generate() tương thích các signature khác nhau."""
-    return generate(prompt, system=system)
+    return generate(prompt, system=system or "", task=task)

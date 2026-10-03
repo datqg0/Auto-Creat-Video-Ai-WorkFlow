@@ -90,7 +90,7 @@ def repair_code_with_ai(
     )
     try:
         log.info("Đang gọi AI để tự động sửa lỗi code %s...", framework)
-        resp = generate_text(prompt, max_tokens=2048)
+        resp = generate_text(prompt, max_tokens=2048, task="code")
         if "```" in resp:
             parts = resp.split("```")
             for i in range(1, len(parts), 2):
@@ -132,8 +132,8 @@ def generate_matplotlib_from_prompt(
         f"- Return ONLY Python code inside ```python ... ``` block."
     )
     try:
-        log.info("Đang gọi AI sinh code Matplotlib animation mới...")
-        resp = generate_text(prompt, max_tokens=2048)
+        log.info("Đang gọi AI chuyên code sinh Matplotlib animation mới...")
+        resp = generate_text(prompt, max_tokens=2048, task="code")
         if "```" in resp:
             parts = resp.split("```")
             for i in range(1, len(parts), 2):
@@ -146,6 +146,48 @@ def generate_matplotlib_from_prompt(
         return resp.strip() if resp.strip() else None
     except Exception as e:
         log.warning("AI sinh code matplotlib thất bại: %s", e)
+        return None
+
+
+def generate_manim_from_prompt(
+    description: str,
+    duration: float = 5.0,
+) -> str | None:
+    """Yêu cầu AI viết code Manim animation từ mô tả cảnh / thuật toán visual."""
+    try:
+        from .llm import generate_text
+    except Exception as e:
+        log.warning("Không thể import llm: %s", e)
+        return None
+
+    prompt = (
+        f"Write a high quality Python Manim (Community Edition) animation script to visualize the following algorithm/concept:\n"
+        f"Concept / Visual Prompt: {description}\n"
+        f"Target duration: {duration} seconds.\n\n"
+        f"CRITICAL RULES:\n"
+        f"- `from manim import *` is already imported.\n"
+        f"- Define a single Scene class inheriting from `Scene`, e.g. `class AIScene(Scene):`\n"
+        f"- Implement `construct(self)` method.\n"
+        f"- Use modern clean colors: accent '#58a6ff', green '#3fb950', yellow '#d29922', white '#f0f6fc'.\n"
+        f"- Keep animation total time around {duration}s using `self.play(...)` and `self.wait(...)`.\n"
+        f"- Avoid complex LaTeX / MathTex that might fail if LaTeX compiler is minimal. Prefer Text, MarkupText, Arrow, Circle, Square, VGroup.\n"
+        f"- Return ONLY valid Python code inside ```python ... ``` block."
+    )
+    try:
+        log.info("Đang gọi AI chuyên code sinh Manim animation...")
+        resp = generate_text(prompt, max_tokens=2048, task="code")
+        if "```" in resp:
+            parts = resp.split("```")
+            for i in range(1, len(parts), 2):
+                block = parts[i]
+                if block.startswith("python"):
+                    block = block[6:]
+                cleaned = block.strip()
+                if cleaned:
+                    return cleaned
+        return resp.strip() if resp.strip() else None
+    except Exception as e:
+        log.warning("AI sinh code manim thất bại: %s", e)
         return None
 
 
