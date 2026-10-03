@@ -27,11 +27,13 @@ def _as_question(title: str) -> str:
     return t + "?"
 
 
-def _title_case(title: str) -> str:
-    """Viết hoa chữ cái đầu mỗi từ, giữ nguyên phần còn lại (giữ acronym AI/GPU)."""
-    def cap(w: str) -> str:
-        return w[:1].upper() + w[1:] if w else w
-    return " ".join(cap(w) for w in (title or "").split(" "))
+def _sentence_case(title: str) -> str:
+    """Chỉ viết hoa chữ cái đầu câu, giữ nguyên phần còn lại (giữ acronym AI/GPU).
+
+    Không dùng Title Case (Viết Hoa Mỗi Từ): với tiếng Việt trông như spam, giảm CTR.
+    """
+    t = (title or "").strip()
+    return t[:1].upper() + t[1:] if t else t
 
 
 def _build_prompt(topic: str) -> str:
@@ -174,7 +176,7 @@ QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animati
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{
-  "title": "tiêu đề là MỘT CÂU HỎI mà video sẽ trả lời (kết thúc bằng dấu ?), gây tò mò, dưới 70 ký tự",
+  "title": "tiêu đề gây tò mò mạnh, dưới 70 ký tự (xem quy tắc tiêu đề bên dưới)",
   "description": "mô tả 3-4 câu cho YouTube, có hashtag ở cuối",
   "tags": ["tag1", "tag2", "..."],
   "scenes": [
@@ -206,9 +208,14 @@ tiêu biểu nhất, để người xem tự luyện ở CUỐI video. Bài ph�
 KHÔNG hỏi lý thuyết suông. CHỈ 1 bài — không tạo nhiều bài tập.
 
 Lưu ý:
-- "title" BẮT BUỘC là MỘT CÂU HỎI (kết thúc bằng "?") mà nội dung video sẽ giải đáp;
-  ưu tiên dạng "Tại sao...?", "Làm thế nào...?", "Điều gì xảy ra khi...?", "Có thật là...?".
-  Scene HOOK mở đầu phải đặt lại đúng câu hỏi này, và scene TỔNG KẾT phải trả lời rõ nó.
+- "title" phải CHỌN MỘT trong các dạng sau (mỗi dạng đều tăng CTR theo nghiên cứu YouTube):
+  A. Câu hỏi gây sốc/tò mò: "Tại sao mọi website đều đang bị tấn công ngay lúc này?"
+  B. Con số + lợi ích rõ ràng: "5 phút hiểu thuật toán mà mọi Big Tech đều dùng"
+  C. Khoảng cách tò mò (không tiết lộ đáp án): "Thứ ẩn trong mọi video YouTube bạn xem"
+  D. Cổ phần + khẩn cấp: "Lỗi này đã làm mất 1 tỷ USD dữ liệu — và bạn đang mắc nó"
+  E. Phản trực giác: "GPU thực ra chậm hơn CPU — nhưng đây là lý do nó thắng"
+  TUYỆT ĐỐI KHÔNG dùng: "Giới thiệu về...", "Tìm hiểu...", "Hướng dẫn...".
+  Scene HOOK mở đầu phải đặt lại đúng câu hỏi/tuyên bố này, và scene TỔNG KẾT phải trả lời rõ nó.
 - narration phải liền mạch, kể chuyện, KHÔNG đọc gạch đầu dòng, KHÔNG quá ngắn.
 - Scene đầu là HOOK (visual_type "title"), scene gần cuối là TỔNG KẾT ("quote"),
   scene cuối cùng là MỞ SANG VIDEO TIẾP THEO (gợi mở + call-to-action đăng ký).
@@ -299,6 +306,63 @@ def _count_words(scenes: list[Scene]) -> int:
     return sum(len((s.narration or "").split()) for s in scenes)
 
 
+def _optimize_title(script: Script) -> str:
+    """Lượt LLM riêng chuyên viết tiêu đề: sinh 5 phương án, tự chọn tốt nhất.
+
+    Chạy SAU khi kịch bản đã xong nên biết chính xác nội dung, số liệu, insight
+    chính của video → tiêu đề không bị chung chung.
+    Thất bại thì trả về title gốc (LLM viết khi sinh kịch bản).
+    """
+    lang = CONFIG.get("language", "vi")
+    lang_name = "tiếng Việt" if lang == "vi" else "English"
+
+    hook = ""
+    if script.scenes:
+        hook = (script.scenes[0].narration or "")[:300]
+
+    prompt = f"""Bạn là chuyên gia tiêu đề YouTube. Video về chủ đề: "{script.topic}".
+Tiêu đề hiện tại: "{script.title}"
+Câu mở đầu video (hook): "{hook}"
+
+Viết 5 tiêu đề {lang_name} KHÁC NHAU theo ĐÚNG 5 dạng sau (mỗi dạng 1 tiêu đề):
+1. CÂU HỎI GÂY SỐC: bắt đầu bằng câu hỏi có con số hoặc nghịch lý chưa ai ngờ đến.
+   Ví dụ tốt: "Tại sao 99% lập trình viên hiểu sai cách RAM hoạt động?"
+2. CON SỐ + LỢI ÍCH: dùng con số cụ thể, hứa hẹn rõ người xem được gì.
+   Ví dụ tốt: "5 phút hiểu thuật toán tìm đường ngắn nhất mà Google Maps dùng hàng ngày"
+3. KHOẢNG CÁCH TÒ MÒ: gợi ra điều bí ẩn mà chưa tiết lộ đáp án.
+   Ví dụ tốt: "Thứ ẩn bên trong mọi ảnh JPEG mà bạn không thể nhìn thấy"
+4. CỔ PHẦN CAO: nêu hậu quả/nguy hiểm nếu không biết, hoặc lợi ích lớn nếu biết.
+   Ví dụ tốt: "Lỗ hổng này làm 500 triệu tài khoản bị hack — code của bạn có dính không?"
+5. PHẢN TRỰC GIÁC: một tuyên bố nghe vô lý nhưng hóa ra đúng.
+   Ví dụ tốt: "Thêm máy chủ đôi khi khiến hệ thống chậm hơn — đây là lý do"
+
+Quy tắc:
+- Mỗi tiêu đề ≤ 70 ký tự (đủ hiển thị trên điện thoại).
+- Không dùng dấu ngoặc kép bên trong tiêu đề.
+- Không bắt đầu bằng "Giới thiệu", "Tìm hiểu", "Hướng dẫn", "Trong video này".
+- Bám vào NỘI DUNG THẬT của video (dùng con số, ví dụ, insight từ hook bên trên).
+
+Sau đó chọn 1 tiêu đề tốt nhất theo tiêu chí: CTR cao nhất (người lạ bấm vào nhiều nhất),
+có từ khóa tìm kiếm, và khớp nội dung video.
+
+Chỉ trả về JSON:
+{{"candidates": ["tiêu đề 1", "tiêu đề 2", "tiêu đề 3", "tiêu đề 4", "tiêu đề 5"], "best": "tiêu đề được chọn"}}"""
+
+    try:
+        raw = generate(prompt, system="Bạn là chuyên gia tối ưu tiêu đề YouTube. Chỉ trả JSON hợp lệ.")
+        data = _extract_json(raw)
+        best = (data.get("best") or "").strip()
+        candidates = data.get("candidates", [])
+        log.info(
+            "Tiêu đề tối ưu: %s (các phương án: %s)",
+            best, " | ".join(str(c) for c in candidates[:5]),
+        )
+        return _sentence_case(best)[:100] if best else script.title
+    except Exception as e:  # noqa: BLE001 - không làm hỏng cả pipeline
+        log.warning("Tối ưu tiêu đề lỗi, giữ title gốc: %s", e)
+        return script.title
+
+
 def _parse_script(topic: str, raw: str) -> Script:
     data = _extract_json(raw)
 
@@ -325,7 +389,7 @@ def _parse_script(topic: str, raw: str) -> Script:
 
     return Script(
         topic=topic,
-        title=_title_case(_as_question(data.get("title", topic)))[:100],
+        title=_sentence_case(_as_question(data.get("title", topic)))[:100],
         description=data.get("description", ""),
         tags=data.get("tags", []),
         scenes=scenes,
@@ -354,6 +418,13 @@ def write_script(topic: str) -> Script:
         )
 
     assert script is not None
+
+    # Lượt riêng tối ưu tiêu đề: sinh 5 phương án, tự chọn tốt nhất.
+    # Không ảnh hưởng kịch bản; thất bại thì giữ title gốc.
+    optimized = _optimize_title(script)
+    if optimized and optimized != script.title:
+        script = script.model_copy(update={"title": optimized})
+
     log.info(
         "Kịch bản '%s' có %d scene, %d bài toán thực tế, %d từ lời đọc",
         script.title, len(script.scenes), len(script.exercises), _count_words(script.scenes),

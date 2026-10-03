@@ -24,15 +24,44 @@ def _wav_duration(path: Path) -> float:
         return w.getnframes() / float(w.getframerate())
 
 
+# Sample rate chuẩn khi phải chuyển đổi (Edge gốc 24kHz; VieNeu v3turbo 48kHz).
+# KHÔNG hạ xuống 16kHz: giọng sẽ bị "đục" như qua điện thoại.
+_TARGET_SR = 24000
+
+
 def _concat_wavs(parts: list[Path], out: Path) -> None:
-    """Ghép nhiều file wav cùng định dạng thành 1 file."""
-    with wave.open(str(parts[0]), "rb") as first:
-        params = first.getparams()
-    with wave.open(str(out), "wb") as w:
-        w.setparams(params)
-        for p in parts:
-            with wave.open(str(p), "rb") as seg:
-                w.writeframes(seg.readframes(seg.getnframes()))
+    """Ghép nhiều file wav thành 1 file.
+
+    Cùng định dạng -> ghép thẳng bằng ``wave``. Khác định dạng (vd. lỡ fallback
+    provider giữa chừng) -> nhờ ffmpeg resample về chung một chuẩn rồi ghép.
+    """
+    params_list = []
+    for p in parts:
+        with wave.open(str(p), "rb") as w:
+            params_list.append(w.getparams()[:3])  # nchannels, sampwidth, framerate
+    if all(pr == params_list[0] for pr in params_list):
+        with wave.open(str(parts[0]), "rb") as first:
+            params = first.getparams()
+        with wave.open(str(out), "wb") as w:
+            w.setparams(params)
+            for p in parts:
+                with wave.open(str(p), "rb") as seg:
+                    w.writeframes(seg.readframes(seg.getnframes()))
+        return
+
+    import subprocess
+
+    sr = max(pr[2] for pr in params_list)
+    cmd = ["ffmpeg", "-y"]
+    for p in parts:
+        cmd += ["-i", str(p)]
+    inputs = "".join(f"[{i}:a]aresample={sr},aformat=channel_layouts=mono[a{i}];" for i in range(len(parts)))
+    joined = "".join(f"[a{i}]" for i in range(len(parts)))
+    cmd += [
+        "-filter_complex", f"{inputs}{joined}concat=n={len(parts)}:v=0:a=1[out]",
+        "-map", "[out]", "-c:a", "pcm_s16le", str(out),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -84,14 +113,14 @@ def _synth_elevenlabs(text: str, out: Path) -> None:
         voice_id=cfg["voice_id"],
         model_id=cfg.get("model", "eleven_multilingual_v2"),
         text=text,
-        output_format="pcm_16000",
+        output_format="pcm_24000",
     )
     # Ghi PCM thô thành WAV
     pcm = b"".join(audio)
     with wave.open(str(out), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
-        w.setframerate(16000)
+        w.setframerate(24000)
         w.writeframes(pcm)
 
 
@@ -109,11 +138,11 @@ def _synth_edge(text: str, out: Path) -> None:
         await communicate.save(str(mp3_path))
 
     asyncio.run(_run())
-    # Chuyển mp3 -> wav 16k mono bằng ffmpeg
+    # Chuyển mp3 -> wav mono, GIỮ 24kHz gốc của Edge (16kHz làm giọng đục).
     import subprocess
 
     subprocess.run(
-        ["ffmpeg", "-y", "-i", str(mp3_path), "-ar", "16000", "-ac", "1", str(out)],
+        ["ffmpeg", "-y", "-i", str(mp3_path), "-ar", str(_TARGET_SR), "-ac", "1", str(out)],
         check=True,
         capture_output=True,
     )
@@ -213,3 +242,35 @@ def synthesize(text: str, out_path: Path) -> float:
             last_err = e
             log.warning("TTS %s lỗi: %s", name, e)
     raise TTSError(f"Tất cả TTS provider đều lỗi. Cuối: {last_err}")
+
+
+def synthesize_timed(text: str, out_path: Path) -> list[tuple[str, float]]:
+    """Đọc text TỪNG CÂU rồi ghép thành 1 file wav; trả về [(câu, thời lượng)].
+
+    Biết chính xác mỗi câu bắt đầu/kết thúc lúc nào -> phụ đề (và hiệu ứng nhấn
+    sau này) khớp giọng đọc, thay vì chia đều theo số ký tự rồi lệch dần.
+    Mỗi câu vẫn đi qua ``synthesize`` nên giữ nguyên cơ chế khóa giọng/fallback.
+    """
+    sentences = _split_sentences(text)
+    if len(sentences) <= 1:
+        dur = synthesize(text, out_path)
+        return [(text.strip(), dur)]
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    parts: list[Path] = []
+    timings: list[tuple[str, float]] = []
+    try:
+        for j, sent in enumerate(sentences):
+            part = out_path.with_name(f"{out_path.stem}_s{j:02d}.wav")
+            dur = synthesize(sent, part)
+            parts.append(part)
+            timings.append((sent, dur))
+        _concat_wavs(parts, out_path)
+    finally:
+        for p in parts:
+            p.unlink(missing_ok=True)
+
+    # Chuẩn hóa tổng thời lượng theo file đã ghép (sai số resample nếu có).
+    total = _wav_duration(out_path)
+    raw = sum(d for _, d in timings) or 1.0
+    return [(s, d * total / raw) for s, d in timings]

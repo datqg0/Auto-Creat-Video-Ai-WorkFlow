@@ -68,6 +68,8 @@ def upload(video_path: Path, meta: dict, thumbnail: Path | None = None) -> str:
             "description": meta["description"],
             "tags": meta.get("tags", []),
             "categoryId": meta.get("categoryId", "28"),
+            "defaultLanguage": meta.get("language", "vi"),
+            "defaultAudioLanguage": meta.get("language", "vi"),
         },
         "status": {
             "privacyStatus": meta.get("privacyStatus", "public"),

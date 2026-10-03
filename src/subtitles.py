@@ -45,27 +45,40 @@ def _split_sentences(text: str) -> list[str]:
 
 
 def srt_from_scenes(
-    scene_texts: list[str], scene_durations: list[float], srt_path: Path
+    scene_texts: list[str],
+    scene_durations: list[float],
+    srt_path: Path,
+    scene_timings: list[list[tuple[str, float]] | None] | None = None,
 ) -> Path:
-    """Tạo .srt từ text gốc + thời lượng mỗi scene. Timestamp căn theo tỉ lệ ký tự."""
+    """Tạo .srt từ text gốc + thời lượng mỗi scene.
+
+    Nếu có ``scene_timings`` (mốc THẬT của từng câu do TTS đọc riêng) thì căn theo
+    từng câu; tỉ lệ ký tự chỉ dùng để chia nhỏ BÊN TRONG một câu -> sai số không
+    cộng dồn. Không có -> chia cả scene theo tỉ lệ ký tự như cũ.
+    """
     srt_path.parent.mkdir(parents=True, exist_ok=True)
     idx = 1
     t = 0.0
     lines: list[str] = []
+    if scene_timings is None:
+        scene_timings = [None] * len(scene_texts)
 
-    for text, dur in zip(scene_texts, scene_durations):
-        chunks = _split_sentences(text)
-        total_chars = sum(len(c) for c in chunks) or 1
+    for text, dur, timing in zip(scene_texts, scene_durations, scene_timings):
+        # Danh sách (đoạn text, thời lượng) cấp câu cho scene này.
+        groups = timing if timing else [(text, dur)]
         start = t
-        for c in chunks:
-            seg = dur * (len(c) / total_chars)
-            end = start + seg
-            lines.append(str(idx))
-            lines.append(f"{_fmt_ts(start)} --> {_fmt_ts(end)}")
-            lines.append(c)
-            lines.append("")
-            idx += 1
-            start = end
+        for sent, sent_dur in groups:
+            chunks = _split_sentences(sent)
+            total_chars = sum(len(c) for c in chunks) or 1
+            for c in chunks:
+                seg = sent_dur * (len(c) / total_chars)
+                end = start + seg
+                lines.append(str(idx))
+                lines.append(f"{_fmt_ts(start)} --> {_fmt_ts(end)}")
+                lines.append(c)
+                lines.append("")
+                idx += 1
+                start = end
         t += dur
 
     srt_path.write_text("\n".join(lines), encoding="utf-8")

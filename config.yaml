@@ -234,5 +234,20 @@ topics:
     - "blockchain và cryptography"
     - "phần cứng, GPU, kiến trúc máy tính"
     - "database và big data"
-  # Số ngày tránh lặp lại chủ đề đã dùng
+  # So ngay tranh lap lai chu de da dung
   dedup_days: 30
+
+# ---- Trending signals ----
+trend:
+  # Bat/tat thu thap tin hieu trending (HackerNews, Reddit, Google Trends).
+  # Tat khi chay offline hoac mang khong on dinh.
+  enabled: true
+  # Cache ket qua bao nhieu tieng truoc khi goi mang lai (mac dinh 6h).
+  cache_hours: 6
+  # So tin hieu toi da nhet vao prompt LLM (qua nhieu lam loang ngon canh).
+  max_signals: 18
+  # Nguon muon bat/tat rieng
+  sources:
+    hacker_news: true
+    reddit: true
+    google_trends: true   # can: pip install pytrends

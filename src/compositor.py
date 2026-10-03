@@ -9,7 +9,9 @@ Lớp ``mv_compat`` che khác biệt moviepy 1.x/2.x nên chạy được cả h
 from __future__ import annotations
 
 import logging
+import math
 import random
+import zlib
 from pathlib import Path
 
 from .mv_compat import (
@@ -17,6 +19,7 @@ from .mv_compat import (
     CompositeAudioClip,
     CompositeVideoClip,
     ImageClip,
+    VideoClip,
     VideoFileClip,
     concatenate_videoclips,
     crossfadein,
@@ -41,22 +44,61 @@ H = CONFIG["visual"]["height"]
 FPS = CONFIG["visual"]["fps"]
 
 
-def _ken_burns(clip, duration: float):
-    """Zoom nhẹ từ 1.0 -> 1.06 để ảnh tĩnh đỡ nhàm."""
-    return resize(clip, lambda t: 1.0 + 0.06 * (t / max(duration, 0.1)))
+def _ken_burns_clip(image_path: Path, duration: float):
+    """Ảnh tĩnh -> clip động: zoom + pan có easing, hướng chọn theo seed của scene.
+
+    - Zoom giữa 1.04 và 1.14 (ngẫu nhiên zoom vào hoặc zoom ra).
+    - Pan theo một hướng ngẫu nhiên; biên độ tính theo phần "dư" của khung khi zoom
+      (z > 1 luôn có dư) nên không bao giờ lộ viền đen.
+    - Seed theo tên file -> render lại vẫn y hệt; các scene liên tiếp chuyển động khác nhau.
+    - ``Image.resize(box=...)`` nhận toạ độ thực -> chuyển động mượt dưới pixel, không giật.
+    """
+    import numpy as np
+    from PIL import Image
+
+    from .mathviz.easing import smooth
+
+    img = Image.open(str(image_path)).convert("RGB")
+    scale = max(W / img.width, H / img.height)
+    if abs(scale - 1.0) > 1e-3:
+        img = img.resize(
+            (max(W, math.ceil(img.width * scale)), max(H, math.ceil(img.height * scale))),
+            Image.LANCZOS,
+        )
+    bw, bh = img.size
+
+    rng = random.Random(zlib.crc32(image_path.name.encode("utf-8")))
+    # Biên độ giới hạn để KHÔNG cắt chữ: slide có lề MARGIN=120px (6.25%) + footer cách
+    # đáy 90px. Zoom tối đa 1.08 + pan 0.5 phần dư -> mép bị cắt tối đa ~5.6% khung.
+    z_lo, z_hi = 1.03, 1.08
+    z0, z1 = (z_lo, z_hi) if rng.random() < 0.6 else (z_hi, z_lo)
+    ang = rng.uniform(0, 2 * math.pi)
+    ux, uy = math.cos(ang) * 0.5, math.sin(ang) * 0.5  # vị trí chuẩn hóa trong phần dư [-1, 1]
+    dur = max(duration, 0.1)
+
+    def frame(t: float):
+        x = min(max(t / dur, 0.0), 1.0)
+        p = 0.5 * x + 0.5 * smooth(x)  # nửa tuyến tính, nửa smooth: êm mà không "đứng hình" ở 2 đầu
+        z = z0 + (z1 - z0) * p
+        cw, ch = W / z, H / z
+        room_x, room_y = (bw - cw) / 2, (bh - ch) / 2
+        u = -1.0 + 2.0 * p  # đi từ -u -> +u theo hướng đã chọn
+        cx = bw / 2 + ux * u * room_x
+        cy = bh / 2 + uy * u * room_y
+        box = (cx - cw / 2, cy - ch / 2, cx + cw / 2, cy + ch / 2)
+        return np.asarray(img.resize((W, H), Image.BILINEAR, box=box))
+
+    return VideoClip(frame, duration=duration)
 
 
 _XFADE = float(CONFIG["visual"].get("crossfade", 0.4))
 
 
 def _scene_clip(image_path: Path, audio_path: Path):
-    """Scene tĩnh: ảnh PNG + Ken Burns + audio."""
+    """Scene tĩnh: ảnh PNG + Ken Burns (zoom + pan) + audio."""
     audio = AudioFileClip(str(audio_path))
     duration = audio.duration
-    img = set_duration(ImageClip(str(image_path)), duration)
-    img = set_position(_ken_burns(img, duration), "center")
-    if img.h < H:
-        img = resize(img, height=H)
+    img = _ken_burns_clip(image_path, duration)
     return set_fps(set_audio(img, audio), FPS)
 
 

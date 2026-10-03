@@ -1,4 +1,6 @@
-"""AI tự chọn chủ đề tech, tránh trùng với các chủ đề đã dùng gần đây."""
+"""AI tu chon chu de tech, tranh trung voi cac chu de da dung gan day.
+Tich hop du lieu trending (HackerNews, Reddit, Google Trends) lam ngu canh.
+"""
 from __future__ import annotations
 
 import logging
@@ -19,22 +21,38 @@ def pick_topic() -> str:
     used = db.recent_topics(dedup_days)
     domain = random.choice(domains)
 
-    used_block = "\n".join(f"- {t}" for t in used) if used else "(chưa có)"
+    used_block = "\n".join(f"- {t}" for t in used) if used else "(chua co)"
     lang = CONFIG.get("language", "vi")
-    lang_name = "tiếng Việt" if lang == "vi" else "English"
+    lang_name = "tieng Viet" if lang == "vi" else "English"
 
-    prompt = f"""Bạn là biên tập viên kênh YouTube về công nghệ theo phong cách giải thích trực quan (visualization).
-Hãy đề xuất MỘT chủ đề video cụ thể, hấp dẫn trong lĩnh vực: {domain}.
+    # --- Lay tin hieu trending (khong bat buoc; loi mang thi bo qua) ---
+    trend_block = ""
+    try:
+        from .trend_fetcher import fetch_trends, format_for_prompt
+        trends = fetch_trends()
+        trend_block = format_for_prompt(trends, max_items=18)
+    except Exception as e:  # noqa: BLE001 - trend la uu tien, khong phai bat buoc
+        log.debug("Khong lay duoc trend: %s", e)
 
-Yêu cầu:
-- Chủ đề đủ hẹp để giải thích trong video 5 phút bằng hình ảnh động/biểu đồ.
-- Phù hợp để minh họa bằng animation, biểu đồ dữ liệu, hoặc mô phỏng thuật toán.
-- Viết bằng {lang_name}.
-- KHÔNG trùng hoặc quá giống các chủ đề đã dùng dưới đây:
-{used_block}
+    trend_section = (
+        f"\n\nXU HUONG CONG NGHE HIEN TAI (su dung de chon chu de phu hop thoi su):\n{trend_block}\n"
+        "Hay THAM KHAO cac xu huong nay de chon chu de gan voi dieu nguoi dung dang quan tam,"
+        " nhung KHONG chep nguyen tieu de bai viet. Bien doi thanh goc nhin giai thich truc quan."
+        if trend_block else ""
+    )
 
-Chỉ trả về DUY NHẤT tên chủ đề trên một dòng, không giải thích, không đánh số, không dấu ngoặc kép."""
+    prompt = f"""Ban la bien tap vien kenh YouTube ve cong nghe theo phong cach giai thich truc quan (visualization).
+Hay de xuat MOT chu de video cu the, hap dan trong linh vuc: {domain}.
+
+Yeu cau:
+- Chu de du hep de giai thich trong video 5 phut bang hinh anh dong/bieu do.
+- Phu hop de minh hoa bang animation, bieu do du lieu, hoac mo phong thuat toan.
+- Viet bang {lang_name}.
+- KHONG trung hoac qua giong cac chu de da dung duoi day:
+{used_block}{trend_section}
+
+Chi tra ve DUY NHAT ten chu de tren mot dong, khong giai thich, khong danh so, khong dau ngoac kep."""
 
     topic = generate(prompt).strip().splitlines()[0].strip().strip('"').strip("-").strip()
-    log.info("Chủ đề đã chọn: %s", topic)
+    log.info("Chu de da chon: %s", topic)
     return topic

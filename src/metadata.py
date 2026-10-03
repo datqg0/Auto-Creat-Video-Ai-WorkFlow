@@ -75,7 +75,6 @@ def build_metadata(script: Script, durations: list[float] | None = None) -> dict
             description += "\n\n" + chapters
 
     description += "\n\n" + " ".join(f"#{t.replace(' ', '')}" for t in tags[:8])
-    description += "\n\nVideo được tạo tự động bằng visualization engine."
 
     return {
         "title": title,
@@ -84,6 +83,8 @@ def build_metadata(script: Script, durations: list[float] | None = None) -> dict
         "categoryId": str(yt.get("category_id", "28")),
         "privacyStatus": yt.get("privacy_status", "public"),
         "madeForKids": bool(yt.get("made_for_kids", False)),
+        # Khai báo ngôn ngữ tiêu đề + giọng đọc -> YouTube đẩy đúng tập người xem.
+        "language": CONFIG.get("language", "vi"),
     }
 
 

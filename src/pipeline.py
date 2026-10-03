@@ -19,10 +19,9 @@ log = logging.getLogger(__name__)
 
 
 def _exercise_scenes(script: Script) -> list:
-    """Tạo DUY NHẤT một scene "bài tập ví dụ" đặt ở CUỐI video.
+    """Tạo DUY NHẤT một scene "thử thách" từ bài toán ĐẦU TIÊN (nếu LLM sinh nhiều).
 
-    Một video chỉ nên có 1 bài tập ví dụ ở cuối: lấy bài toán ĐẦU TIÊN (nếu LLM
-    sinh nhiều) làm ví dụ luyện tập, phần còn lại bỏ qua để không lê thê.
+    Vị trí chèn do ``_with_exercise`` quyết định (trước phần tổng kết).
     """
     from .models import Scene
 
@@ -34,21 +33,34 @@ def _exercise_scenes(script: Script) -> list:
     bullets = [ex.question]
     if ex.hint:
         bullets.append("Gợi ý: " + ex.hint)
-    narration = (
-        "Trước khi kết thúc, đây là một bài tập nhỏ để bạn tự luyện. "
-        f"{ex.question}"
-    )
+    narration = f"Thử thách nhỏ cho bạn: {ex.question}"
     if ex.hint:
         narration += f" Gợi ý: {ex.hint}"
+    narration += " Hãy để lại đáp án của bạn ở phần bình luận."
     return [
         Scene(
             narration=narration,
             visual_type="bullets",
-            heading="Bài tập ví dụ",
+            heading="Thử thách",
             bullets=bullets,
             image_query="real world math application",
         )
     ]
+
+
+def _with_exercise(script: Script) -> list:
+    """Danh sách scene render: chèn scene thử thách TRƯỚC 2 scene cuối (tổng kết + mở
+    sang video sau) thay vì sau call-to-action — video "đã kết thúc" rồi lại hiện slide
+    chữ tĩnh khiến người xem thoát ngay. Short bỏ qua để không vượt thời lượng mục tiêu.
+    """
+    scenes = list(script.scenes)
+    if CONFIG.get("active_mode") == "short":
+        return scenes
+    extra = _exercise_scenes(script)
+    if not extra:
+        return scenes
+    pos = len(scenes) - 2 if len(scenes) >= 3 else len(scenes)
+    return scenes[:pos] + extra + scenes[pos:]
 
 
 def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float]]:
@@ -77,23 +89,25 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
     scene_overlays: list = []
     code_videos: list = []
 
-    from .tts import synthesize
+    from .tts import synthesize_timed
     from .models import Scene
 
     # Chọn lại provider TTS từ đầu cho video này rồi khóa -> cả video 1 giọng.
     from .tts import reset_provider_lock
     reset_provider_lock()
 
-    # Ghép các scene chính + các scene "bài toán thực tế" ở CUỐI video.
-    render_scenes = list(script.scenes) + _exercise_scenes(script)
+    # Scene chính + scene "thử thách" chèn trước phần tổng kết.
+    render_scenes = _with_exercise(script)
+    scene_timings: list = []
 
     for i, scene in enumerate(render_scenes):
         img = workdir / f"scene_{i:02d}.png"
         aud = workdir / f"scene_{i:02d}.wav"
         # Luôn render ảnh tĩnh làm fallback
         render_scene(scene, img)
-        # Tổng hợp audio TRƯỚC để lấy đúng thời lượng cho animation
-        synthesize(scene.narration, aud)
+        # Tổng hợp audio TRƯỚC để lấy đúng thời lượng cho animation.
+        # Đọc từng câu -> biết mốc thật của mỗi câu cho phụ đề.
+        scene_timings.append(synthesize_timed(scene.narration, aud))
         with wave.open(str(aud), "rb") as w:
             dur = w.getnframes() / float(w.getframerate())
         durations.append(dur)
@@ -191,7 +205,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
     srt_path: Path | None = None
     if CONFIG["subtitles"].get("enabled"):
         try:
-            srt_path = srt_from_scenes(scene_texts, durations, workdir / "subs.srt")
+            srt_path = srt_from_scenes(scene_texts, durations, workdir / "subs.srt", scene_timings)
         except Exception as e:  # noqa: BLE001 - phụ đề không bắt buộc
             log.warning("Sinh phụ đề lỗi: %s", e)
             srt_path = None
