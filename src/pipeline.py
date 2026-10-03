@@ -40,7 +40,7 @@ def _exercise_scenes(script: Script) -> list:
     return [
         Scene(
             narration=narration,
-            visual_type="bullets",
+            visual_type="challenge",
             heading="Thử thách",
             bullets=bullets,
             image_query="real world math application",
@@ -119,64 +119,59 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         anim = None
         code_video = None
         acfg = scene.animation or {}
-        if scene.visual_type == "animation" and str(acfg.get("preset", "")) == "pycode" and acfg.get("code"):
-            # Code AI (matplotlib) chạy trong sandbox env-rỗng; lỗi/timeout -> fallback custom.
-            from .ai_code_runner import run_ai_code
+        if scene.visual_type == "animation":
+            from .ai_code_runner import run_ai_code, run_manim_code, generate_matplotlib_from_prompt
 
-            code_video = run_ai_code(
-                str(acfg["code"]),
-                workdir / f"aicode_{i:02d}",
-                duration=dur,
-                width=CONFIG["visual"]["width"],
-                height=CONFIG["visual"]["height"],
-                fps=CONFIG["visual"]["fps"],
-            )
-            if code_video is None and acfg.get("objects"):
-                # Fallback: nếu LLM cũng gửi spec khai báo -> dựng custom.
-                try:
-                    anim = build_animation_scene(scene, dur)
-                except Exception as e:  # noqa: BLE001
-                    log.warning("Fallback custom scene %d lỗi: %s", i, e)
-        elif scene.visual_type == "animation" and str(acfg.get("preset", "")) == "manim" and acfg.get("code"):
-            # Code AI (manim) chạy trong sandbox env-rỗng; nếu manim chưa cài / lỗi /
-            # timeout -> thử pycode (nếu có), rồi custom spec.
+            preset = str(acfg.get("preset", ""))
             anim_cfg = CONFIG.get("animation", {}) or {}
-            if anim_cfg.get("manim_enabled", True):
-                from .ai_code_runner import run_manim_code
 
-                code_video = run_manim_code(
-                    str(acfg["code"]),
-                    workdir / f"aimanim_{i:02d}",
-                    duration=dur,
-                    width=CONFIG["visual"]["width"],
-                    height=CONFIG["visual"]["height"],
-                    fps=int(anim_cfg.get("manim_fps", 60)),
-                    quality=str(anim_cfg.get("manim_quality", "high_quality")),
-                    background_color=str(CONFIG["visual"].get("background_color", "#0d1117")),
-                    timeout=int(anim_cfg.get("manim_timeout", 600)),
-                )
-            if code_video is None and acfg.get("pycode"):
-                from .ai_code_runner import run_ai_code
+            # Tầng 1: Manim nếu preset yêu cầu và được bật
+            if preset == "manim" and acfg.get("code") and anim_cfg.get("manim_enabled", True):
+                try:
+                    code_video = run_manim_code(
+                        str(acfg["code"]),
+                        workdir / f"aimanim_{i:02d}",
+                        duration=dur,
+                        width=CONFIG["visual"]["width"],
+                        height=CONFIG["visual"]["height"],
+                        fps=int(anim_cfg.get("manim_fps", 60)),
+                        quality=str(anim_cfg.get("manim_quality", "high_quality")),
+                        background_color=str(CONFIG["visual"].get("background_color", "#0d1117")),
+                        timeout=int(anim_cfg.get("manim_timeout", 300)),
+                        auto_repair=True,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Manim scene %d lỗi: %s", i, e)
 
-                code_video = run_ai_code(
-                    str(acfg["pycode"]),
-                    workdir / f"aimanim_{i:02d}_mpl",
-                    duration=dur,
-                    width=CONFIG["visual"]["width"],
-                    height=CONFIG["visual"]["height"],
-                    fps=CONFIG["visual"]["fps"],
-                )
-            if code_video is None and acfg.get("objects"):
+            # Tầng 2: PyCode (Matplotlib) nếu đã có code hoặc Manim thất bại
+            if code_video is None:
+                pycode = acfg.get("code") if preset == "pycode" else acfg.get("pycode")
+                # Nếu preset là manim/pycode nhưng chưa có code -> Nhờ AI sinh code Matplotlib
+                if not pycode and (preset in ("manim", "pycode") or scene.narration):
+                    desc = scene.heading or scene.narration[:120]
+                    pycode = generate_matplotlib_from_prompt(desc, duration=dur)
+
+                if pycode:
+                    try:
+                        code_video = run_ai_code(
+                            str(pycode),
+                            workdir / f"aicode_{i:02d}",
+                            duration=dur,
+                            width=CONFIG["visual"]["width"],
+                            height=CONFIG["visual"]["height"],
+                            fps=CONFIG["visual"]["fps"],
+                            auto_repair=True,
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("Matplotlib scene %d lỗi: %s", i, e)
+
+            # Tầng 3 (CUỐI CÙNG): MathViz Preset / Custom objects
+            if code_video is None and acfg:
                 try:
                     anim = build_animation_scene(scene, dur)
                 except Exception as e:  # noqa: BLE001
-                    log.warning("Fallback custom scene %d lỗi: %s", i, e)
-        elif scene.visual_type == "animation" and scene.animation:
-            try:
-                anim = build_animation_scene(scene, dur)
-            except Exception as e:  # noqa: BLE001
-                log.warning("Bỏ animation scene %d: %s", i, e)
-                anim = None
+                    log.warning("MathViz fallback scene %d lỗi: %s", i, e)
+                    anim = None
         anim_scenes.append(anim)
         code_videos.append(code_video)
 
@@ -203,9 +198,16 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
 
     # Phụ đề: dùng chính text narration gốc (chính xác 100%), căn theo thời lượng scene
     srt_path: Path | None = None
+    captions_dict: dict[str, Path] = {}
     if CONFIG["subtitles"].get("enabled"):
         try:
-            srt_path = srt_from_scenes(scene_texts, durations, workdir / "subs.srt", scene_timings)
+            srt_path = srt_from_scenes(scene_texts, durations, workdir / "subs_vi.srt", scene_timings)
+            captions_dict["vi"] = srt_path
+            from .subtitles import translate_srt_to_english
+
+            srt_en = translate_srt_to_english(srt_path, workdir / "subs_en.srt")
+            if srt_en and srt_en.exists():
+                captions_dict["en"] = srt_en
         except Exception as e:  # noqa: BLE001 - phụ đề không bắt buộc
             log.warning("Sinh phụ đề lỗi: %s", e)
             srt_path = None
@@ -217,17 +219,27 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
 
     thumb_path = workdir / "thumbnail.png"
     made = None
-    if CONFIG.get("thumbnail", {}).get("ai_enabled"):
+    # 1. Ưu tiên Thumbnail SVG công nghệ chuẩn theo thiết kế tối giản mới
+    try:
+        from .thumbnail_svg import render_svg_thumbnail
+        made = render_svg_thumbnail(script, thumb_path)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Thumbnail SVG lỗi (%s) -> thử AI Kurzgesagt", e)
+
+    # 2. Thumbnail AI phong cách Kurzgesagt nếu SVG fail và bật ai_enabled
+    if made is None and CONFIG.get("thumbnail", {}).get("ai_enabled"):
         try:
             from .thumbnail_ai import make_ai_thumbnail
             made = make_ai_thumbnail(script, thumb_path)
-        except Exception as e:  # noqa: BLE001 - lỗi bất kỳ -> fallback
+        except Exception as e:  # noqa: BLE001
             log.warning("Thumbnail AI thất bại (%s) -> dùng thumbnail thường", e)
+
+    # 3. Fallback cuối cùng: make_thumbnail
     if made is None:
         thumb_path = make_thumbnail(script, thumb_path)
     else:
         thumb_path = made
-    return video_path, thumb_path, durations
+    return video_path, thumb_path, durations, captions_dict
 
 
 def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
@@ -251,7 +263,7 @@ def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
         workdir = OUTPUT_DIR / f"video_{video_id_db}"
         workdir.mkdir(parents=True, exist_ok=True)
 
-        video_path, thumb_path, durations = _render_video(script, workdir)
+        video_path, thumb_path, durations, captions = _render_video(script, workdir)
         db.update_video(video_id_db, status="rendered")
 
         if not upload_video:
@@ -263,7 +275,7 @@ def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
         from .metadata import build_metadata
 
         meta = build_metadata(script, durations)
-        yt_id = upload(video_path, meta, thumb_path)
+        yt_id = upload(video_path, meta, thumb_path, captions=captions)
         db.update_video(video_id_db, status="uploaded", youtube_id=yt_id)
         log.info("HOÀN TẤT: https://youtu.be/%s", yt_id)
 

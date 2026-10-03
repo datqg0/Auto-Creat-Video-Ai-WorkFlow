@@ -94,6 +94,38 @@ def lerp_color(
     return tuple(int(round(lerp(c1[i], c2[i], t))) for i in range(len(c1)))
 
 
+def ease_out_expo(t: float) -> float:
+    """Vọt rất nhanh rồi dừng dứt khoát — tạo cảm giác punchy dứt điểm."""
+    t = _clamp(t)
+    return 1.0 if t >= 1.0 else 1.0 - (2.0 ** (-10.0 * t))
+
+
+def ease_in_expo(t: float) -> float:
+    t = _clamp(t)
+    return 0.0 if t <= 0.0 else 2.0 ** (10.0 * (t - 1.0))
+
+
+def ease_in_out_expo(t: float) -> float:
+    t = _clamp(t)
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
+    if t < 0.5:
+        return (2.0 ** (20.0 * t - 10.0)) / 2.0
+    return (2.0 - 2.0 ** (-20.0 * t + 10.0)) / 2.0
+
+
+def spring_step(t: float, damping: float = 8.0, freq: float = 12.0) -> float:
+    """Mô phỏng springStep (dao động tắt dần qua đích rồi snap ổn định)."""
+    t = _clamp(t)
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
+    return 1.0 - math.exp(-damping * t) * math.cos(freq * t)
+
+
 def _clamp(t: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, t))
 
@@ -105,6 +137,12 @@ EASINGS = {
     "ease_in": ease_in,
     "ease_out": ease_out,
     "ease_in_out": ease_in_out,
+    "ease_out_expo": ease_out_expo,
+    "ease_in_expo": ease_in_expo,
+    "ease_in_out_expo": ease_in_out_expo,
+    "expo": ease_out_expo,
+    "spring": spring_step,
+    "spring_step": spring_step,
     "back": ease_out_back,
     "elastic": ease_out_elastic,
     "bounce": ease_out_bounce,

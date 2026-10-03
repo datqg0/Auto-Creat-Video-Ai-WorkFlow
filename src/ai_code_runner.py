@@ -61,6 +61,94 @@ def _safe_env(out_dir: Path) -> dict:
     return env
 
 
+def repair_code_with_ai(
+    code: str,
+    error_msg: str,
+    framework: str = "matplotlib",
+    duration: float = 5.0,
+) -> str | None:
+    """Gửi code bị lỗi và traceback cho LLM để tự động phân tích và sửa lỗi."""
+    try:
+        from .llm import generate_text
+    except Exception as e:
+        log.warning("Không thể import llm để sửa code: %s", e)
+        return None
+
+    prompt = (
+        f"You are an expert Python graphics and animation developer specializing in {framework}.\n"
+        f"The following script failed to execute during rendering.\n\n"
+        f"--- CURRENT SCRIPT ---\n{code}\n\n"
+        f"--- ERROR TRACEBACK (STDERR) ---\n{error_msg}\n\n"
+        f"TASK:\n"
+        f"Fix the code completely so it runs without error.\n"
+        f"Target animation duration: {duration} seconds.\n\n"
+        f"RULES:\n"
+        f"1. Do NOT redefine WIDTH, HEIGHT, FPS, DURATION, OUT_PATH (these are already injected in the runner prelude).\n"
+        f"2. Ensure the output animation is saved directly to OUT_PATH ('out.mp4').\n"
+        f"3. Only use {framework}, numpy, math, and standard Python libraries.\n"
+        f"4. Output ONLY the fixed Python code inside a ```python ... ``` block. No explanations."
+    )
+    try:
+        log.info("Đang gọi AI để tự động sửa lỗi code %s...", framework)
+        resp = generate_text(prompt, max_tokens=2048)
+        if "```" in resp:
+            parts = resp.split("```")
+            for i in range(1, len(parts), 2):
+                block = parts[i]
+                if block.startswith("python"):
+                    block = block[6:]
+                cleaned = block.strip()
+                if cleaned:
+                    return cleaned
+        return resp.strip() if resp.strip() else None
+    except Exception as e:
+        log.warning("AI self-repair thất bại: %s", e)
+        return None
+
+
+def generate_matplotlib_from_prompt(
+    description: str,
+    duration: float = 5.0,
+) -> str | None:
+    """Yêu cầu AI viết code Matplotlib animation từ mô tả cảnh."""
+    try:
+        from .llm import generate_text
+    except Exception as e:
+        log.warning("Không thể import llm: %s", e)
+        return None
+
+    prompt = (
+        f"Write a high quality Python matplotlib animation script to visualize the following concept:\n"
+        f"Concept: {description}\n"
+        f"Target duration: {duration} seconds.\n\n"
+        f"CRITICAL RULES:\n"
+        f"- The runner already injects: WIDTH, HEIGHT, FPS, DURATION, OUT_PATH = 'out.mp4'. DO NOT REDEFINE THEM.\n"
+        f"- Use `import matplotlib.pyplot as plt` and `from matplotlib.animation import FuncAnimation`.\n"
+        f"- Figure setup: `fig = plt.figure(figsize=(WIDTH/100, HEIGHT/100), dpi=100, facecolor='#0d1117')`.\n"
+        f"- Modern dark theme: background '#0d1117', text '#e6edf3', accent '#58a6ff', secondary '#3fb950'.\n"
+        f"- Hide axis ticks if not needed for cleaner look: `ax.set_facecolor('#0d1117')`.\n"
+        f"- Number of frames = int(DURATION * FPS).\n"
+        f"- MUST save animation to OUT_PATH using `ani.save(OUT_PATH, fps=FPS, writer='ffmpeg')`.\n"
+        f"- Return ONLY Python code inside ```python ... ``` block."
+    )
+    try:
+        log.info("Đang gọi AI sinh code Matplotlib animation mới...")
+        resp = generate_text(prompt, max_tokens=2048)
+        if "```" in resp:
+            parts = resp.split("```")
+            for i in range(1, len(parts), 2):
+                block = parts[i]
+                if block.startswith("python"):
+                    block = block[6:]
+                cleaned = block.strip()
+                if cleaned:
+                    return cleaned
+        return resp.strip() if resp.strip() else None
+    except Exception as e:
+        log.warning("AI sinh code matplotlib thất bại: %s", e)
+        return None
+
+
 def run_ai_code(
     code: str,
     out_dir: Path,
@@ -69,51 +157,63 @@ def run_ai_code(
     height: int,
     fps: int,
     timeout: int = 90,
+    auto_repair: bool = True,
+    max_repairs: int = 2,
 ) -> Path | None:
-    """Chạy ``code`` (matplotlib) trong sandbox env-rỗng. Trả về mp4 hoặc None.
-
-    Code AI được kỳ vọng lưu animation vào biến ``OUT_PATH`` (= 'out.mp4' trong
-    ``out_dir``). None nếu lỗi/timeout/không sinh được file hợp lệ.
-    """
+    """Chạy ``code`` (matplotlib) trong sandbox env-rỗng. Tự động AI repair nếu lỗi. Trả về mp4 hoặc None."""
     if not code or not code.strip():
         return None
 
     out_dir.mkdir(parents=True, exist_ok=True)
     script = out_dir / "ai_scene.py"
-    prelude = _PRELUDE.format(
-        width=int(width), height=int(height), fps=int(fps), duration=float(duration)
-    )
-    script.write_text(prelude + code, encoding="utf-8")
-
-    # env TỐI THIỂU: không truyền secret. PATH để tìm ffmpeg; MPLBACKEND phòng hờ.
-    # PYTHONPATH = sys.path để Python con import được package đã cài (không cần APPDATA).
-    # MPLCONFIGDIR cô lập cache matplotlib vào thư mục tạm (khỏi cần HOME thật).
     safe_env = _safe_env(out_dir)
 
-    try:
-        proc = subprocess.run(
-            [sys.executable, script.name],
-            cwd=str(out_dir),
-            env=safe_env,
-            timeout=timeout,
-            capture_output=True,
-            text=True,
+    current_code = code
+    for attempt in range(max_repairs + 1):
+        prelude = _PRELUDE.format(
+            width=int(width), height=int(height), fps=int(fps), duration=float(duration)
         )
-    except subprocess.TimeoutExpired:
-        log.warning("Code AI vượt timeout %ds -> bỏ.", timeout)
-        return None
-    except Exception as e:  # noqa: BLE001
-        log.warning("Chạy code AI lỗi: %s", e)
-        return None
+        script.write_text(prelude + current_code, encoding="utf-8")
 
-    if proc.returncode != 0:
-        log.warning("Code AI thoát mã %s: %s", proc.returncode, (proc.stderr or "")[-500:])
-        return None
+        try:
+            proc = subprocess.run(
+                [sys.executable, script.name],
+                cwd=str(out_dir),
+                env=safe_env,
+                timeout=timeout,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.TimeoutExpired:
+            log.warning("Code AI vượt timeout %ds (lần %d).", timeout, attempt + 1)
+            proc = None
+            stderr = f"Execution timed out after {timeout} seconds."
+        except Exception as e:  # noqa: BLE001
+            log.warning("Chạy code AI lỗi: %s", e)
+            proc = None
+            stderr = str(e)
 
-    out = out_dir / "out.mp4"
-    if out.exists() and out.stat().st_size > 1024:
-        return out
-    log.warning("Code AI chạy xong nhưng không sinh out.mp4 hợp lệ.")
+        if proc and proc.returncode == 0:
+            out = out_dir / "out.mp4"
+            if out.exists() and out.stat().st_size > 1024:
+                if attempt > 0:
+                    log.info("AI Self-Repair Matplotlib thành công ở lần thử %d!", attempt)
+                return out
+            log.warning("Code AI chạy xong nhưng không sinh out.mp4 hợp lệ.")
+            stderr = "No valid out.mp4 produced."
+        else:
+            stderr = proc.stderr if proc else stderr
+            log.warning("Code AI thoát lỗi (lần %d): %s", attempt + 1, (stderr or "")[-500:])
+
+        # Nếu lỗi và còn lượt sửa: gọi AI self-repair
+        if auto_repair and attempt < max_repairs:
+            log.info("Thử tự động sửa code Matplotlib bằng AI (lượt %d/%d)...", attempt + 1, max_repairs)
+            fixed = repair_code_with_ai(current_code, (stderr or "")[-800:], framework="matplotlib", duration=duration)
+            if fixed and fixed.strip():
+                current_code = fixed
+                continue
+        break
+
     return None
 
 
@@ -142,64 +242,76 @@ def run_manim_code(
     quality: str = "medium_quality",
     background_color: str = "#0d1117",
     timeout: int = 240,
+    auto_repair: bool = True,
+    max_repairs: int = 2,
 ) -> Path | None:
-    """Chạy ``code`` (manim) trong sandbox env-rỗng. Trả về mp4 hoặc None.
-
-    Code AI được kỳ vọng định nghĩa MỘT class kế thừa ``Scene`` (manim tự tìm và
-    render class đầu tiên). Render bằng CLI ``manim`` với ``env`` KHÔNG chứa secret,
-    có ``timeout`` cứng. None nếu manim chưa cài / lỗi / timeout / không ra mp4.
-    """
+    """Chạy ``code`` (manim) trong sandbox env-rỗng. Tự động AI repair nếu lỗi. Trả về mp4 hoặc None."""
     if not code or not code.strip():
         return None
 
     out_dir.mkdir(parents=True, exist_ok=True)
     script = out_dir / "ai_manim.py"
-    prelude = _MANIM_PRELUDE.format(
-        width=int(width), height=int(height), fps=int(fps),
-        duration=float(duration), bg=background_color,
-    )
-    script.write_text(prelude + code, encoding="utf-8")
-
     safe_env = _safe_env(out_dir)
     media = out_dir / "media"
-    # -a: render mọi Scene trong file; --format mp4 để không ra webm/gif.
-    cmd = [
-        sys.executable, "-m", "manim", "render",
-        "-a", "--format", "mp4",
-        f"--quality={_MANIM_QUALITY_FLAG.get(quality, 'm')}",
-        "--media_dir", str(media),
-        script.name,
-    ]
-    try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(out_dir),
-            env=safe_env,
-            timeout=timeout,
-            capture_output=True,
-            text=True,
+
+    current_code = code
+    for attempt in range(max_repairs + 1):
+        prelude = _MANIM_PRELUDE.format(
+            width=int(width), height=int(height), fps=int(fps),
+            duration=float(duration), bg=background_color,
         )
-    except FileNotFoundError:
-        log.warning("Manim chưa cài -> bỏ (fallback pycode/custom).")
-        return None
-    except subprocess.TimeoutExpired:
-        log.warning("Manim vượt timeout %ds -> bỏ.", timeout)
-        return None
-    except Exception as e:  # noqa: BLE001
-        log.warning("Chạy manim lỗi: %s", e)
-        return None
+        script.write_text(prelude + current_code, encoding="utf-8")
 
-    if proc.returncode != 0:
-        log.warning("Manim thoát mã %s: %s", proc.returncode, (proc.stderr or "")[-800:])
-        return None
+        cmd = [
+            sys.executable, "-m", "manim", "render",
+            "-a", "--format", "mp4",
+            f"--quality={_MANIM_QUALITY_FLAG.get(quality, 'm')}",
+            "--media_dir", str(media),
+            script.name,
+        ]
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=str(out_dir),
+                env=safe_env,
+                timeout=timeout,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError:
+            log.warning("Manim chưa cài -> chuyển hướng fallback.")
+            return None
+        except subprocess.TimeoutExpired:
+            log.warning("Manim vượt timeout %ds (lần %d).", timeout, attempt + 1)
+            proc = None
+            stderr = f"Execution timed out after {timeout} seconds."
+        except Exception as e:  # noqa: BLE001
+            log.warning("Chạy manim lỗi: %s", e)
+            proc = None
+            stderr = str(e)
 
-    # Manim ghi mp4 vào media/videos/<script>/<res>/<SceneName>.mp4. Lấy file
-    # mp4 mới nhất & lớn nhất trong media_dir để không phụ thuộc tên class.
-    vids = [p for p in media.rglob("*.mp4") if p.stat().st_size > 1024]
-    if not vids:
-        log.warning("Manim chạy xong nhưng không tìm thấy mp4 hợp lệ.")
-        return None
-    return max(vids, key=lambda p: p.stat().st_size)
+        if proc and proc.returncode == 0:
+            vids = [p for p in media.rglob("*.mp4") if p.stat().st_size > 1024]
+            if vids:
+                if attempt > 0:
+                    log.info("AI Self-Repair Manim thành công ở lần thử %d!", attempt)
+                return max(vids, key=lambda p: p.stat().st_size)
+            log.warning("Manim chạy xong nhưng không tìm thấy mp4 hợp lệ.")
+            stderr = "No valid mp4 generated in media folder."
+        else:
+            stderr = proc.stderr if proc else stderr
+            log.warning("Manim thoát lỗi (lần %d): %s", attempt + 1, (stderr or "")[-800:])
+
+        # Nếu lỗi và còn lượt sửa: gọi AI self-repair
+        if auto_repair and attempt < max_repairs:
+            log.info("Thử tự động sửa code Manim bằng AI (lượt %d/%d)...", attempt + 1, max_repairs)
+            fixed = repair_code_with_ai(current_code, (stderr or "")[-800:], framework="manim", duration=duration)
+            if fixed and fixed.strip():
+                current_code = fixed
+                continue
+        break
+
+    return None
 
 
 _MANIM_QUALITY_FLAG = {

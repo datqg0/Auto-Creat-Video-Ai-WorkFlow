@@ -267,8 +267,13 @@ def generate(prompt: str, system: str = "") -> str:
                         time.sleep(sleep_s)
                         continue
                     break
-                # Lỗi khác: backoff ngắn có jitter rồi thử lại.
                 if not is_last_attempt:
                     sleep_s = min(2.0 * attempt, 5.0) + random.uniform(0.1, 0.5)
                     time.sleep(sleep_s)
     raise LLMError(f"Tất cả LLM provider đều lỗi. Cuối: {last_err}")
+
+
+# Alias tiện ích cho các module khác
+def generate_text(prompt: str, system: str | None = None, max_tokens: int | None = None) -> str:
+    """Wrapper gọi generate() tương thích các signature khác nhau."""
+    return generate(prompt, system=system)

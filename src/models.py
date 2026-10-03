@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 # Các loại visual mà visual_engine biết render
 VisualType = Literal[
-    "title", "bullets", "chart", "code", "algorithm", "quote", "diagram", "animation"
+    "title", "bullets", "chart", "code", "algorithm", "quote", "diagram", "animation", "challenge"
 ]
 
 

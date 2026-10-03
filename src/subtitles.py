@@ -98,10 +98,62 @@ def generate_srt(audio_path: Path, srt_path: Path) -> Path:
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
     segments, _ = model.transcribe(str(audio_path), language=lang, vad_filter=True)
 
-    srt_path.parent.mkdir(parents=True, exist_ok=True)
     with open(srt_path, "w", encoding="utf-8") as f:
         for i, seg in enumerate(segments, start=1):
             f.write(f"{i}\n")
             f.write(f"{_fmt_ts(seg.start)} --> {_fmt_ts(seg.end)}\n")
             f.write(f"{seg.text.strip()}\n\n")
     return srt_path
+
+
+def translate_srt_to_english(vi_srt_path: Path, en_srt_path: Path) -> Path | None:
+    """Đọc file .srt tiếng Việt, dịch sang tiếng Anh bằng LLM, giữ nguyên timestamp."""
+    if not vi_srt_path.exists():
+        return None
+    content = vi_srt_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return None
+
+    import re
+    blocks = [b.strip() for b in content.split("\n\n") if b.strip()]
+    texts_to_translate: list[str] = []
+    headers: list[tuple[str, str]] = []
+    for b in blocks:
+        lines = b.split("\n")
+        if len(lines) >= 3:
+            headers.append((lines[0], lines[1]))
+            texts_to_translate.append(" ".join(lines[2:]))
+
+    if not texts_to_translate:
+        return None
+
+    try:
+        from .llm import generate_text
+
+        prompt = (
+            "You are a professional subtitle translator.\n"
+            "Translate the following numbered Vietnamese subtitle lines into natural, concise English.\n"
+            "Keep the exact same numbering and line count.\n"
+            "Do NOT add commentary. Return ONLY the translated lines.\n\n"
+            + "\n".join(f"{i+1}. {t}" for i, t in enumerate(texts_to_translate))
+        )
+        translated_raw = generate_text(prompt, max_tokens=3000)
+        raw_lines = [l.strip() for l in translated_raw.strip().split("\n") if l.strip()]
+
+        en_lines: list[str] = []
+        for line in raw_lines:
+            m = re.match(r"^\d+[\.\:\)\-]\s*(.*)$", line)
+            en_lines.append(m.group(1).strip() if m else line)
+
+        out_blocks: list[str] = []
+        for i, (idx, ts) in enumerate(headers):
+            text_en = en_lines[i] if i < len(en_lines) else texts_to_translate[i]
+            out_blocks.append(f"{idx}\n{ts}\n{text_en}")
+
+        en_srt_path.parent.mkdir(parents=True, exist_ok=True)
+        en_srt_path.write_text("\n\n".join(out_blocks) + "\n\n", encoding="utf-8")
+        log.info("Đã tạo phụ đề tiếng Anh: %s", en_srt_path.name)
+        return en_srt_path
+    except Exception as e:  # noqa: BLE001
+        log.warning("Dịch phụ đề tiếng Anh lỗi: %s", e)
+        return None

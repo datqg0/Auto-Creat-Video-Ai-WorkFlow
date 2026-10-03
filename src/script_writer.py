@@ -152,27 +152,19 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
     - Nếu manim chưa cài hoặc render lỗi/timeout, hệ thống tự fallback sang pycode/ảnh tĩnh.
     - CHỈ dùng preset "manim" cho 1-2 scene quan trọng nhất (render manim CHẬM & nặng).
 
-QUAN TRỌNG về hình ảnh (video phải THẬT NHIỀU hình ảnh & animation, không được nhàm):
-- Đa dạng visual_type: dùng ÍT NHẤT 5 loại khác nhau, KHÔNG để 2 scene bullets liên tiếp.
-- BẮT BUỘC có TỐI THIỂU 3-5 scene "animation" rải đều trong video (hàm số, mạng neural,
-  số liệu, thuật toán, quy trình) để video sinh động như 3Blue1Brown.
-- BẮT BUỘC có ÍT NHẤT 2 scene animation preset "pycode" (tự viết code Python/matplotlib
-  vẽ hình ảnh minh họa) rải ở các phần khác nhau của video — để mỗi video có tối thiểu 2
-  hình minh họa do code sinh ra, không chỉ 1.
-- NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để
-  minh họa đúng ý tưởng cốt lõi của video một cách độc đáo, sinh động.
-- Với scene animation "custom" hoặc "pycode": nếu đã TỰ ĐẶT chữ tiêu đề bên trong (một
-  object text/formula ở phía trên, hoặc dòng title trong code), thì để "heading" TRỐNG ("")
-  để tránh CHỒNG CHỮ (2 lớp tiêu đề đè lên nhau).
-- MỌI scene (trừ code) đều PHẢI có "image_query": 2-5 từ khóa TIẾNG ANH mô tả ảnh minh họa nền
-  cụ thể, sinh động (ví dụ "neural network brain glowing", "data center servers blue",
-  "encryption padlock circuit", "quantum computer chip"). Không để trống.
-- Ưu tiên hình ảnh trực quan hơn chữ: mỗi ý nên gắn với 1 hình ảnh hoặc animation minh họa.
-- "video_query": với các scene hợp với CẢNH QUAY THỰC (data center, con chip, người dùng
-  điện thoại/laptop, robot, thành phố, mạch điện, phòng lab...), thêm 2-4 từ khóa TIẾNG ANH
-  để tải footage VIDEO thật làm nền động (ví dụ "data center servers", "person using smartphone",
-  "circuit board macro", "city traffic night"). Nếu scene trừu tượng/toán học thì để trống "".
-  Nên có 3-6 scene có video_query rải đều để video trực quan, sinh động hơn ảnh tĩnh.
+QUAN TRỌNG VỀ NHỊP VĂN & GIỌNG ĐỌC (giữ chân người xem):
+- GIỚI HẠN MỖI CÂU ≤ 20 TỪ: Viết câu ngắn, gãy gọn, nhiều câu hỏi tu từ, ngắt nhịp rõ ràng để giọng đọc TTS không đều đều, buồn ngủ.
+- NHẤN TỪ KHÓA BẰNG DẤU SAO: Bọc 1-2 từ khóa then chốt nhất trong mỗi câu bằng dấu sao, ví dụ: *1 tỷ USD*, *sụp đổ*, *nhanh gấp 10 lần*, *bị lộ*. Hệ thống sẽ dùng mốc này để phóng to chữ và tạo hiệu ứng nhún (punch-in) trên màn hình.
+- KỂ CHUYỆN LIÊN TỤC: Dẫn dắt bằng tình huống, đưa người xem đi từ tò mò sang bất ngờ rồi tới giải pháp ("Aha moment").
+
+QUAN TRỌNG VỀ HÌNH ẢNH & ANIMATION (video phải chuyển động liên tục, TUYỆT ĐỐI KHÔNG làm slideshow tĩnh):
+- BẮT BUỘC có ÍT NHẤT 35% - 50% số scene có visual_type: "animation" (với preset "pycode", "manim", hoặc preset toán/số liệu).
+- KHÔNG để 2 scene bullets hoặc 2 ảnh tĩnh liên tiếp. Phải xen kẽ: Animation -> B-roll video -> Slide kinetic -> Animation.
+- BẮT BUỘC có ÍT NHẤT 2-3 scene animation preset "pycode" hoặc "manim" (tự viết code Python/matplotlib/manim vẽ hình ảnh minh họa cụ thể cho chủ đề).
+- NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để minh họa đúng ý tưởng cốt lõi của video.
+- Với scene animation "custom" hoặc "pycode": nếu đã TỰ ĐẶT chữ tiêu đề bên trong, thì để "heading" TRỐNG ("") để tránh CHỒNG CHỮ.
+- MỌI scene (trừ code) đều PHẢI có "image_query": 2-5 từ khóa TIẾNG ANH mô tả ảnh minh họa nền cụ thể, sinh động (ví dụ "neural network brain glowing", "data center servers blue", "encryption padlock circuit", "quantum computer chip"). Không để trống.
+- "video_query": với các scene hợp với CẢNH QUAY THỰC (data center, con chip, người dùng điện thoại/laptop, robot, thành phố, mạch điện, phòng lab...), thêm 2-4 từ khóa TIẾNG ANH để tải footage VIDEO thật làm nền động. Nên có 3-6 scene có video_query rải đều để video trực quan.
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{
@@ -181,7 +173,7 @@ Trả về DUY NHẤT một object JSON theo schema:
   "tags": ["tag1", "tag2", "..."],
   "scenes": [
     {{
-      "narration": "lời đọc tự nhiên, nhiều câu, kể chuyện lôi cuốn",
+      "narration": "lời đọc tự nhiên, câu ngắn dưới 20 từ, có *từ khóa* nhấn nhá",
       "visual_type": "bullets",
       "heading": "tiêu đề ngắn hiển thị trên màn hình",
       "bullets": ["ý 1", "ý 2"],

@@ -227,7 +227,7 @@ def _icon(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: str, idx:
 def _render_title(scene: Scene, out: Path) -> None:
     heading = scene.heading or scene.narration[:60]
     img, draw = _new_canvas(_seed(heading), blobs=4, image_query=scene.image_query)
-    cx, cy = W // 2, H // 2 - 40
+    cx, cy = W // 2, H // 2 - 20
     # vòng tròn đồng tâm trang trí (thu nhỏ theo khung dọc để không tràn ngang)
     base_r = min(W, H) // 3
     rings = (base_r, int(base_r * 0.78), int(base_r * 0.56))
@@ -238,11 +238,90 @@ def _render_title(scene: Scene, out: Path) -> None:
             [cx - rad, cy - rad, cx + rad, cy + rad], outline=(r, g, b, 90), width=3
         )
         img = Image.alpha_composite(img.convert("RGBA"), ring).convert("RGB")
+
+    # Tìm icon công nghệ phù hợp với chủ đề để làm visual đặt vấn đề
+    try:
+        import re
+        from .asset_manager import get_tech_icon, icon_to_png
+        words = re.findall(r"[A-Za-z0-9\+\#\.\-]+", f"{heading} {scene.narration[:120]}")
+        for w in words:
+            if len(w) >= 2 and w.lower() not in ("la", "va", "co", "trong", "cho", "cac", "the", "and", "how", "what", "tai", "sao"):
+                svg = get_tech_icon(w, color_hex="38bdf8")
+                if svg:
+                    png_path = out.parent / f"_icon_{svg.stem}.png"
+                    png = icon_to_png(svg, png_path, size=140)
+                    if png and png.exists():
+                        with Image.open(png) as icon_img:
+                            glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+                            ix, iy = cx - 70, cy - 240
+                            ImageDraw.Draw(glow).ellipse([cx - 85, cy - 255, cx + 85, cy - 85], fill=(56, 189, 248, 60))
+                            img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
+                            img.paste(icon_img.convert("RGBA"), (ix, iy), icon_img.convert("RGBA"))
+                            break
+    except Exception as e:
+        log.debug("Chèn icon visual hook lỗi: %s", e)
+
     draw = ImageDraw.Draw(img)
-    draw.rectangle([(cx - 140, cy - 150), (cx + 140, cy - 138)], fill=ACCENT)
+    draw.rectangle([(cx - 140, cy - 110), (cx + 140, cy - 100)], fill=ACCENT)
     # Cỡ chữ tự co để từ dài nhất vừa bề rộng khung -> không tràn (nhất là short).
-    hfont = _fit_font(draw, heading, 96 if IS_VERTICAL else 84, W - 2 * MARGIN)
-    _draw_center_text(draw, heading, hfont, cy - 110)
+    hfont = _fit_font(draw, heading, 96 if IS_VERTICAL else 80, W - 2 * MARGIN)
+    _draw_center_text(draw, heading, hfont, cy - 70)
+    _footer(draw)
+    img.save(out)
+
+
+def _render_challenge(scene: Scene, out: Path) -> None:
+    """Render card bài toán / thử thách trực quan có icon và visual card bắt mắt."""
+    img, draw = _new_canvas(_seed(scene.heading or scene.narration), blobs=3, image_query=scene.image_query)
+
+    cw, ch = int(W * 0.85), int(H * 0.72)
+    cx0, cy0 = (W - cw) // 2, (H - ch) // 2 - 10
+    cx1, cy1 = cx0 + cw, cy0 + ch
+
+    # Panel bo góc nổi bật
+    panel = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    pdraw = ImageDraw.Draw(panel)
+    pdraw.rounded_rectangle([cx0, cy0, cx1, cy1], radius=24, fill=(18, 24, 38, 230), outline=(245, 158, 11, 220), width=3)
+    img = Image.alpha_composite(img.convert("RGBA"), panel).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    # Badge: 🎯 THỬ THÁCH VẬN DỤNG
+    badge_w, badge_h = 360, 56
+    bx0, by0 = (W - badge_w) // 2, cy0 - 28
+    draw.rounded_rectangle([bx0, by0, bx0 + badge_w, by0 + badge_h], radius=28, fill="#f59e0b", outline="#ffffff", width=2)
+    bfont = _font(26, bold=True)
+    draw.text((bx0 + 36, by0 + 14), "🎯 THỬ THÁCH VẬN DỤNG", font=bfont, fill="#000000")
+
+    # Icon dấu hỏi tròn
+    icon_w = 60
+    draw.ellipse([cx0 + 60, cy0 + 60, cx0 + 60 + icon_w, cy0 + 60 + icon_w], fill="#fbbf24")
+    draw.text((cx0 + 80, cy0 + 66), "?", font=_font(42, bold=True), fill="#000000")
+
+    # Câu hỏi
+    q_font = _font(40 if not IS_VERTICAL else 34, bold=True)
+    bullets = scene.bullets or [scene.narration]
+    question_text = bullets[0] if bullets else "Hãy suy nghĩ giải pháp cho bài toán này."
+
+    qx = cx0 + 150
+    qy = cy0 + 65
+    max_qw = cx1 - qx - 60
+    q_lines = _wrap_lines(draw, question_text, q_font, max_qw)
+    for ql in q_lines[:4]:
+        draw.text((qx, qy), ql, font=q_font, fill="#ffffff")
+        qy += 56
+
+    # Hộp gợi ý (Hint box) nếu có
+    if len(bullets) > 1 and bullets[1]:
+        hint_text = bullets[1]
+        hy0 = max(qy + 35, cy0 + ch - 170)
+        draw.rounded_rectangle([cx0 + 50, hy0, cx1 - 50, hy0 + 95], radius=16, fill="#0d1117", outline="#38bdf8", width=2)
+        h_font = _font(28, bold=False)
+        draw.text((cx0 + 75, hy0 + 26), "💡 " + hint_text, font=h_font, fill="#38bdf8")
+
+    # Call to action ở đáy
+    cta_font = _font(24, bold=True)
+    draw.text(((W - 520) // 2, cy1 - 42), "💬 ĐỂ LẠI ĐÁP ÁN CỦA BẠN DƯỚI PHẦN BÌNH LUẬN", font=cta_font, fill="#f59e0b")
+
     _footer(draw)
     img.save(out)
 
@@ -490,6 +569,7 @@ _RENDERERS = {
     "chart": _render_chart,
     "algorithm": _render_algorithm,
     "diagram": _render_diagram,
+    "challenge": _render_challenge,
 }
 
 

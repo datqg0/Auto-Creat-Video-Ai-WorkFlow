@@ -57,8 +57,33 @@ def _load_credentials() -> Credentials:
     return creds
 
 
-def upload(video_path: Path, meta: dict, thumbnail: Path | None = None) -> str:
-    """Upload video, đặt thumbnail. Trả về YouTube video id."""
+def upload_caption(youtube, video_id: str, srt_path: Path, language: str = "vi", name: str = "Tiếng Việt") -> None:
+    """Tải file phụ đề .srt lên YouTube Captions."""
+    if not srt_path.exists():
+        return
+    try:
+        body = {
+            "snippet": {
+                "videoId": video_id,
+                "language": language,
+                "name": name,
+                "isDraft": False,
+            }
+        }
+        media = MediaFileUpload(str(srt_path), mimetype="*/*", resumable=True)
+        youtube.captions().insert(part="snippet", body=body, media_body=media).execute()
+        log.info("Đã upload phụ đề %s (%s) cho video %s", name, language, video_id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Upload phụ đề %s lỗi: %s", language, e)
+
+
+def upload(
+    video_path: Path,
+    meta: dict,
+    thumbnail: Path | None = None,
+    captions: dict[str, Path] | None = None,
+) -> str:
+    """Upload video, đặt thumbnail, và upload file phụ đề nếu có. Trả về YouTube video id."""
     creds = _load_credentials()
     youtube = build("youtube", "v3", credentials=creds)
 
@@ -96,6 +121,12 @@ def upload(video_path: Path, meta: dict, thumbnail: Path | None = None) -> str:
             ).execute()
         except Exception as e:  # noqa: BLE001 - thumbnail không bắt buộc
             log.warning("Đặt thumbnail lỗi: %s", e)
+
+    if captions:
+        for lang_code, cap_path in captions.items():
+            if cap_path and cap_path.exists():
+                name = "Tiếng Việt" if lang_code == "vi" else "English"
+                upload_caption(youtube, video_id, cap_path, language=lang_code, name=name)
 
     return video_id
 

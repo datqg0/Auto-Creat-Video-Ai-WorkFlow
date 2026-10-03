@@ -191,7 +191,7 @@ thumbnail:
 subtitles:
   enabled: true
   whisper_model: "base"   # (chỉ dùng khi fallback Whisper) tiny|base|small|medium
-  burn_in: true           # ghi phụ đề trực tiếp vào video
+  burn_in: false          # false: video sạch, upload file srt lên YouTube để người dùng bật CC nếu cần
 
 # ---- Nhạc nền ----
 music:
