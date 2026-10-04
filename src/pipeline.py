@@ -140,7 +140,12 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             if anim_cfg.get("manim_enabled", True) and (preset == "manim" or "manim" in visual_desc.lower()):
                 manim_code = acfg.get("code") if preset == "manim" else None
                 if not manim_code and visual_desc:
-                    manim_code = generate_manim_from_prompt(visual_desc, duration=dur)
+                    manim_code = generate_manim_from_prompt(
+                        visual_desc,
+                        duration=dur,
+                        topic=script.title,
+                        narration=scene.narration,
+                    )
                 if manim_code:
                     try:
                         code_video = run_manim_code(
@@ -163,7 +168,12 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                 pycode = acfg.get("code") if preset == "pycode" else acfg.get("pycode")
                 # Nếu chưa có code -> Nhờ AI chuyên code sinh Matplotlib từ visual_prompt
                 if not pycode and (preset in ("manim", "pycode") or anim_cfg.get("ai_code_primary", True) or scene.visual_prompt or scene.narration):
-                    pycode = generate_matplotlib_from_prompt(visual_desc, duration=dur)
+                    pycode = generate_matplotlib_from_prompt(
+                        visual_desc,
+                        duration=dur,
+                        topic=script.title,
+                        narration=scene.narration,
+                    )
 
                 if pycode:
                     try:

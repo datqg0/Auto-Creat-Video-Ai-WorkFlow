@@ -20,8 +20,22 @@ from .models import Scene
 
 log = logging.getLogger(__name__)
 
-W = CONFIG["visual"]["width"]
-H = CONFIG["visual"]["height"]
+def _W() -> int:
+    return int(CONFIG["visual"]["width"])
+
+
+def _H() -> int:
+    return int(CONFIG["visual"]["height"])
+
+
+def _is_vertical() -> bool:
+    return _H() > _W()
+
+
+def _margin() -> int:
+    return 80 if _is_vertical() else 120
+
+
 BG = CONFIG["visual"]["background_color"]
 ACCENT = CONFIG["visual"]["accent_color"]
 FONT_PATH = CONFIG["visual"]["font"]
@@ -64,23 +78,23 @@ def _font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
 
 def _gradient_bg(top: str = BG, bottom: str = "#010409") -> Image.Image:
     """Nền gradient dọc nhẹ (vẽ theo hàng cho nhanh)."""
-    grad = Image.new("RGB", (1, H))
+    grad = Image.new("RGB", (1, _H()))
     gpx = grad.load()
-    for y in range(H):
-        gpx[0, y] = _mix(top, bottom, y / H)
-    return grad.resize((W, H))
+    for y in range(_H()):
+        gpx[0, y] = _mix(top, bottom, y / _H())
+    return grad.resize((_W(), _H()))
 
 
 def _decor_blobs(img: Image.Image, seed: int, count: int = 3) -> Image.Image:
     """Thêm vài khối tròn mờ làm điểm nhấn nền."""
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    overlay = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay)
     rng = seed or 1
     for i in range(count):
         rng = (rng * 1103515245 + 12345) & 0x7FFFFFFF
-        cx = rng % W
+        cx = rng % _W()
         rng = (rng * 1103515245 + 12345) & 0x7FFFFFFF
-        cy = rng % H
+        cy = rng % _H()
         rng = (rng * 1103515245 + 12345) & 0x7FFFFFFF
         rad = 180 + (rng % 260)
         r, g, b = _hex(_PALETTE[(seed + i) % len(_PALETTE)])
@@ -117,8 +131,8 @@ def _photo_bg(query: str, index: int = 0) -> Image.Image | None:
     photo = _load_photo(query, index)
     if photo is None:
         return None
-    photo = _cover(photo, W, H).filter(ImageFilter.GaussianBlur(6))
-    overlay = Image.new("RGBA", (W, H), (5, 8, 16, 190))
+    photo = _cover(photo, _W(), _H()).filter(ImageFilter.GaussianBlur(6))
+    overlay = Image.new("RGBA", (_W(), _H()), (5, 8, 16, 190))
     return Image.alpha_composite(photo.convert("RGBA"), overlay).convert("RGB")
 
 
@@ -144,10 +158,7 @@ def _photo_panel(
 
 
 _IMAGES_ON = CONFIG.get("images", {}).get("enabled", False)
-# Khung dọc (short 9:16): layout phải khác video ngang để chữ/ảnh không tràn khung.
-IS_VERTICAL = H > W
-# Lề an toàn theo bề rộng khung (dọc hẹp -> lề nhỏ hơn).
-MARGIN = 80 if IS_VERTICAL else 120
+# Khung dọc (short 9:16) và lề an toàn được tính động qua _is_vertical() và _margin()
 
 
 def _new_canvas(
@@ -162,8 +173,8 @@ def _new_canvas(
 
 
 def _footer(draw: ImageDraw.ImageDraw) -> None:
-    draw.line([(120, H - 90), (W - 120, H - 90)], fill=_MUTED, width=2)
-    draw.ellipse([(120, H - 78), (140, H - 58)], fill=ACCENT)
+    draw.line([(120, _H() - 90), (_W() - 120, _H() - 90)], fill=_MUTED, width=2)
+    draw.ellipse([(120, _H() - 78), (140, _H() - 58)], fill=ACCENT)
 
 
 def _text_w(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> int:
@@ -180,13 +191,13 @@ def _draw_center_text(
     max_chars: int = 40,
 ) -> int:
     """Vẽ text căn giữa, tự xuống dòng theo BỀ RỘNG PIXEL. Trả về y sau khi vẽ."""
-    max_w = W - 2 * MARGIN
+    max_w = _W() - 2 * _margin()
     lines = _wrap_lines(draw, text, font, max_w) or [""]
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         w = bbox[2] - bbox[0]
         h = bbox[3] - bbox[1]
-        draw.text(((W - w) / 2, y), line, font=font, fill=fill)
+        draw.text(((_W() - w) / 2, y), line, font=font, fill=fill)
         y += h + 18
     return y
 
@@ -227,13 +238,13 @@ def _icon(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: str, idx:
 def _render_title(scene: Scene, out: Path) -> None:
     heading = scene.heading or scene.narration[:60]
     img, draw = _new_canvas(_seed(heading), blobs=4, image_query=scene.image_query)
-    cx, cy = W // 2, H // 2 - 20
+    cx, cy = _W() // 2, _H() // 2 - 20
     # vòng tròn đồng tâm trang trí (thu nhỏ theo khung dọc để không tràn ngang)
-    base_r = min(W, H) // 3
+    base_r = min(_W(), _H()) // 3
     rings = (base_r, int(base_r * 0.78), int(base_r * 0.56))
     for i, rad in enumerate(rings):
         r, g, b = _hex(_PALETTE[i % len(_PALETTE)])
-        ring = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        ring = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
         ImageDraw.Draw(ring).ellipse(
             [cx - rad, cy - rad, cx + rad, cy + rad], outline=(r, g, b, 90), width=3
         )
@@ -252,7 +263,7 @@ def _render_title(scene: Scene, out: Path) -> None:
                     png = icon_to_png(svg, png_path, size=140)
                     if png and png.exists():
                         with Image.open(png) as icon_img:
-                            glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+                            glow = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
                             ix, iy = cx - 70, cy - 240
                             ImageDraw.Draw(glow).ellipse([cx - 85, cy - 255, cx + 85, cy - 85], fill=(56, 189, 248, 60))
                             img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
@@ -264,7 +275,7 @@ def _render_title(scene: Scene, out: Path) -> None:
     draw = ImageDraw.Draw(img)
     draw.rectangle([(cx - 140, cy - 110), (cx + 140, cy - 100)], fill=ACCENT)
     # Cỡ chữ tự co để từ dài nhất vừa bề rộng khung -> không tràn (nhất là short).
-    hfont = _fit_font(draw, heading, 96 if IS_VERTICAL else 80, W - 2 * MARGIN)
+    hfont = _fit_font(draw, heading, 96 if _is_vertical() else 80, _W() - 2 * _margin())
     _draw_center_text(draw, heading, hfont, cy - 70)
     _footer(draw)
     img.save(out)
@@ -274,12 +285,12 @@ def _render_challenge(scene: Scene, out: Path) -> None:
     """Render card bài toán / thử thách trực quan có icon và visual card bắt mắt."""
     img, draw = _new_canvas(_seed(scene.heading or scene.narration), blobs=3, image_query=scene.image_query)
 
-    cw, ch = int(W * 0.85), int(H * 0.72)
-    cx0, cy0 = (W - cw) // 2, (H - ch) // 2 - 10
+    cw, ch = int(_W() * 0.85), int(_H() * 0.72)
+    cx0, cy0 = (_W() - cw) // 2, (_H() - ch) // 2 - 10
     cx1, cy1 = cx0 + cw, cy0 + ch
 
     # Panel bo góc nổi bật
-    panel = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    panel = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
     pdraw = ImageDraw.Draw(panel)
     pdraw.rounded_rectangle([cx0, cy0, cx1, cy1], radius=24, fill=(18, 24, 38, 230), outline=(245, 158, 11, 220), width=3)
     img = Image.alpha_composite(img.convert("RGBA"), panel).convert("RGB")
@@ -287,7 +298,7 @@ def _render_challenge(scene: Scene, out: Path) -> None:
 
     # Badge: 🎯 THỬ THÁCH VẬN DỤNG
     badge_w, badge_h = 360, 56
-    bx0, by0 = (W - badge_w) // 2, cy0 - 28
+    bx0, by0 = (_W() - badge_w) // 2, cy0 - 28
     draw.rounded_rectangle([bx0, by0, bx0 + badge_w, by0 + badge_h], radius=28, fill="#f59e0b", outline="#ffffff", width=2)
     bfont = _font(26, bold=True)
     draw.text((bx0 + 36, by0 + 14), "🎯 THỬ THÁCH VẬN DỤNG", font=bfont, fill="#000000")
@@ -298,7 +309,7 @@ def _render_challenge(scene: Scene, out: Path) -> None:
     draw.text((cx0 + 80, cy0 + 66), "?", font=_font(42, bold=True), fill="#000000")
 
     # Câu hỏi
-    q_font = _font(40 if not IS_VERTICAL else 34, bold=True)
+    q_font = _font(40 if not _is_vertical() else 34, bold=True)
     bullets = scene.bullets or [scene.narration]
     question_text = bullets[0] if bullets else "Hãy suy nghĩ giải pháp cho bài toán này."
 
@@ -320,14 +331,14 @@ def _render_challenge(scene: Scene, out: Path) -> None:
 
     # Call to action ở đáy
     cta_font = _font(24, bold=True)
-    draw.text(((W - 520) // 2, cy1 - 42), "💬 ĐỂ LẠI ĐÁP ÁN CỦA BẠN DƯỚI PHẦN BÌNH LUẬN", font=cta_font, fill="#f59e0b")
+    draw.text(((_W() - 520) // 2, cy1 - 42), "💬 ĐỂ LẠI ĐÁP ÁN CỦA BẠN DƯỚI PHẦN BÌNH LUẬN", font=cta_font, fill="#f59e0b")
 
     _footer(draw)
     img.save(out)
 
 
 def _render_bullets(scene: Scene, out: Path) -> None:
-    if IS_VERTICAL:
+    if _is_vertical():
         _render_bullets_vertical(scene, out)
         return
     # Bố cục 2 cột: chữ bên trái, ảnh minh họa RÕ NÉT bên phải (nếu có ảnh)
@@ -336,11 +347,11 @@ def _render_bullets(scene: Scene, out: Path) -> None:
     draw = ImageDraw.Draw(img)
 
     panel_placed = False
-    text_right = W - 160
+    text_right = _W() - 160
     if _IMAGES_ON and scene.image_query:
         pw, ph = 620, 620
-        px0 = W - 160 - pw
-        py0 = (H - ph) // 2 + 20
+        px0 = _W() - 160 - pw
+        py0 = (_H() - ph) // 2 + 20
         panel_placed = _photo_panel(img, scene.image_query, (px0, py0, px0 + pw, py0 + ph))
         draw = ImageDraw.Draw(img)
         if panel_placed:
@@ -371,21 +382,21 @@ def _render_bullets_vertical(scene: Scene, out: Path) -> None:
     img = _gradient_bg()
     img = _decor_blobs(img, _seed(scene.heading or scene.narration), 3)
     draw = ImageDraw.Draw(img)
-    inner_w = W - 2 * MARGIN
+    inner_w = _W() - 2 * _margin()
 
     y = 180
     if scene.heading:
-        draw.rectangle([(MARGIN, y), (MARGIN + 14, y + 90)], fill=ACCENT)
+        draw.rectangle([(_margin(), y), (_margin() + 14, y + 90)], fill=ACCENT)
         hfont = _fit_font(draw, scene.heading, 88, inner_w - 40)
         for hl in _wrap_lines(draw, scene.heading, hfont, inner_w - 40)[:3]:
-            draw.text((MARGIN + 40, y), hl, font=hfont, fill=_TEXT)
+            draw.text((_margin() + 40, y), hl, font=hfont, fill=_TEXT)
             y += hfont.size + 12
         y += 40
 
     # Ảnh minh họa vuông ở giữa
     if _IMAGES_ON and scene.image_query:
         side = min(inner_w, 760)
-        px0 = (W - side) // 2
+        px0 = (_W() - side) // 2
         if _photo_panel(img, scene.image_query, (px0, y, px0 + side, y + side)):
             draw = ImageDraw.Draw(img)
             y += side + 60
@@ -393,9 +404,9 @@ def _render_bullets_vertical(scene: Scene, out: Path) -> None:
     bullet_font = _font(52, bold=False)
     for i, b in enumerate(scene.bullets[:4]):
         color = _PALETTE[i % len(_PALETTE)]
-        _icon(draw, MARGIN, y + 8, 40, color, i)
+        _icon(draw, _margin(), y + 8, 40, color, i)
         for line in _wrap_lines(draw, b, bullet_font, inner_w - 80):
-            draw.text((MARGIN + 70, y), line, font=bullet_font, fill=_TEXT)
+            draw.text((_margin() + 70, y), line, font=bullet_font, fill=_TEXT)
             y += 68
         y += 30
     img.save(out)
@@ -404,10 +415,10 @@ def _render_bullets_vertical(scene: Scene, out: Path) -> None:
 def _render_quote(scene: Scene, out: Path) -> None:
     quote = scene.bullets[0] if scene.bullets else scene.narration
     img, draw = _new_canvas(_seed(quote), blobs=4, image_query=scene.image_query)
-    qfont = _font(200 if IS_VERTICAL else 240)
-    draw.text((MARGIN, H / 2 - (300 if IS_VERTICAL else 240)), "\u201c", font=qfont, fill=ACCENT)
-    body = _fit_font(draw, quote, 64 if IS_VERTICAL else 56, W - 2 * MARGIN, bold=False)
-    _draw_center_text(draw, quote, body, H // 2 - 40)
+    qfont = _font(200 if _is_vertical() else 240)
+    draw.text((_margin(), _H() / 2 - (300 if _is_vertical() else 240)), "\u201c", font=qfont, fill=ACCENT)
+    body = _fit_font(draw, quote, 64 if _is_vertical() else 56, _W() - 2 * _margin(), bold=False)
+    _draw_center_text(draw, quote, body, _H() // 2 - 40)
     _footer(draw)
     img.save(out)
 
@@ -415,17 +426,17 @@ def _render_quote(scene: Scene, out: Path) -> None:
 def _render_code(scene: Scene, out: Path) -> None:
     img, draw = _new_canvas(_seed(scene.heading or "code"), blobs=2)
     if scene.heading:
-        draw.rectangle([(MARGIN, 90), (MARGIN + 12, 160)], fill=ACCENT)
-        hfont = _fit_font(draw, scene.heading, 52, W - 2 * MARGIN - 60)
-        draw.text((MARGIN + 50, 96), scene.heading, font=hfont, fill=_TEXT)
-    pad = MARGIN
+        draw.rectangle([(_margin(), 90), (_margin() + 12, 160)], fill=ACCENT)
+        hfont = _fit_font(draw, scene.heading, 52, _W() - 2 * _margin() - 60)
+        draw.text((_margin() + 50, 96), scene.heading, font=hfont, fill=_TEXT)
+    pad = _margin()
     top = 220
-    draw.rounded_rectangle([(pad, top), (W - pad, H - 150)], radius=20, fill=_PANEL)
-    draw.rounded_rectangle([(pad, top), (W - pad, top + 46)], radius=20, fill="#21262d")
+    draw.rounded_rectangle([(pad, top), (_W() - pad, _H() - 150)], radius=20, fill=_PANEL)
+    draw.rounded_rectangle([(pad, top), (_W() - pad, top + 46)], radius=20, fill="#21262d")
     for k, dot in enumerate(("#ff5f56", "#ffbd2e", "#27c93f")):
         r, g, b = _hex(dot)
         draw.ellipse([pad + 24 + k * 34, top + 16, pad + 40 + k * 34, top + 32], fill=(r, g, b))
-    mono = _font(30 if IS_VERTICAL else 34, bold=False)
+    mono = _font(30 if _is_vertical() else 34, bold=False)
     y = top + 78
     for line in scene.bullets[:20]:
         draw.text((pad + 40, y), line, font=mono, fill="#c9d1d9")
@@ -452,7 +463,7 @@ def _render_chart(scene: Scene, out: Path) -> None:
     values = chart.get("values", [])
     kind = chart.get("kind", "bar")
 
-    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    fig = plt.figure(figsize=(_W() / 100, _H() / 100), dpi=100)
     fig.patch.set_facecolor(BG)
     ax = fig.add_subplot(111)
     ax.set_facecolor(BG)
@@ -493,8 +504,8 @@ def _render_diagram(scene: Scene, out: Path) -> None:
     steps = scene.bullets[:5] or [scene.algorithm or "Bước"]
     n = len(steps)
     gap = 52
-    box_w = min(760, W - 2 * MARGIN)  # co theo khung, không tràn ngang (short)
-    cx = W // 2
+    box_w = min(760, _W() - 2 * _margin())  # co theo khung, không tràn ngang (short)
+    cx = _W() // 2
     node_font = _font(36, bold=False)
     line_spacing = 8
     pad_v = 26  # đệm trên/dưới trong box
@@ -513,7 +524,7 @@ def _render_diagram(scene: Scene, out: Path) -> None:
         box_hs.append(max(110, h))
 
     total_h = sum(box_hs) + (n - 1) * gap
-    y = max((H - total_h) // 2 + 30, 200)
+    y = max((_H() - total_h) // 2 + 30, 200)
 
     for i, (step, box_h) in enumerate(zip(wrapped, box_hs)):
         r, g, b = _hex(_PALETTE[i % len(_PALETTE)])
@@ -610,30 +621,30 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
     hoặc câu narration rút gọn) ở dưới. Nền trong suốt -> lộ video phía sau.
     """
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    img = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
 
     # Scrim tối ở trên và dưới để chữ nổi trên video
-    scrim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    scrim = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
     sd = ImageDraw.Draw(scrim)
-    top_h = int(H * 0.30)
-    bot_h = int(H * 0.42)
+    top_h = int(_H() * 0.30)
+    bot_h = int(_H() * 0.42)
     for y in range(top_h):
         a = int(150 * (1 - y / top_h))
-        sd.line([(0, y), (W, y)], fill=(5, 8, 16, a))
-    for y in range(H - bot_h, H):
-        a = int(190 * ((y - (H - bot_h)) / bot_h))
-        sd.line([(0, y), (W, y)], fill=(5, 8, 16, a))
+        sd.line([(0, y), (_W(), y)], fill=(5, 8, 16, a))
+    for y in range(_H() - bot_h, _H()):
+        a = int(190 * ((y - (_H() - bot_h)) / bot_h))
+        sd.line([(0, y), (_W(), y)], fill=(5, 8, 16, a))
     img = Image.alpha_composite(img, scrim)
     draw = ImageDraw.Draw(img)
 
-    margin = 90 if W >= 1600 else 70
-    is_vertical = H > W
+    margin = 90 if _W() >= 1600 else 70
+    is_vertical = _H() > _W()
 
     heading = scene.heading or ""
     if heading:
         hfont = _font(72 if not is_vertical else 76)
         draw.rectangle([(margin, margin), (margin + 12, margin + 84)], fill=ACCENT)
-        for i, line in enumerate(_wrap_lines(draw, heading, hfont, W - 2 * margin - 40)[:3]):
+        for i, line in enumerate(_wrap_lines(draw, heading, hfont, _W() - 2 * margin - 40)[:3]):
             draw.text((margin + 34, margin + i * 90), line, font=hfont, fill=_TEXT)
 
     # Chỉ vẽ caption khi có bullets (ý chính); narration đã hiện ở phụ đề burn-in
@@ -642,7 +653,7 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
         caption_font = _font(52 if not is_vertical else 60, bold=False)
         lines: list[str] = []
         for b in scene.bullets[:4]:
-            lines.extend(_wrap_lines(draw, "• " + b, caption_font, W - 2 * margin))
+            lines.extend(_wrap_lines(draw, "• " + b, caption_font, _W() - 2 * margin))
         lines = lines[:6]
         asc, desc = caption_font.getmetrics()
         line_h = asc + desc + 16
@@ -651,8 +662,8 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
         # BorderStyle=3). Dành riêng ~18% chiều cao đáy cho phụ đề và ĐẶT
         # caption NẰM TRÊN vùng đó -> chữ overlay luôn ở trên phụ đề, không
         # còn chồng lên nhau dù phụ đề xuất hiện giữa scene.
-        sub_reserve = int(H * 0.18)
-        bottom_limit = H - sub_reserve
+        sub_reserve = int(_H() * 0.18)
+        bottom_limit = _H() - sub_reserve
         y = bottom_limit - total
         # Tránh đè lên heading ở góc trên khi caption quá dài.
         y = max(y, top_h + 20)

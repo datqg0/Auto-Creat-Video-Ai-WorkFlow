@@ -187,7 +187,7 @@ tts:
     # Giọng preset của VieNeu-TTS v3 Turbo. Nam: "Minh Quân Pro", "Anh Khôi", "Thái Sơn".
     voice: "Minh Quân Pro"
     mode: v3turbo   # v3turbo (48kHz, chất lượng cao) | v3nano (nhanh, máy yếu)
-    speed: 0.95     # Tốc độ đọc điềm tĩnh, dễ hiểu
+    speed: 0.90     # Tốc độ đọc điềm tĩnh, dễ hiểu (FIX-03/FIX-17)
   elevenlabs:
     voice_id: "pNInz6obpgDQGcFmaJgB"  # Adam (giọng nam). Nữ Rachel: 21m00Tcm4TlvDq8ikWAM
     model: eleven_multilingual_v2
@@ -195,7 +195,7 @@ tts:
     # Giọng NAM tiếng Việt của Edge (NamMinh). Nữ: vi-VN-HoaiMyNeural
     voice_vi: "vi-VN-NamMinhNeural"
     voice_en: "en-US-GuyNeural"
-    rate: "-6%"     # Giảm 6% tốc độ đọc để nhịp video chậm rãi, người xem kịp hiểu
+    rate: "-10%"    # Giảm 10% tốc độ đọc để nhịp video chậm rãi, người xem kịp hiểu (FIX-03/FIX-17)
     pitch: "+0Hz"
   # Khoảng nghỉ tự nhiên giữa các câu (giây) giúp nhịp video thở được, không bị dồn dập
   sentence_pause: 0.25

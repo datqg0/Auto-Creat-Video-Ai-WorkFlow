@@ -35,6 +35,7 @@ HEIGHT = {height}
 FPS = {fps}
 DURATION = {duration}
 OUT_PATH = "out.mp4"
+# MUST save: ani.save(OUT_PATH, fps=FPS, writer="ffmpeg", extra_args=['-pix_fmt', 'yuv420p', '-movflags', '+faststart'])
 # ================= CODE AI BÊN DƯỚI =================
 '''
 
@@ -122,6 +123,8 @@ def repair_code_with_ai(
 def generate_matplotlib_from_prompt(
     description: str,
     duration: float = 5.0,
+    topic: str = "",
+    narration: str = "",
 ) -> str | None:
     """Yêu cầu AI viết code Matplotlib animation từ mô tả cảnh."""
     try:
@@ -130,16 +133,31 @@ def generate_matplotlib_from_prompt(
         log.warning("Không thể import llm: %s", e)
         return None
 
+    context_section = ""
+    if topic or narration:
+        context_section = (
+            f"SCENE CONTEXT:\n"
+            f"- Video Topic: {topic}\n"
+            f"- Voiceover Narration: \"{narration}\"\n\n"
+        )
+
     prompt = (
         f"You are a master mathematical visualization developer (3Blue1Brown caliber).\n"
         f"Write an ULTRA-PRECISE, aesthetically gorgeous Python Matplotlib animation script for this concept:\n"
-        f"CONCEPT: {description}\n"
+        f"{context_section}"
+        f"VISUAL CONCEPT TO RENDER: {description}\n"
         f"TARGET DURATION: {duration:.1f} seconds.\n\n"
         f"PRECISION & VISUAL QUALITY GUIDELINES:\n"
         f"1. ACCURACY FIRST: Faithfully model the exact mechanism, mathematical formula, or algorithm progression.\n"
+        f"   - Synchronize with the voiceover narration so the graphic visually matches what is being explained.\n"
         f"   - For data structures/algorithms: accurately simulate state changes (comparisons, pointers, swaps, traversal).\n"
         f"   - For math/physics/signals: plot exact functions, vectors, phase changes, or distributions.\n"
-        f"2. PACING: Spread the animation evenly over all frames = int(DURATION * FPS). Avoid rushing. Use smooth transitions.\n"
+        f"2. PACING & RHYTHM (SLOW DOWN — NON-NEGOTIABLE):\n"
+        f"   - SLOW DOWN: Each conceptual step MUST be visible for at least 0.8-1.5 seconds so the viewer can absorb it.\n"
+        f"   - Max 3-4 key transitions for the full animation. Do NOT cram too many steps into a short video.\n"
+        f"   - After each major state change or swap, insert a PAUSE (hold the frame steady for 0.5-1.0s).\n"
+        f"   - Use np.linspace for gradual, smooth changes (smooth interpolation), NOT instant jarring jumps.\n"
+        f"   - Spread the animation evenly over all frames = int(DURATION * FPS).\n"
         f"3. PALETTE: Dark cyberpunk theme (#0d1117 background). Crisp high-contrast colors:\n"
         f"   - Active/highlight: '#58a6ff' (electric blue) or '#ff7b72' (coral/pink).\n"
         f"   - Verified/target/success: '#3fb950' (neon green).\n"
@@ -150,7 +168,7 @@ def generate_matplotlib_from_prompt(
         f"- Use `import matplotlib.pyplot as plt` and `from matplotlib.animation import FuncAnimation`.\n"
         f"- Figure setup: `fig = plt.figure(figsize=(WIDTH/100, HEIGHT/100), dpi=100, facecolor='#0d1117')`.\n"
         f"- Number of frames = int(DURATION * FPS).\n"
-        f"- MUST save animation to OUT_PATH using `ani.save(OUT_PATH, fps=FPS, writer='ffmpeg')`.\n"
+        f"- MUST save animation to OUT_PATH using `ani.save(OUT_PATH, fps=FPS, writer='ffmpeg', extra_args=['-pix_fmt', 'yuv420p', '-movflags', '+faststart'])`.\n"
         f"- Return ONLY Python code inside ```python ... ``` block. No markdown explanation outside."
     )
     try:
@@ -174,6 +192,8 @@ def generate_matplotlib_from_prompt(
 def generate_manim_from_prompt(
     description: str,
     duration: float = 5.0,
+    topic: str = "",
+    narration: str = "",
 ) -> str | None:
     """Yêu cầu AI viết code Manim animation từ mô tả cảnh / thuật toán visual."""
     try:
@@ -182,24 +202,37 @@ def generate_manim_from_prompt(
         log.warning("Không thể import llm: %s", e)
         return None
 
+    context_section = ""
+    if topic or narration:
+        context_section = (
+            f"SCENE CONTEXT:\n"
+            f"- Video Topic: {topic}\n"
+            f"- Voiceover Narration: \"{narration}\"\n\n"
+        )
+
     prompt = (
         f"You are a master mathematical animator (like 3Blue1Brown / Grant Sanderson).\n"
         f"Build a SINGLE-FILE Manim (Community Edition) animation with an ultra-precise, gorgeous LIGHT NEON aesthetic.\n"
         f"The visual MUST be crystal-clear, pedagogically brilliant, and completely accurate to the concept.\n\n"
-        f"CONCEPT / ALGORITHM TO VISUALIZE:\n"
+        f"{context_section}"
+        f"VISUAL CONCEPT / ALGORITHM TO ANIMATE:\n"
         f"{description}\n\n"
         f"TARGET DURATION: {duration:.1f} seconds.\n\n"
         f"PEDAGOGICAL & VISUAL RULES FOR MAXIMUM PRECISION:\n"
         f"1. EXACT DYNAMIC MECHANISM: Faithfully depict the exact state transitions of the algorithm or mathematical concept.\n"
+        f"   - Synchronize with the voiceover narration so the graphic visually matches what is being explained.\n"
         f"   - For data structures: clearly position nodes/elements, highlight active pointers, animate swaps/inserts/traversals.\n"
         f"   - For systems/networks: show sender, receiver, and data packets flowing across channels with send(a, b).\n"
         f"2. COLOR SEMANTICS (State-based contrast):\n"
         f"   - Base/Idle elements: CY ('#00f0ff') with subtle glow.\n"
         f"   - Currently inspecting/active pointer: YE ('#ffe600') or PK ('#ff2bd6').\n"
         f"   - Successful match / sorted / verified: GR ('#39ff14').\n"
-        f"3. PACING & RHYTHM (DO NOT RUSH):\n"
+        f"3. PACING & RHYTHM (SLOW DOWN — NON-NEGOTIABLE):\n"
+        f"   - RHYTHM RULE (NON-NEGOTIABLE): Between EVERY self.play(), insert self.wait(0.6-1.0).\n"
+        f"   - Max 4-5 play() calls for the full scene. Budget time carefully. Do NOT cram too many actions.\n"
+        f"   - WRONG (too fast): self.play(A); self.play(B); self.play(C)\n"
+        f"   - RIGHT: self.play(A, run_time=1.2); self.wait(0.8); self.play(B, run_time=1.0); self.wait(0.6);\n"
         f"   - Break the scene into 2-3 logical steps (e.g., Step 1: Reveal & Setup -> Step 2: Step-by-step Transformation -> Step 3: Result & Highlight).\n"
-        f"   - Insert brief pauses: `self.wait(0.5)` to `self.wait(0.8)` between transitions so the viewer's brain can absorb the logic.\n"
         f"   - Ensure total time (sum of self.play run_times + self.waits) matches ~{duration:.1f}s.\n"
         f"4. ENVIRONMENT & HELPERS (ALREADY INJECTED - DO NOT REDEFINE OR RE-IMPORT):\n"
         f"   - Manim, numpy, DURATION={duration:.1f}, BG='#05060f' are already loaded.\n"
@@ -214,6 +247,25 @@ def generate_manim_from_prompt(
         f"     * make_grid(): faint dark neon background grid.\n"
         f"     * send(a, b, color=GR, rt=0.8): glowing request packet traveling from a to b.\n"
         f"     * hud(fn, color=CY): live HUD stats in corner (symbols + numbers only).\n\n"
+        f"RECOMMENDED STRUCTURE PATTERN:\n"
+        f"```python\n"
+        f"class NeonScene(Scene):\n"
+        f"    def construct(self):\n"
+        f"        grid = make_grid()\n"
+        f"        self.add(grid)\n"
+        f"        # Phase 1: Setup elements\n"
+        f"        box_a = neon_box('A', color=CY, pos=LEFT * 2.8)\n"
+        f"        box_b = neon_box('B', color=CY, pos=RIGHT * 2.8)\n"
+        f"        self.play(FadeIn(box_a), FadeIn(box_b), run_time=1.0)\n"
+        f"        self.wait(0.5)\n"
+        f"        # Phase 2: Action / Packet transfer / Computation\n"
+        f"        self.play(send(box_a.get_center(), box_b.get_center(), color=GR, rt=1.2))\n"
+        f"        self.wait(0.5)\n"
+        f"        # Phase 3: Highlight state / Result\n"
+        f"        self.play(box_b[0].animate.set_color(YE), run_time=0.8)\n"
+        f"        remaining = max(DURATION - 4.0, 0.5)\n"
+        f"        self.wait(remaining)\n"
+        f"```\n\n"
         f"HARD CONSTRAINTS:\n"
         f"1. Output ONE class `class NeonScene(Scene):` with `construct(self)`.\n"
         f"2. ZERO LaTeX: NEVER use Tex, MathTex, DecimalNumber, Variable. Use sym() or Text for 1-4 character symbols/numbers.\n"
@@ -246,7 +298,7 @@ def run_ai_code(
     width: int,
     height: int,
     fps: int,
-    timeout: int = 90,
+    timeout: int = 150,
     auto_repair: bool = True,
     max_repairs: int = 2,
 ) -> Path | None:
@@ -398,6 +450,14 @@ def hud(fn, color=CY):
 '''
 
 
+_MANIM_QUALITY_FLAG = {
+    "low_quality": "l",
+    "medium_quality": "m",
+    "high_quality": "h",
+    "production_quality": "p",
+}
+
+
 def run_manim_code(
     code: str,
     out_dir: Path,
@@ -421,6 +481,7 @@ def run_manim_code(
     media = out_dir / "media"
 
     current_code = code
+    stderr = ""
     for attempt in range(max_repairs + 1):
         prelude = _MANIM_PRELUDE.format(
             width=int(width), height=int(height), fps=int(fps),
@@ -478,11 +539,3 @@ def run_manim_code(
         break
 
     return None
-
-
-_MANIM_QUALITY_FLAG = {
-    "low_quality": "l",
-    "medium_quality": "m",
-    "high_quality": "h",
-    "production_quality": "p",
-}

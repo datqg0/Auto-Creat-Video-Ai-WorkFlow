@@ -16,6 +16,12 @@ _SYSTEM = (
     "(theo phong cách 3Blue1Brown, Veritasium, Kurzgesagt). Bạn áp dụng triệt để Nguyên lý Feynman: "
     "biến những khái niệm khoa học máy tính, toán học và kiến trúc hệ thống phức tạp nhất trở nên "
     "cực kỳ trực quan, dễ hiểu, sáng tỏ qua ẩn dụ đời thường và mô phỏng thị giác chuẩn xác. "
+    "MẪU ẨN DỤ FEYNMAN CHUẨN MỰC BẮT BUỘC HỌC TẬP: "
+    "- Hash Table: Thủ thư thông minh dán nhãn đầu ngăn kéo -> tìm ngay O(1). "
+    "- TCP/IP: Gửi bưu phẩm chia nhiều gói có địa chỉ, số thứ tự; người nhận ghép lại hoàn chỉnh. "
+    "- Mutex: Chìa khóa phòng vệ sinh: chỉ duy nhất 1 người có chìa khóa -> không ai vào trùng nhau. "
+    "YÊU CẦU TUYỆT ĐỐI VỀ ĐỘ CHÍNH XÁC (ZERO HALLUCINATION): Mọi độ phức tạp thuật toán (Big-O), "
+    "giao thức mạng, cấu trúc dữ liệu, và số liệu thực tế phải chuẩn xác 100% theo tiêu chuẩn khoa học máy tính quốc tế. "
     "Mọi ví dụ bạn đưa ra đều thực chiến, có số liệu cụ thể. Bạn luôn trả về JSON hợp lệ, không kèm giải thích ngoài."
 )
 
@@ -46,7 +52,7 @@ def _build_prompt(topic: str) -> str:
     mode = CONFIG.get("active_mode", "long")
     # Tốc độ đọc giáo dục thư thái: ~130 từ/phút tiếng Việt (kèm khoảng nghỉ giữa các câu để người xem kịp ngấm).
     approx_words = int(duration / 60 * 130)
-    min_words = int(approx_words * 0.85)
+    min_words = int(approx_words * 0.80) if mode == "short" else int(approx_words * 0.85)
 
     if mode == "short":
         return _build_short_prompt(topic, lang_name, duration, min_words, approx_words)
@@ -72,6 +78,9 @@ NGUYÊN TẮC SƯ PHẠM TRỰC QUAN (FEYNMAN & 3BLUE1BROWN — CỰC KỲ QUAN 
    - Mọi ví dụ giải thích BẮT BUỘC gắn với ứng dụng thực tế từ các hệ thống lớn: Google, Netflix, Shopee Flash Sale, Git, Ngân hàng, Hệ điều hành...
    - Nêu rõ: Đầu vào cụ thể (Input) -> Quá trình xử lý từng bước -> Đầu ra (Output).
    - Nêu bật con số định lượng: "Nếu làm cách ngây thơ mất 10 giây; với thuật toán này chỉ mất 2 mili-giây".
+   - VÍ DỤ MẪU TIÊU CHUẨN:
+     * ĐÚNG: Mảng [5, 2, 8, 1, 9] -> Merge Sort -> kết quả [1, 2, 5, 8, 9] sau 12 lần so sánh vs 25 lần của Bubble Sort.
+     * SAI: "thuật toán sắp xếp hiệu quả hơn" -- quá mơ hồ, TUYỆT ĐỐI BỊ CẤM.
 3. TƯ DUY NÚT THẮT & AHA MOMENT:
    - Đặt câu hỏi: "Tại sao cách làm bình thường lại bế tắc?" -> Nêu bật ý tưởng thông minh tháo gỡ bế tắc.
 
@@ -178,6 +187,12 @@ QUAN TRỌNG VỀ HÌNH ẢNH & VISUAL PROMPT (BẮT BUỘC ĐẠT ĐỘ CHUẨN
     1. DỮ LIỆU CỤ THỂ: Mảng số cụ thể [5, 2, 8, 1, 9], cây nhị phân 3 tầng, 4 node A-B-C-D hay cấu trúc bảng hash...
     2. CHUYỂN ĐỘNG TỪNG BƯỚC: Con trỏ di chuyển qua đâu, phần tử nào đổi màu (Cyan = chờ, Vàng/Hồng = đang xét, Xanh neon = đã khớp/thành công), mũi tên gửi gói tin `send(a, b)` như thế nào.
     3. NHỊP ĐIỆU DIỄN HOẠT: Di chuyển mượt mà, có khoảng dừng để người xem nhìn rõ cơ chế hoạt động.
+  * VÍ DỤ MẪU VISUAL PROMPT BẮT BUỘC ĐẠT CHUẨN (ĐẦY ĐỦ DỮ LIỆU + BƯỚC CHUYỂN + NHỊP):
+    "Mảng 8 phần tử [3, 7, 1, 9, 5, 2, 8, 4] trên nền tối.
+     Phase 1 (0-2s): Reveal từng phần tử từ trái sang phải, mỗi phần tử fade-in 0.15s.
+     Phase 2 (2-5s): Con trỏ left di chuyển sang phải; ô đang xét sáng màu Hồng; ô đã kiểm tra xong chuyển Xanh cyan.
+     Phase 3 (5-7s): Tìm thấy target=5, nhấp nháy 3 lần, hiện chữ FOUND màu Xanh lá neon.
+     Tổng 7s. Mỗi bước dừng 0.6s để người xem kịp nhìn."
 - ƯU TIÊN preset "pycode" (Matplotlib) hoặc "manim" để mọi khái niệm kỹ thuật đều được mô phỏng sinh động bằng code thực thi.
 - NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để minh họa đúng ý tưởng cốt lõi của video.
 - Với scene animation "custom" hoặc "pycode": nếu đã TỰ ĐẶT chữ tiêu đề bên trong, thì để "heading" TRỐNG ("") để tránh CHỒNG CHỮ.
@@ -259,6 +274,8 @@ CẤU TRÚC SHORT:
 
 Yêu cầu hình ảnh cho Short (khung DỌC hẹp, tránh tràn chữ):
 - MỖI scene animation PHẢI có "visual_prompt" chi tiết để AI gen code Python/Manim vẽ chuyển động chính xác.
+- Mỗi scene animation PHẢI có visual_prompt mô tả nhịp CHẬM RÃI: mỗi bước dừng >=0.8s để người xem kịp ngấm.
+- Tối đa 3-4 bước chuyển động cho mỗi animation scene trong Short (TUYỆT ĐỐI không nhồi nhét quá nhiều bước làm người xem hoa mắt).
 - Mỗi scene PHẢI có "image_query" 2-5 từ khóa TIẾNG ANH, ảnh nổi bật, tương phản cao.
 - Nên có 2-3 scene "animation" (counter con số, function, hoặc steps) để bắt mắt.
 - Ưu tiên visual_type: "title", "quote", "animation"; hạn chế "bullets".
@@ -410,7 +427,7 @@ def _clean_narration_markdown(text: str) -> str:
     # Bỏ markdown links: [text](url) -> text
     t = re.sub(r"\[([^\]]+)\]\([^\)]*\)", r"\1", t)
     # Bỏ markdown bold/italic: ***text***, **text**, *text*, ___text___, __text__, _text_
-    t = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+    t = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", t)
     t = re.sub(r"_{1,3}(.*?)_{1,3}", r"\1", t)
     t = re.sub(r"~~(.*?)~~", r"\1", t)
     t = re.sub(r"`+([^`]+)`+", r"\1", t)
@@ -632,8 +649,8 @@ def write_script(topic: str) -> Script:
         return _write_mega_script(topic, duration)
 
     approx_words = int(duration / 60 * 130)
-    # Ngưỡng tối thiểu: long cần ~75% mục tiêu; short cần ~65% mục tiêu để kịch bản bám sát thời lượng.
-    min_words = int(approx_words * 0.75) if mode != "short" else int(approx_words * 0.65)
+    # Ngưỡng tối thiểu: long cần ~75% mục tiêu; short cần ~80% mục tiêu để kịch bản bám sát thời lượng (FIX-08).
+    min_words = int(approx_words * 0.75) if mode != "short" else int(approx_words * 0.80)
     min_scenes = max((duration // 60) * 2, 8) if mode != "short" else max(int(duration / 25), 3)
 
     script: Script | None = None

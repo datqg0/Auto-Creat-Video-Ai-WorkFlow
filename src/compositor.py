@@ -21,6 +21,7 @@ from .mv_compat import (
     ImageClip,
     VideoClip,
     VideoFileClip,
+    audio_fadeout,
     concatenate_videoclips,
     crossfadein,
     loop_audio,
@@ -40,9 +41,17 @@ from .config import CONFIG
 
 log = logging.getLogger(__name__)
 
-W = CONFIG["visual"]["width"]
-H = CONFIG["visual"]["height"]
-FPS = CONFIG["visual"]["fps"]
+
+def _W() -> int:
+    return int(CONFIG["visual"]["width"])
+
+
+def _H() -> int:
+    return int(CONFIG["visual"]["height"])
+
+
+def _FPS() -> int:
+    return int(CONFIG["visual"]["fps"])
 
 
 def _ken_burns_clip(image_path: Path, duration: float):
@@ -60,10 +69,10 @@ def _ken_burns_clip(image_path: Path, duration: float):
     from .mathviz.easing import smooth
 
     img = Image.open(str(image_path)).convert("RGB")
-    scale = max(W / img.width, H / img.height)
+    scale = max(_W() / img.width, _H() / img.height)
     if abs(scale - 1.0) > 1e-3:
         img = img.resize(
-            (max(W, math.ceil(img.width * scale)), max(H, math.ceil(img.height * scale))),
+            (max(_W(), math.ceil(img.width * scale)), max(_H(), math.ceil(img.height * scale))),
             Image.LANCZOS,
         )
     bw, bh = img.size
@@ -81,13 +90,13 @@ def _ken_burns_clip(image_path: Path, duration: float):
         x = min(max(t / dur, 0.0), 1.0)
         p = 0.5 * x + 0.5 * smooth(x)  # nửa tuyến tính, nửa smooth: êm mà không "đứng hình" ở 2 đầu
         z = z0 + (z1 - z0) * p
-        cw, ch = W / z, H / z
+        cw, ch = _W() / z, _H() / z
         room_x, room_y = (bw - cw) / 2, (bh - ch) / 2
         u = -1.0 + 2.0 * p  # đi từ -u -> +u theo hướng đã chọn
         cx = bw / 2 + ux * u * room_x
         cy = bh / 2 + uy * u * room_y
         box = (cx - cw / 2, cy - ch / 2, cx + cw / 2, cy + ch / 2)
-        return np.asarray(img.resize((W, H), Image.BILINEAR, box=box))
+        return np.asarray(img.resize((_W(), _H()), Image.BILINEAR, box=box))
 
     return VideoClip(frame, duration=duration)
 
@@ -100,7 +109,7 @@ def _scene_clip(image_path: Path, audio_path: Path):
     audio = AudioFileClip(str(audio_path))
     duration = audio.duration
     img = _ken_burns_clip(image_path, duration)
-    return set_fps(set_audio(img, audio), FPS)
+    return set_fps(set_audio(img, audio), _FPS())
 
 
 def _anim_clip(mv_scene, audio_path: Path):
@@ -108,7 +117,7 @@ def _anim_clip(mv_scene, audio_path: Path):
     audio = AudioFileClip(str(audio_path))
     clip = mv_scene.build_clip()
     clip = set_duration(clip, audio.duration)
-    return set_fps(set_audio(clip, audio), FPS)
+    return set_fps(set_audio(clip, audio), _FPS())
 
 
 def _cover_video(clip, w: int, h: int):
@@ -131,9 +140,13 @@ def _code_clip(video_path: Path, audio_path: Path):
     if bg.duration < duration:
         bg = loop_video(bg, duration)
     else:
-        bg = bg.subclipped(0, duration) if hasattr(bg, "subclipped") else bg.subclip(0, duration)
-    bg = set_duration(_cover_video(bg, W, H), duration)
-    out = set_fps(set_audio(bg, audio), FPS)
+        try:
+            target_dur = min(duration, bg.duration)
+            bg = bg.subclipped(0, target_dur) if hasattr(bg, "subclipped") else bg.subclip(0, target_dur)
+        except Exception as e:
+            log.warning("subclip code clip thất bại (%s), dùng clip gốc", e)
+    bg = set_duration(_cover_video(bg, _W(), _H()), duration)
+    out = set_fps(set_audio(bg, audio), _FPS())
     out._src_clips = [src, audio]  # moviepy không đóng đệ quy -> tự dọn ở compose()
     return out
 
@@ -148,17 +161,21 @@ def _broll_clip(video_path: Path, overlay_path: Path | None, audio_path: Path):
     if bg.duration < duration:
         bg = loop_video(bg, duration)
     else:
-        bg = bg.subclipped(0, duration) if hasattr(bg, "subclipped") else bg.subclip(0, duration)
-    bg = set_duration(_cover_video(bg, W, H), duration)
+        try:
+            target_dur = min(duration, bg.duration)
+            bg = bg.subclipped(0, target_dur) if hasattr(bg, "subclipped") else bg.subclip(0, target_dur)
+        except Exception as e:
+            log.warning("subclip b-roll thất bại (%s), dùng clip gốc", e)
+    bg = set_duration(_cover_video(bg, _W(), _H()), duration)
 
     layers = [bg]
     if overlay_path and overlay_path.exists():
         ov = set_duration(ImageClip(str(overlay_path), transparent=True), duration)
         layers.append(set_position(ov, (0, 0)))
 
-    comp = CompositeVideoClip(layers, size=(W, H))
+    comp = CompositeVideoClip(layers, size=(_W(), _H()))
     comp = set_duration(comp, duration)
-    out = set_fps(set_audio(comp, audio), FPS)
+    out = set_fps(set_audio(comp, audio), _FPS())
     out._src_clips = [src, audio]  # moviepy không đóng đệ quy -> tự dọn ở compose()
     return out
 
@@ -266,7 +283,7 @@ def compose(
                 video_layers.append(set_start(v, 0.0))
             else:
                 video_layers.append(set_start(crossfadein(v, _XFADE), max(starts[i] - _XFADE, 0.0)))
-        video = set_duration(CompositeVideoClip(video_layers, size=(W, H)), total)
+        video = set_duration(CompositeVideoClip(video_layers, size=(_W(), _H())), total)
         video = set_audio(video, CompositeAudioClip(seq_audio))
     else:
         video = concatenate_videoclips(clips, method="compose")
@@ -300,13 +317,18 @@ def compose(
             cur_dur,
         )
         video = subclip(video, 0, 179.0)
+        if getattr(video, "audio", None):
+            try:
+                video = set_audio(video, audio_fadeout(video.audio, 0.5))
+            except Exception as e:  # noqa: BLE001
+                log.warning("Audio fade-out cho Short lỗi, bỏ qua: %s", e)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     video.write_videofile(
         str(out_path),
         codec="libx264",
         audio_codec="aac",
-        fps=FPS,
+        fps=_FPS(),
         threads=4,
         preset="slow",
         # CRF 18 = gần lossless, hết banding vùng gradient/chữ; yuv420p cho YouTube.

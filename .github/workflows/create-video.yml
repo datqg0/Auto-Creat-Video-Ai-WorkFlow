@@ -159,6 +159,14 @@ jobs:
           path: output/**/*.mp4
           retention-days: 3
 
+      - name: Upload debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-output
+          path: output/**/
+          retention-days: 3
+
       - name: Commit lịch sử DB
         if: ${{ always() }}
         run: |
