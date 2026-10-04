@@ -1,10 +1,11 @@
 """Thumbnail phong cách Kurzgesagt: AI sinh NỀN minh họa + PIL overlay chữ Việt.
 
-Nền do Gemini (google-genai) sinh, KHÔNG chứa chữ (model viết chữ Việt hay lỗi).
-Chữ tiêu đề được vẽ bằng PIL với font BeVietnamPro-Bold: trắng, viền đen dày,
-to bản -> nét, đúng dấu, giống thumbnail Kurzgesagt.
+Bố cục chuẩn YouTube Tech:
+- Bên trái (40%): Chữ tiêu đề to bản, rõ ràng, căn giữa trên nền tối màu chủ đạo.
+- Ở giữa (5%): Dải gradient alpha chuyển mượt mà (smoothstep), hòa quyện ảnh vào nền.
+- Bên phải (60%): Ảnh AI minh họa phong cách Kurzgesagt (FLUX / Pollinations / Gemini).
 
-Không có key / lỗi API -> trả None để caller fallback về make_thumbnail cũ.
+Không có key / lỗi API -> trả None để caller fallback về SVG hoặc make_thumbnail.
 """
 from __future__ import annotations
 
@@ -69,30 +70,58 @@ def _visual_brief(script: Script) -> str:
 
 
 def _build_bg_prompt(script: Script) -> str:
-    """Prompt tả NỀN Kurzgesagt bám CHỦ ĐỀ (dùng brief tiếng Anh từ LLM)."""
+    """Prompt tả ảnh minh họa Kurzgesagt căn giữa, viền mềm tối, không chữ."""
     brief = _visual_brief(script)
     return (
         f"Flat vector illustration in Kurzgesagt art style. Scene: {brief}. "
         "Bold saturated colors, smooth gradients, clean flat 2D shapes, soft glow, "
-        "cinematic lighting, conceptual editorial illustration, digital wallpaper art. "
-        "Composition keeps empty negative space on the left. 16:9 widescreen, scenery only."
+        "cinematic lighting, conceptual editorial illustration. "
+        "Main subject centered in the frame, fills the scene, dark soft edges, no text, no watermark, no words."
     )
 
 
-def _crop_to_16_9(img: Image.Image) -> Image.Image:
-    """Cắt về 16:9, lệch xuống để bỏ chữ giả (mép trên) + logo giả (góc dưới)."""
+def _fit_cover(img: Image.Image, target_size: tuple[int, int]) -> Image.Image:
+    """Cắt trung tâm và co dãn ảnh theo chuẩn tỉ lệ khung hình đích (cover mode)."""
+    target_w, target_h = target_size
+    img = img.convert("RGB")
     w, h = img.size
-    # Phóng nhẹ + cắt biên để ăn hết viền màu FLUX hay để lại ở mép ảnh
-    inset = int(min(w, h) * 0.03)
-    img = img.crop((inset, inset, w - inset, h - inset))
+
+    # Phóng nhẹ + cắt bỏ biên viền (khoảng 2%) mà model ảnh hay để lại ở mép
+    inset = int(min(w, h) * 0.02)
+    if inset > 0:
+        img = img.crop((inset, inset, w - inset, h - inset))
+        w, h = img.size
+
+    target_ratio = target_w / target_h
+    current_ratio = w / h
+
+    if current_ratio > target_ratio:
+        # Ảnh quá rộng -> cắt bớt 2 bên trái phải theo tâm
+        new_w = int(h * target_ratio)
+        left = max(0, (w - new_w) // 2)
+        img = img.crop((left, 0, left + new_w, h))
+    else:
+        # Ảnh quá cao -> cắt bớt trên dưới (lệch xuống chút để giữ chủ thể)
+        new_h = int(w / target_ratio)
+        top = max(0, int((h - new_h) * 0.38))
+        img = img.crop((0, top, w, top + new_h))
+
+    return img.resize(target_size, Image.Resampling.LANCZOS)
+
+
+def _dominant_dark_color(img: Image.Image) -> tuple[int, int, int]:
+    """Lấy màu chủ đạo từ mép trái của ảnh và làm tối sâu để tạo nền cột chữ ăn màu hoàn hảo."""
     w, h = img.size
-    target_h = int(w * 9 / 16)
-    if target_h <= h:
-        top = int((h - target_h) * 0.32)  # lệch xuống: cắt nhiều mép trên hơn
-        return img.crop((0, top, w, top + target_h))
-    target_w = int(h * 16 / 9)
-    left = (w - target_w) // 2
-    return img.crop((left, 0, left + target_w, h))
+    # Sample dải 25% phía bên trái của ảnh (tiếp giáp trực tiếp với dải gradient)
+    left_strip = img.crop((0, 0, max(10, int(w * 0.25)), h))
+    small = left_strip.resize((1, 1), Image.Resampling.BILINEAR)
+    r, g, b = small.getpixel((0, 0))[:3]
+    # Giảm độ sáng về mức tối sâu (khoảng 20%) để chữ trắng nổi bật tuyệt đối
+    factor = 0.20
+    r_dark = max(8, min(40, int(r * factor)))
+    g_dark = max(10, min(45, int(g * factor)))
+    b_dark = max(16, min(55, int(b * factor)))
+    return (r_dark, g_dark, b_dark)
 
 
 def _gemini_background(script: Script, size: tuple[int, int]) -> Image.Image | None:
@@ -114,7 +143,7 @@ def _gemini_background(script: Script, size: tuple[int, int]) -> Image.Image | N
             inline = getattr(part, "inline_data", None)
             if inline and inline.data:
                 img = Image.open(io.BytesIO(inline.data)).convert("RGB")
-                return img.resize(size, Image.LANCZOS)
+                return _fit_cover(img, size)
         log.warning("Thumbnail AI: phản hồi không có ảnh")
         return None
     except Exception as e:  # noqa: BLE001 - lỗi API -> fallback
@@ -134,8 +163,12 @@ def _huggingface_background(script: Script, size: tuple[int, int]) -> Image.Imag
         from huggingface_hub import InferenceClient
 
         client = InferenceClient(api_key=token)
-        img = client.text_to_image(_build_bg_prompt(script), model=model)
-        return _crop_to_16_9(img.convert("RGB")).resize(size, Image.LANCZOS)
+        prompt = _build_bg_prompt(script)
+        try:
+            img = client.text_to_image(prompt, model=model, width=size[0], height=size[1])
+        except Exception:
+            img = client.text_to_image(prompt, model=model)
+        return _fit_cover(img.convert("RGB"), size)
     except Exception as e:  # noqa: BLE001 - lỗi -> fallback tiếp
         log.warning("Thumbnail AI (HuggingFace) lỗi (%s)", e)
         return None
@@ -154,7 +187,7 @@ def _pollinations_background(script: Script, size: tuple[int, int]) -> Image.Ima
         with urllib.request.urlopen(req, timeout=90) as r:  # noqa: S310 - URL cố định
             data = r.read()
         img = Image.open(io.BytesIO(data)).convert("RGB")
-        return img.resize(size, Image.LANCZOS)
+        return _fit_cover(img, size)
     except Exception as e:  # noqa: BLE001 - lỗi -> fallback tiếp
         log.warning("Thumbnail AI (Pollinations) lỗi (%s)", e)
         return None
@@ -192,76 +225,111 @@ def _wrap(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, ma
     return lines
 
 
-def _title_layout(img: Image.Image, title: str):
-    """Tính font/dòng/vị trí tiêu đề (tách riêng để vẽ dải nền trước, chữ sau)."""
-    W, H = img.size
-    draw = ImageDraw.Draw(img)
-    margin = int(W * 0.05)
-    max_w = W - 2 * margin
+def _compose_split(
+    img: Image.Image,
+    canvas_size: tuple[int, int] = (1280, 720),
+    text_ratio: float = 0.40,
+    grad_ratio: float = 0.05,
+) -> tuple[Image.Image, int]:
+    """Ghép ảnh vào nửa phải, tạo dải gradient alpha chuyển mượt sang nền tối bên trái."""
+    W, H = canvas_size
+    text_w = int(W * text_ratio)          # 512px
+    grad_w = max(16, int(W * grad_ratio)) # 64px
+    img_w = W - text_w + grad_w           # 832px
+    img_x = text_w - grad_w               # 448px
 
-    # Chọn cỡ chữ lớn nhất mà vẫn gói gọn <=3 dòng
-    size = int(H * 0.20)
-    while size > int(H * 0.09):
-        font = _font(size)
-        lines = _wrap(draw, title, font, max_w)
-        if len(lines) <= 3:
-            break
-        size -= 6
-    else:
-        font = _font(size)
-        lines = _wrap(draw, title, font, max_w)[:3]
+    fitted_img = _fit_cover(img, (img_w, H))
+    bg_color = _dominant_dark_color(fitted_img)
 
-    line_h = int(size * 1.12)
-    total_h = line_h * len(lines)
-    y = H - margin - total_h  # đặt cụm chữ ở NỬA DƯỚI cho dễ đọc
-    return font, lines, y, line_h, size
+    canvas = Image.new("RGBA", (W, H), (*bg_color, 255))
 
+    # Tạo mask alpha cho dải gradient bằng công thức smoothstep: 3*t^2 - 2*t^3
+    mask = Image.new("L", (img_w, H), 255)
+    mask_draw = ImageDraw.Draw(mask)
+    for x in range(grad_w):
+        t = x / float(grad_w)
+        alpha = int(255 * (3 * t**2 - 2 * t**3))
+        mask_draw.line([(x, 0), (x, H)], fill=alpha)
 
-def _title_band(size: tuple[int, int], top: int) -> Image.Image:
-    """Dải gradient tối bán trong suốt sau tiêu đề: mờ dần lên trên để chữ luôn đọc rõ."""
-    W, H = size
-    band = Image.new("RGBA", size, (0, 0, 0, 0))
-    top = max(0, min(top, H - 1))
-    fade = max(1, int((H - top) * 0.45))  # đoạn chuyển mềm từ trong suốt -> tối
-    max_a = 170
-    od = ImageDraw.Draw(band)
-    for j in range(top, H):
-        a = int(max_a * (j - top) / fade) if (j - top) < fade else max_a
-        od.line([(0, j), (W, j)], fill=(0, 0, 0, a))
-    return band
+    rgba_img = fitted_img.convert("RGBA")
+    rgba_img.putalpha(mask)
+    canvas.alpha_composite(rgba_img, (img_x, 0))
+
+    return canvas, text_w
 
 
-def _draw_title(img: Image.Image, title: str) -> Image.Image:
-    """Vẽ dải nền tối gradient + tiêu đề (trắng, viền đen dày) - style Kurzgesagt."""
-    W, H = img.size
-    margin = int(W * 0.05)
-    font, lines, y, line_h, size = _title_layout(img, title)
+def _draw_split_title(canvas: Image.Image, script: Script, text_w: int) -> Image.Image:
+    """Vẽ cụm tiêu đề to bản, sắc nét ở cột bên trái (0 -> text_w)."""
+    W, H = canvas.size
+    draw = ImageDraw.Draw(canvas)
 
-    band_top = int(y - line_h * 0.35)
-    img = Image.alpha_composite(img.convert("RGBA"), _title_band((W, H), band_top)).convert("RGB")
+    title = (script.title or script.topic).upper().strip()
+    pad_left = int(W * 0.04)               # ~51px
+    pad_right = int(text_w * 0.08)         # ~41px
+    max_text_w = text_w - pad_left - pad_right # ~420px
 
-    draw = ImageDraw.Draw(img)
-    stroke = max(6, size // 12)
-    yy = y
-    for line in lines:
+    # Tự động co cỡ chữ để vừa trong tối đa 4 dòng
+    size = int(H * 0.088)                  # bắt đầu từ ~63px
+    font = _font(size, bold=True)
+    lines = _wrap(draw, title, font, max_text_w)
+    while len(lines) > 4 and size > int(H * 0.055):
+        size -= 4
+        font = _font(size, bold=True)
+        lines = _wrap(draw, title, font, max_text_w)
+
+    line_h = int(size * 1.18)
+    badge_h = 36
+    spacing = 16
+    total_h = badge_h + spacing + line_h * len(lines)
+    start_y = max(40, (H - total_h) // 2)
+
+    # 1. Badge pill chủ đề phía trên tiêu đề
+    badge_font = _font(18, bold=True)
+    badge_text = "KIẾN THỨC CÔNG NGHỆ"
+    bw = int(draw.textlength(badge_text, font=badge_font)) + 26
+    badge_rect = [pad_left, start_y, pad_left + bw, start_y + badge_h]
+    draw.rounded_rectangle(badge_rect, radius=8, fill=(15, 23, 42, 220), outline="#38bdf8", width=2)
+    draw.text((pad_left + 13, start_y + 8), badge_text, font=badge_font, fill="#38bdf8")
+
+    # 2. Tiêu đề chính: màu trắng, viền đen dày dặn nổi bật
+    text_y = start_y + badge_h + spacing
+    stroke = max(5, size // 10)
+    for i, line in enumerate(lines[:4]):
+        y = text_y + i * line_h
         draw.text(
-            (margin, yy), line, font=font, fill="#ffffff",
-            stroke_width=stroke, stroke_fill="#000000",
+            (pad_left, y),
+            line,
+            font=font,
+            fill="#ffffff",
+            stroke_width=stroke,
+            stroke_fill="#000000",
         )
-        yy += line_h
-    return img
+
+    return canvas.convert("RGB")
 
 
 def make_ai_thumbnail(script: Script, out_path: Path) -> Path | None:
-    """Sinh thumbnail Kurzgesagt (AI nền + chữ PIL). None nếu không sinh được nền."""
-    size = (1280, 720)
-    bg = _generate_background(script, size)
+    """Sinh thumbnail bố cục chia đôi (chữ trái 40%, gradient chuyển màu 5%, ảnh AI phải 60%)."""
+    cfg = CONFIG.get("thumbnail", {})
+    canvas_w, canvas_h = cfg.get("canvas", [1280, 720])
+    text_ratio = float(cfg.get("text_ratio", 0.40))
+    grad_ratio = float(cfg.get("gradient_ratio", 0.05))
+
+    # Tính kích thước ảnh cần sinh cho khung bên phải (bội số của 16)
+    grad_w = max(16, int(canvas_w * grad_ratio))
+    target_img_w = ((canvas_w - int(canvas_w * text_ratio) + grad_w) // 16) * 16  # 832
+    target_img_h = (canvas_h // 16) * 16                                          # 720
+    gen_size = (target_img_w, target_img_h)
+
+    bg = _generate_background(script, gen_size)
     if bg is None:
         return None
 
-    bg = _draw_title(bg, script.title)
+    # Ghép bố cục split: Chữ trái, gradient, ảnh phải
+    canvas, text_w = _compose_split(bg, (canvas_w, canvas_h), text_ratio, grad_ratio)
+    final_img = _draw_split_title(canvas, script, text_w)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    bg.save(out_path)
-    log.info("Thumbnail AI đã tạo: %s", out_path)
+    final_img.save(out_path)
+    log.info("Thumbnail AI bố cục split (trái/phải) đã tạo: %s", out_path)
     return out_path

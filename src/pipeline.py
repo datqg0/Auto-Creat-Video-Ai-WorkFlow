@@ -223,22 +223,40 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
 
     thumb_path = workdir / "thumbnail.png"
     made = None
-    # 1. Ưu tiên Thumbnail SVG công nghệ chuẩn theo thiết kế tối giản mới
-    try:
-        from .thumbnail_svg import render_svg_thumbnail
-        made = render_svg_thumbnail(script, thumb_path)
-    except Exception as e:  # noqa: BLE001
-        log.warning("Thumbnail SVG lỗi (%s) -> thử AI Kurzgesagt", e)
+    thumb_cfg = CONFIG.get("thumbnail", {}) or {}
+    engine = thumb_cfg.get("engine", "ai")
 
-    # 2. Thumbnail AI phong cách Kurzgesagt nếu SVG fail và bật ai_enabled
-    if made is None and CONFIG.get("thumbnail", {}).get("ai_enabled"):
+    if engine == "ai" and thumb_cfg.get("ai_enabled", True):
+        # 1. Ưu tiên Thumbnail AI bố cục split (chữ trái 40%, ảnh AI phải 60%)
         try:
             from .thumbnail_ai import make_ai_thumbnail
             made = make_ai_thumbnail(script, thumb_path)
         except Exception as e:  # noqa: BLE001
-            log.warning("Thumbnail AI thất bại (%s) -> dùng thumbnail thường", e)
+            log.warning("Thumbnail AI thất bại (%s) -> thử fallback SVG", e)
 
-    # 3. Fallback cuối cùng: make_thumbnail
+        # 2. Fallback SVG nếu AI không khả dụng
+        if made is None:
+            try:
+                from .thumbnail_svg import render_svg_thumbnail
+                made = render_svg_thumbnail(script, thumb_path)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Thumbnail SVG lỗi (%s) -> dùng thumbnail thường", e)
+    else:
+        # Mặc định SVG nếu cấu hình engine == 'svg'
+        try:
+            from .thumbnail_svg import render_svg_thumbnail
+            made = render_svg_thumbnail(script, thumb_path)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Thumbnail SVG lỗi (%s) -> thử AI", e)
+
+        if made is None and thumb_cfg.get("ai_enabled", False):
+            try:
+                from .thumbnail_ai import make_ai_thumbnail
+                made = make_ai_thumbnail(script, thumb_path)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Thumbnail AI thất bại (%s) -> dùng thumbnail thường", e)
+
+    # 3. Fallback cuối cùng: make_thumbnail (PIL cơ bản)
     if made is None:
         thumb_path = make_thumbnail(script, thumb_path)
     else:

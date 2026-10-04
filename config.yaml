@@ -234,8 +234,12 @@ videos:
 
 # ---- Thumbnail AI (phong cách Kurzgesagt) ----
 thumbnail:
-  # Sinh NỀN bằng AI + overlay tiêu đề tiếng Việt bằng PIL (font BeVietnamPro-Bold).
+  engine: "ai"                      # "ai" (ưu tiên AI nền + chữ trái) | "svg" (Edge headless)
   ai_enabled: true
+  layout: "split_left_text"         # Chữ bên trái, ảnh bên phải
+  text_ratio: 0.40                  # Cột chữ chiếm 40% (0 -> 512px)
+  gradient_ratio: 0.05              # Dải chuyển màu 5% (~64px)
+  canvas: [1280, 720]
   # Nguồn chính: HuggingFace FLUX.1-schnell (đẹp, không logo, free-tier). Cần HF_TOKEN.
   hf_model: "black-forest-labs/FLUX.1-schnell"
   pollinations_fallback: true       # HF lỗi/cold -> Pollinations Flux (không cần key)
