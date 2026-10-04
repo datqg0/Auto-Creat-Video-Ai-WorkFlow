@@ -10,8 +10,10 @@ thất bại thì trả về None -> visual_engine vẽ nền gradient như cũ.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from pathlib import Path
+import re
 
 import requests
 
@@ -48,6 +50,83 @@ def _download(url: str, out: Path) -> bool:
         log.debug("Tải ảnh lỗi %s: %s", url, e)
         out.unlink(missing_ok=True)
         return False
+
+
+def _search_google(query: str, count: int = 8) -> list[str]:
+    """Tìm ảnh qua Google Custom Search API (nếu có GOOGLE_API_KEY + GOOGLE_CSE_ID)."""
+    api_key = env("GOOGLE_API_KEY") or env("GEMINI_API_KEY")
+    cse_id = env("GOOGLE_CSE_ID") or env("GOOGLE_SEARCH_CX")
+    if not api_key or not cse_id:
+        return []
+    try:
+        r = requests.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params={
+                "key": api_key,
+                "cx": cse_id,
+                "q": query,
+                "searchType": "image",
+                "imgSize": "large",
+                "imgType": "photo",
+                "num": min(count, 10),
+            },
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        urls = [it["link"] for it in items if it.get("link")]
+        if urls:
+            log.info("Google Image Search tìm thấy %d ảnh cho '%s'", len(urls), query)
+        return urls
+    except Exception as e:  # noqa: BLE001
+        log.warning("Google Custom Search lỗi (%s) -> fallback", e)
+        return []
+
+
+def _search_duckduckgo(query: str, count: int = 8) -> list[str]:
+    """Tìm ảnh qua DuckDuckGo / Bing web image search (100% miễn phí, không cần key)."""
+    # 1. Thử qua thư viện duckduckgo_search
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS(timeout=10) as ddgs:
+            results = list(ddgs.images(query, max_results=count))
+            urls = [r["image"] for r in results if r.get("image")]
+            if urls:
+                log.info("DuckDuckGo Image Search tìm thấy %d ảnh cho '%s'", len(urls), query)
+                return urls
+    except Exception as e:  # noqa: BLE001
+        log.debug("DuckDuckGo thư viện (%s) -> chuyển hướng web direct", e)
+
+    # 2. Web direct search (Bing/DuckDuckGo index) - lọc ảnh ngang 16:9, không cần key
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.8",
+        }
+        r = requests.get(
+            "https://www.bing.com/images/search",
+            params={"q": query, "qft": "+filterui:aspect-wide"},
+            headers=headers,
+            timeout=_TIMEOUT,
+        )
+        if r.status_code == 200:
+            matches = re.findall(r'm="({.*?})"', r.text)
+            urls = []
+            for m in matches[:count * 2]:
+                try:
+                    data = json.loads(m.replace("&quot;", '"'))
+                    if "murl" in data and str(data["murl"]).startswith("http"):
+                        urls.append(data["murl"])
+                except Exception:
+                    pass
+            if urls:
+                log.info("DuckDuckGo/Web Image Search tìm thấy %d ảnh cho '%s'", len(urls), query)
+                return urls
+    except Exception as e:  # noqa: BLE001
+        log.debug("DuckDuckGo/Web direct search lỗi: %s", e)
+
+    return []
 
 
 def _search_pexels(query: str, count: int = 8) -> list[str]:
@@ -94,7 +173,7 @@ def _search_openverse(query: str, count: int = 8) -> list[str]:
 def fetch_image(query: str, index: int = 0) -> Path | None:
     """Trả về ảnh thứ ``index`` cho từ khóa (cho phép nhiều ảnh khác nhau/1 từ khóa).
 
-    index=0 lấy ảnh đầu, index=1 ảnh thứ 2... để scene khác nhau có hình khác nhau.
+    Ưu tiên tìm kiếm: Google Custom Search -> DuckDuckGo/Bing -> Pexels -> Openverse.
     """
     query = (query or "").strip()
     if not query:
@@ -104,7 +183,7 @@ def fetch_image(query: str, index: int = 0) -> Path | None:
     if cached.exists():
         return cached
 
-    for search in (_search_pexels, _search_openverse):
+    for search in (_search_google, _search_duckduckgo, _search_pexels, _search_openverse):
         urls = search(query)
         if not urls:
             continue

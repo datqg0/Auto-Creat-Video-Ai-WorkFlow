@@ -39,5 +39,6 @@ google-auth-httplib2>=0.2.0
 PyYAML>=6.0
 python-dotenv>=1.0.0
 requests>=2.31.0
+duckduckgo_search>=8.0.0
 pydantic>=2.5.0
 json-repair>=0.30.0

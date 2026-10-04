@@ -19,3 +19,8 @@ output/*
 !output/state.db
 !output/topics_history.txt
 
+# Caches tải ảnh và video
+assets/image_cache/
+assets/video_cache/
+
+
