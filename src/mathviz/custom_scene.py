@@ -327,7 +327,7 @@ def _make_anim(name: str, target, spec: dict, objs: Optional[dict] = None):
         cx = spec.get("cx")
         cy = spec.get("cy")
         return CameraMove(
-            zoom=max(0.1, min(10.0, _num(spec.get("zoom", 1.0), 1.0))),
+            zoom=1.0,
             cx=_coord(cx, "x") if cx is not None else None,
             cy=_coord(cy, "y") if cy is not None else None,
             run_time=rt,

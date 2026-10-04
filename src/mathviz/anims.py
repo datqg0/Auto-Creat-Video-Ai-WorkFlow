@@ -166,7 +166,7 @@ class CameraMove(Animation):
         easing="ease_in_out",
     ):
         super().__init__(None, run_time, easing)
-        self.to_zoom = zoom
+        self.to_zoom = 1.0  # Luôn cố định 1.0: bỏ zoom in / out để không cắt xén nội dung
         self.to_cx = cx
         self.to_cy = cy
         self._cam = None
@@ -174,9 +174,9 @@ class CameraMove(Animation):
 
     def bind(self, camera) -> None:
         self._cam = camera
-        self._from = (camera.zoom, camera.cx, camera.cy)
+        self._from = (1.0, camera.cx, camera.cy)
         # cập nhật base camera để bước tiếp theo nối tiếp từ đích
-        camera.zoom = self.to_zoom
+        camera.zoom = 1.0
         camera.cx = self.to_cx if self.to_cx is not None else camera.cx
         camera.cy = self.to_cy if self.to_cy is not None else camera.cy
         camera.snapshot_base()
@@ -184,11 +184,10 @@ class CameraMove(Animation):
     def apply(self, alpha: float) -> None:
         if self._cam is None or self._from is None:
             return
-        fz, fcx, fcy = self._from
-        tz = self.to_zoom
+        _, fcx, fcy = self._from
         tcx = self.to_cx if self.to_cx is not None else fcx
         tcy = self.to_cy if self.to_cy is not None else fcy
-        self._cam.zoom = fz + (tz - fz) * alpha
+        self._cam.zoom = 1.0
         self._cam.cx = fcx + (tcx - fcx) * alpha
         self._cam.cy = fcy + (tcy - fcy) * alpha
 

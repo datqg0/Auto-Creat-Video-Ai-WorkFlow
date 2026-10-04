@@ -123,12 +123,12 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
       · {{"wait": 0.5}}
       anim hợp lệ: "fade_in"(shift), "fade_out", "write"(chữ), "draw"(line/arrow/graph/parametric/bar_chart),
       "grow", "move"(dx,dy), "count_up"(from,to,fmt), "pulse"(amount,cycles), "signal"(neural_net),
-      "camera"(zoom/pan toàn cảnh: {{"anim":"camera","zoom":1.8,"cx":"0.5W","cy":"0.4H","run_time":1.2}} — KHÔNG cần target),
+      "camera"(pan chuyển động nhẹ góc nhìn: {{"anim":"camera","cx":"0.5W","cy":"0.5H","run_time":1.2}} — KHÔNG dùng zoom để tránh cắt mất nội dung),
       "transform"/"morph"(biến hình A->B: {{"anim":"transform","target":"c","to":"b","run_time":1.0}} — cần "to" là id đích),
       "move_along"(chạy 1 dot dọc theo graph/parametric: {{"anim":"move_along","target":"d","path":"p","trace":true,"run_time":2.0}} — "path" là id graph/parametric, "trace":true vẽ dần nét ngay dưới điểm chạy),
       "vmorph"(biến hình THỰC theo đỉnh: {{"anim":"vmorph","target":"pg","from":"c","to":"b","run_time":1.5}} — "target" phải là polygon, "from"/"to" là id circle/rect/polygon; mượt hơn "transform").
     - Hãy sáng tạo: kết hợp nhiều phần tử + bước để "kể" ý tưởng bằng chuyển động,
-      ví dụ vẽ trục -> kéo đồ thị (glow) -> cho dot chạy dọc đường cong -> zoom camera vào -> nhấn mạnh công thức LaTeX.
+      ví dụ vẽ trục -> kéo đồ thị (glow) -> cho dot chạy dọc đường cong -> nhấn mạnh công thức LaTeX.
   * TỰ VIẾT CODE Python (matplotlib) để vẽ animation phức tạp mà preset/custom chưa làm được:
     {{"preset": "pycode", "code": "..."}}
     - "code" là code Python DÙNG matplotlib (đã import sẵn backend Agg). Có sẵn các biến:

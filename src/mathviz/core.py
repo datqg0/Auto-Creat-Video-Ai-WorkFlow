@@ -58,7 +58,8 @@ class Canvas:
         self.cam_cy: float = height / 2
 
     def set_camera(self, zoom: float, cx: float, cy: float) -> None:
-        self.cam_zoom = max(0.05, float(zoom))
+        # Khóa cố định zoom = 1.0: bỏ hoàn toàn zoom in / zoom out để không bị cắt xén nội dung
+        self.cam_zoom = 1.0
         self.cam_cx = float(cx)
         self.cam_cy = float(cy)
 
@@ -324,10 +325,11 @@ class Camera:
         self._base = (1.0, width / 2, height / 2)
 
     def snapshot_base(self) -> None:
-        self._base = (self.zoom, self.cx, self.cy)
+        self._base = (1.0, self.cx, self.cy)
 
     def reset_state(self) -> None:
-        self.zoom, self.cx, self.cy = self._base
+        self.zoom = 1.0
+        self.cx, self.cy = self._base[1], self._base[2]
 
 
 class Scene:
