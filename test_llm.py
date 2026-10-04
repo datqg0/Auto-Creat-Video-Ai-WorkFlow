@@ -103,11 +103,11 @@ def probe_pollinations() -> None:
 
         client = OpenAI(api_key=key, base_url="https://gen.pollinations.ai/v1")
         resp = client.chat.completions.create(
-            model="deepseek-chat",
-            max_tokens=100,
+            model="deepseek/deepseek-v4.1-flash",
+            max_tokens=500,
             messages=[{"role": "user", "content": "Nói 'xin chào' bằng tiếng Việt trong 1 câu ngắn."}],
         )
-        print("  OK [deepseek-chat]:", resp.choices[0].message.content.strip())
+        print("  OK [deepseek/deepseek-v4.1-flash]:", resp.choices[0].message.content.strip())
     except Exception as e:  # noqa: BLE001
         print("  LỖI:", e)
 

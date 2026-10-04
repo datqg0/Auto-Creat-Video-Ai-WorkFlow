@@ -84,21 +84,21 @@ llm:
       model: gemini-flash-latest
       api_key_env: GEMINI_API_KEY
 
-    # Tier 2.1 — Pollinations AI Coder (DeepSeek Reasoner R1 / Qwen 2.5 Coder — Trùm viết code thuật toán & Animation)
+    # Tier 2.1 — Pollinations AI Coder (Qwen 3 Coder 30B / DeepSeek V4.1 — Trùm viết code thuật toán & Animation)
     - name: pollinations_coder
       type: openai
-      model: deepseek-reasoner              # Hoặc: qwen-2.5-coder
+      model: qwen/qwen3-coder-30b-a3b-instruct
       base_url: https://gen.pollinations.ai/v1
       api_key_env: POLLINATIONS_API_KEY
-      max_output_tokens: 8192
+      max_output_tokens: 16384
 
-    # Tier 2.2 — Pollinations AI Chat (DeepSeek V3 — Suy luận & văn bản)
+    # Tier 2.2 — Pollinations AI Chat (DeepSeek V4.1 Flash — Suy luận & văn bản)
     - name: pollinations
       type: openai
-      model: deepseek-chat
+      model: deepseek/deepseek-v4.1-flash
       base_url: https://gen.pollinations.ai/v1
       api_key_env: POLLINATIONS_API_KEY
-      max_output_tokens: 8192
+      max_output_tokens: 16384
 
     # Tier 3 — Groq (gpt-oss-120b / qwen3.8-27b — Siêu tốc độ LPU)
     - name: groq
