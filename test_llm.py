@@ -92,7 +92,28 @@ def probe_groq() -> None:
         print("  LỖI:", e)
 
 
+def probe_pollinations() -> None:
+    print("\n=== POLLINATIONS (DeepSeek): test openai-compatible ===")
+    key = os.getenv("POLLINATIONS_API_KEY")
+    if not key or "your_" in key:
+        print("  [BỎ QUA] chưa có POLLINATIONS_API_KEY thật trong .env")
+        return
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=key, base_url="https://gen.pollinations.ai/v1")
+        resp = client.chat.completions.create(
+            model="deepseek-chat",
+            max_tokens=100,
+            messages=[{"role": "user", "content": "Nói 'xin chào' bằng tiếng Việt trong 1 câu ngắn."}],
+        )
+        print("  OK [deepseek-chat]:", resp.choices[0].message.content.strip())
+    except Exception as e:  # noqa: BLE001
+        print("  LỖI:", e)
+
+
 if __name__ == "__main__":
     probe_gemini()
     probe_opus()
+    probe_pollinations()
     probe_groq()

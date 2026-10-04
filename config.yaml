@@ -40,14 +40,14 @@ llm:
       - groq
       - groq_fast
 
-    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq -> Pollinations
+    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Pollinations (DeepSeek) -> Groq
     script:
       - anthropic
       - gemini_37
       - gemini_latest
+      - pollinations
       - groq
       - groq_fast
-      - pollinations
       - openrouter
       - mistral
 
