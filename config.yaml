@@ -105,13 +105,13 @@ llm:
       type: groq
       model: openai/gpt-oss-120b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 16000
+      max_output_tokens: 32768              # Max lên tới 65k tokens, để 32k cực kỳ rộng rãi
 
     - name: groq_fast
       type: groq
       model: qwen/qwen3.8-27b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 16000
+      max_output_tokens: 16384              # Max trần của Qwen trên Groq
 
     # Tier 3 — OpenRouter (free models, tương thích OpenAI)
     - name: openrouter
@@ -119,7 +119,7 @@ llm:
       model: meta-llama/llama-3.3-70b-instruct:free
       base_url: https://openrouter.ai/api/v1
       api_key_env: OPENROUTER_API_KEY
-      max_output_tokens: 8192
+      max_output_tokens: 16384
       headers:
         HTTP-Referer: https://github.com/datqg0/Auto-Creat-Video-Ai-WorkFlow
         X-Title: Auto Video AI
@@ -139,7 +139,7 @@ llm:
       model: mistral-large-latest
       base_url: https://api.mistral.ai/v1
       api_key_env: MISTRAL_API_KEY
-      max_output_tokens: 8192
+      max_output_tokens: 16384
 
     # Tier 4.5 — NVIDIA NIM (tương thích OpenAI)
     - name: nvidia
@@ -155,7 +155,7 @@ llm:
       model: gpt-4o-mini
       base_url: https://models.inference.ai.azure.com
       api_key_env: GITHUB_MODELS_TOKEN
-      max_output_tokens: 8192
+      max_output_tokens: 16384
     - name: sambanova
       type: openai
       model: Meta-Llama-3.3-70B-Instruct
