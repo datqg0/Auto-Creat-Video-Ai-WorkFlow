@@ -34,17 +34,22 @@ Python plus FFmpeg.
 
 - **End-to-end automation** — topic selection → script → animation → TTS →
   subtitles → compositing → thumbnail → upload, with zero human input.
-- **Two videos per day** — a long 16:9 explainer in the morning and a vertical
-  9:16 Short (<60s) in the evening, driven by two cron triggers.
-- **Code-driven animation** — a self-written `mathviz` library renders smooth,
-  math-style animations (function graphs, parametric curves, neural nets, bar
-  charts, **true vertex morphing**) without Manim, Cairo, GLSL, or LaTeX.
-- **Resilient by design** — 10-tier LLM fallback and 2-tier TTS fallback keep the
-  pipeline running even when individual providers fail or run out of quota.
-- **Cost-aware** — favors free / free-tier providers (Edge-TTS, Openverse,
-  Pollinations, OpenRouter free models) so it can run indefinitely at no cost.
-- **Safe** — LLM-authored animation is interpreted from **declarative JSON**; no
-  `eval`/`exec` of model output is ever performed.
+- **Three video formats** — long 16:9 explainer, vertical 9:16 Short (<60s), and
+  **mega 16:9 deep-dive** (15–30+ minutes) with chapter-based hierarchical scripting.
+- **High animation density ($\ge 70\%$) & instant visual hook** — animations start
+  right from second 0 (Scene 1), prioritizing AI-generated Python/Manim animations.
+- **AI-coded Light Neon Manim animations** — generates stunning cyberpunk/dark-mode
+  visuals (glowing vectors, HUD, neon lines) via Manim Community Edition without
+  any LaTeX dependency, with automatic AI self-repair on syntax/render errors.
+- **Code-driven `mathviz` engine** — a lightweight Pillow + NumPy engine rendering
+  smooth mathematical and system diagrams with stable framing (zoom locked to 1.0
+  to prevent content clipping).
+- **Multi-tier image search** — Google Custom Search API → DuckDuckGo / Bing 16:9
+  web search (100% free, no key needed) → Pexels → Openverse.
+- **Resilient by design** — 10-tier LLM fallback, multi-tier TTS, and multi-tier
+  image/video fallbacks keep the pipeline running indefinitely.
+- **Cost-aware** — runs 100% free on GitHub Actions using free-tier LLMs, Edge-TTS,
+  and keyless image fallbacks.
 
 ---
 
@@ -100,14 +105,27 @@ Pipeline stages (all orchestrated by [`src/pipeline.py`](src/pipeline.py)):
 | -------------- | -------------------------------------------------------------------- |
 | LLM            | 10-tier fallback: Anthropic (Claude Opus) → Gemini → Groq → OpenRouter → Z.ai → Mistral → NVIDIA NIM → GitHub Models → SambaNova → Cloudflare |
 | TTS            | VieNeu-TTS → Edge-TTS (free); ElevenLabs available but disabled by default |
-| Animation      | Self-written `mathviz` (Pillow + NumPy)                              |
+| AI Animation   | Manim Community Edition (Light Neon / Cyberpunk style, zero LaTeX) with AI self-repair |
+| Math Animation | Self-written `mathviz` (Pillow + NumPy, zoom locked to 1.0)           |
 | Static visuals | Matplotlib (mathtext formulas, pure Python — no LaTeX)              |
-| Images / b-roll| Pexels (with key) → Openverse (keyless)                             |
+| Images         | Google Custom Search → DuckDuckGo / Bing 16:9 Web Scrape → Pexels → Openverse |
+| Video b-roll   | Pexels Videos (dynamic background clips)                             |
 | Thumbnail      | HuggingFace FLUX.1-schnell → Pollinations Flux (keyless fallback)   |
 | Subtitles      | faster-whisper                                                       |
 | Compositing    | MoviePy (1.x) + FFmpeg                                               |
 | Upload         | YouTube Data API v3 (`google-api-python-client`)                     |
-| Deploy         | GitHub Actions (cron, 2×/day)                                        |
+| Deploy         | GitHub Actions (cron 2×/day + manual trigger with 12GB swap)         |
+
+---
+
+## AI-Coded Light Neon Manim Engine
+
+For rich dynamic visuals (starting right from **second 0 in Scene 1 Hook**), [`src/ai_code_runner.py`](src/ai_code_runner.py) prompts the LLM to write complete, standalone Python animation code rendered via **Manim Community Edition**:
+
+- **Light Neon Aesthetic**: Glowing lines, neon borders, pulses, and HUD elements on an ultra-dark background (`#05060f`) using curated cyberpunk palettes (Cyan `#00f0ff`, Pink `#ff007f`, Green `#00ff88`, Yellow `#ffe600`, Purple `#a855f7`, Orange `#ff7700`).
+- **Zero LaTeX Requirement**: Uses custom `sym()` Monospace text instead of LaTeX `MathTex` or `Tex`. Runs reliably on minimal CI and local environments without `texlive` or `dvisvgm`.
+- **Automatic AI Self-Repair**: If generated code fails with a syntax or runtime error during Manim rendering, `repair_code_with_ai()` feeds the error traceback back to the LLM to automatically patch and re-render.
+- **Safe Frame Guarantee**: All objects are bounded to safe screen coordinates (`x ∈ [-6.2, 6.2], y ∈ [-3.3, 3.3]`) to prevent edge clipping on 16:9 displays.
 
 ---
 
@@ -123,7 +141,8 @@ dependency-light — no Cairo, GLSL, or LaTeX required.
   2× supersampling for crisp anti-aliased edges (downscaled with LANCZOS at
   finalize).
 - **Camera** — implemented as a coordinate transform at the `Canvas` primitive
-  level (`_px(x, y)` applies pan + zoom), so all objects zoom/pan consistently.
+  level (`_px(x, y)` applies pan + zoom). **Camera zoom is locked permanently to 1.0**
+  to guarantee that text, diagrams, and formulas are never cropped at the screen edges.
 - **Drawables** — `FunctionGraph`, `ParametricCurve`, `Circle`, `Rect`,
   `Polygon`, `Text`, `Dot`, `Line`, `Arrow`, `Axes`, `Formula`, `NeuralNet`,
   `BarChart`, `Group`. Many support a neon `glow` effect (layered translucent
@@ -182,6 +201,13 @@ key and a successful response wins.
 
 (ElevenLabs is wired up but disabled by default.)
 
+**Image search chain** (`src/image_fetcher.py`, tried top to bottom):
+
+1. **Google Custom Search API** (`GOOGLE_API_KEY` + `GOOGLE_CSE_ID`) — High-precision search across curated domains (Pinterest, ByteByteGo, GeeksforGeeks, Wikimedia, Unsplash...).
+2. **DuckDuckGo & Bing 16:9 Web Search** — **100% free, zero configuration, no key required**. Automatically fetches widescreen 16:9 HD images from the entire web if Google keys are absent or rate-limited.
+3. **Pexels API** (`PEXELS_API_KEY`) — High-res stock photography and video b-roll.
+4. **Openverse** — Creative Commons open-license image repository (keyless fallback).
+
 ---
 
 ## Local Setup
@@ -224,15 +250,15 @@ is strictly required.
 | `ANTHROPIC_API_KEY`     | one LLM key required   | your Anthropic-compatible provider           |
 | `GROQ_API_KEY`          | optional LLM tier      | <https://console.groq.com>                   |
 | `OPENROUTER_API_KEY`    | optional LLM tier      | <https://openrouter.ai>                      |
+| `GOOGLE_API_KEY`        | optional image search  | <https://console.cloud.google.com/apis/credentials> |
+| `GOOGLE_CSE_ID`         | optional image search  | <https://programmablesearchengine.google.com/> |
 | `PEXELS_API_KEY`        | optional               | <https://www.pexels.com/api/> (nicer images + b-roll) |
 | `HF_TOKEN`              | optional               | <https://huggingface.co/settings/tokens> (AI thumbnails) |
 | `ELEVENLABS_API_KEY`    | optional               | <https://elevenlabs.io>                      |
 | `YOUTUBE_CLIENT_SECRET` | only for uploading     | see [YouTube OAuth](#youtube-oauth-one-time) |
 | `YOUTUBE_TOKEN`         | only for uploading     | see [YouTube OAuth](#youtube-oauth-one-time) |
 
-Without `PEXELS_API_KEY`, images fall back to Openverse and video b-roll is
-disabled (static images used instead). Without the two YouTube variables, the
-pipeline still renders — it just won't upload.
+If Google search keys are omitted, the pipeline automatically falls back to **DuckDuckGo & Bing web search** at zero cost with no keys required. Without `PEXELS_API_KEY`, images fall back to Openverse and video b-roll is disabled. Without the two YouTube variables, the pipeline still renders — it just won't upload.
 
 ---
 
@@ -264,8 +290,12 @@ python -m src.pipeline --dry-run
 python -m src.pipeline --no-upload
 
 # Force a specific format
-python -m src.pipeline --no-upload --mode long    # 16:9 explainer
+python -m src.pipeline --no-upload --mode long    # 16:9 explainer (~3-5 mins)
 python -m src.pipeline --no-upload --mode short   # 9:16 Short (<60s)
+python -m src.pipeline --no-upload --mode mega    # 16:9 Mega deep-dive (15-30+ mins)
+
+# Run with a custom topic and target duration
+python -m src.pipeline --no-upload --mode mega --duration 900 --topic "Kiến trúc Microservices và Event-Driven"
 
 # Full run (renders and uploads)
 python -m src.pipeline
@@ -278,8 +308,8 @@ The finished video is written to `output/video_<id>/video.mp4`.
 ## Deploying to GitHub Actions
 
 The workflow [`.github/workflows/create-video.yml`](.github/workflows/create-video.yml)
-handles the whole environment automatically — it installs Python 3.11, FFmpeg,
-and `requirements.txt`. You only need to provide secrets.
+handles the whole environment automatically — it configures Python 3.11, 12GB swap space,
+FFmpeg, Manim, and all Python dependencies. You only need to provide secrets.
 
 1. **Push the repo to GitHub.** `.env` is gitignored, so your keys stay local.
 
@@ -290,6 +320,7 @@ and `requirements.txt`. You only need to provide secrets.
    | Secret                                                | Purpose                          |
    | ----------------------------------------------------- | -------------------------------- |
    | At least one of the LLM keys in the table above       | Script writing (any single tier) |
+   | `GOOGLE_API_KEY`, `GOOGLE_CSE_ID`                     | Google Custom Search (falls back to DuckDuckGo/Bing) |
    | `PEXELS_API_KEY`                                       | Nicer images + video b-roll      |
    | `HF_TOKEN`                                             | AI-generated thumbnails          |
    | `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_TOKEN`              | Auto-upload to YouTube           |
@@ -302,9 +333,12 @@ and `requirements.txt`. You only need to provide secrets.
    - `00:00 UTC` (07:00 Vietnam) → long 16:9 explainer
    - `12:00 UTC` (19:00 Vietnam) → vertical 9:16 Short
 
-5. **Manual run / testing** — *Actions → "Tạo & upload video tech" → Run
-   workflow*. Set `mode` (`long`/`short`) and `no_upload: true` to render without
-   uploading; the video is saved as a workflow artifact for 3 days.
+5. **Manual run / Custom topic & duration** — *Actions → "Tạo & upload video tech" → Run
+   workflow*. You can configure:
+   - `mode`: `long`, `short`, or `mega` (15–30+ minute long-form video).
+   - `topic`: Specify any custom topic (e.g. *Cơ chế hoạt động của Transformers & GPT*).
+   - `duration`: Target duration in seconds (e.g. `900` for 15 mins, `1800` for 30 mins).
+   - `no_upload`: Set to `true` to render without uploading (video is saved as an artifact for 3 days).
 
 ---
 
@@ -316,7 +350,9 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | -------------------------------- | ------------------------------------------------------------------ |
 | `videos_per_run`                 | Number of videos generated per pipeline invocation.                |
 | `language`                       | Content language: `vi` or `en`.                                    |
-| `default_mode` / `modes`         | Video format presets (dimensions + target duration per mode).      |
+| `default_mode` / `modes`         | Video format presets: `long`, `short`, and `mega`.                 |
+| `animation.ai_code_primary`      | Prioritize AI-generated Python/Manim animations ($\ge 70\%$).      |
+| `animation.animate_from_start`   | Enforce animation from second 0 (Scene 1 Hook).                    |
 | `llm.providers`                  | Ordered fallback chain (model, base_url, key env, retries).        |
 | `llm.temperature` / `max_retries`| Global sampling temperature and retry budget.                      |
 | `tts.providers`                  | TTS fallback order and per-provider voice settings.                |
@@ -340,14 +376,15 @@ triggers, or set `videos_per_run: 2` with a single trigger.
 src/
 ├── pipeline.py          # Orchestrator (entry point: python -m src.pipeline)
 ├── topic_selector.py    # Picks a fresh topic (LLM + DB dedup)
-├── script_writer.py     # LLM → structured Script (+ animation JSON specs)
+├── script_writer.py     # LLM → structured Script (+ hierarchical mega-mode)
+├── ai_code_runner.py    # AI Python/Manim animation generator & self-repair
 ├── llm.py               # Multi-tier LLM client with fallback
 ├── animation_bridge.py  # Safe (no eval/exec) bridge: Script → mathviz Scene
 ├── visual_engine.py     # Static scene + overlay rendering
 ├── compositor.py        # MoviePy/FFmpeg sequencing, music, SFX, crossfades
 ├── tts.py               # TTS with provider fallback + per-video voice lock
 ├── subtitles.py         # faster-whisper subtitles
-├── image_fetcher.py     # Pexels / Openverse images + Pexels video b-roll
+├── image_fetcher.py     # Google / DuckDuckGo / Bing / Pexels / Openverse
 ├── thumbnail_ai.py      # AI thumbnail background (FLUX / Pollinations)
 ├── metadata.py          # YouTube title/description/tags + thumbnail overlay
 ├── youtube_uploader.py  # YouTube Data API v3 upload + --auth flow
@@ -355,10 +392,10 @@ src/
 ├── config.py            # Loads config.yaml, applies mode, exposes CONFIG
 ├── db.py                # SQLite state (topic history, video status)
 └── mathviz/             # Self-written Pillow + NumPy animation engine
-    ├── core.py          # Canvas primitives + Camera + Scene render loop
+    ├── core.py          # Canvas primitives + Camera (zoom locked to 1.0)
     ├── objects.py       # Drawables (graphs, shapes, Polygon, NeuralNet, ...)
     ├── anims.py         # Animations (MorphShape, MoveAlongPath, Transform, ...)
-    ├── custom_scene.py  # Declarative JSON → Scene interpreter (safety-limited)
+    ├── custom_scene.py  # Declarative JSON → Scene interpreter
     ├── theme.py         # THEME singleton (palette, fonts, dimensions)
     └── easing.py        # Easing functions
 ```
