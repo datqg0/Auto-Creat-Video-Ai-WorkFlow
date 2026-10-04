@@ -291,9 +291,31 @@ def _extract_json(text: str) -> dict:
     # Lấy object JSON đầu tiên
     start = text.find("{")
     end = text.rfind("}")
-    if start == -1 or end == -1:
+    if start == -1:
         raise ValueError("Không tìm thấy JSON trong output LLM")
-    return json.loads(text[start : end + 1])
+
+    # Thử parse chuẩn trước nếu có đóng ngoặc đầy đủ
+    if end != -1 and end > start:
+        try:
+            return json.loads(text[start : end + 1])
+        except Exception:
+            pass
+
+    # Fallback tự động sửa JSON (xử lý unescaped quote, trailing comma, hoặc JSON bị cắt cụt)
+    try:
+        import json_repair
+
+        repaired = json_repair.repair_json(text[start:], return_objects=True)
+        if isinstance(repaired, dict):
+            return repaired
+        if isinstance(repaired, list) and repaired and isinstance(repaired[0], dict):
+            return repaired[0]
+    except Exception as err:
+        log.warning("json_repair thất bại: %s", err)
+
+    if end != -1 and end > start:
+        return json.loads(text[start : end + 1])
+    raise ValueError("Không tìm thấy JSON hợp lệ trong output LLM")
 
 
 def _count_words(scenes: list[Scene]) -> int:

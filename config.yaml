@@ -38,6 +38,7 @@ llm:
       - gemini_37
       - gemini_latest
       - groq
+      - groq_fast
 
     # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq -> Pollinations
     script:
@@ -45,6 +46,7 @@ llm:
       - gemini_37
       - gemini_latest
       - groq
+      - groq_fast
       - pollinations
       - openrouter
       - mistral
@@ -54,6 +56,7 @@ llm:
       - pollinations_coder       # DeepSeek-Reasoner (R1) hoặc Qwen-2.5-Coder qua Pollinations
       - anthropic                # Claude Opus 4.8
       - groq                     # Llama 3.3 70B siêu tốc độ
+      - groq_fast
       - gemini_37                # Gemini 3.7 Flash
 
   providers:
@@ -102,7 +105,13 @@ llm:
       type: groq
       model: openai/gpt-oss-120b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 8192
+      max_output_tokens: 16000
+
+    - name: groq_fast
+      type: groq
+      model: qwen/qwen3.8-27b
+      api_key_env: GROQ_API_KEY
+      max_output_tokens: 16000
 
     # Tier 3 — OpenRouter (free models, tương thích OpenAI)
     - name: openrouter
