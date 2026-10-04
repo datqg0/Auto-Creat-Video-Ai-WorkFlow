@@ -381,17 +381,25 @@ Chỉ trả về JSON:
 
 
 def _clean_narration_markdown(text: str) -> str:
-    """Xóa bỏ triệt để ký tự markdown (*, **, _, ~, `) để TTS không đọc thành tiếng 'sao'."""
+    """Xóa bỏ triệt để ký tự markdown (*, **, _, ~, `), emoji, bullet, URL để lời đọc sạch sẽ."""
     if not text:
         return ""
+    # Bỏ link web URL nếu có lọt vào
+    t = re.sub(r"https?://\S+|www\.\S+", "", text)
+    # Bỏ markdown links: [text](url) -> text
+    t = re.sub(r"\[([^\]]+)\]\([^\)]*\)", r"\1", t)
     # Bỏ markdown bold/italic: ***text***, **text**, *text*, ___text___, __text__, _text_
     t = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
     t = re.sub(r"_{1,3}(.*?)_{1,3}", r"\1", t)
     t = re.sub(r"~~(.*?)~~", r"\1", t)
-    t = re.sub(r"`([^`]+)`", r"\1", t)
-    t = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", t)
-    # Bỏ các dấu sao hoặc ký tự đặc biệt còn sót lại
-    t = re.sub(r"[\*\_~`#]", " ", t)
+    t = re.sub(r"`+([^`]+)`+", r"\1", t)
+    # Bỏ emoji / unicode biểu tượng (🔥, 🚀, 👋, 💡...)
+    t = re.sub(r"[\U00010000-\U0010ffff]", "", t)
+    # Bỏ các ký hiệu gây đọc lạ: bullet •, hashtag #, sao *, gạch dưới _, ngã ~, backtick `, gạch đứng |, gạch chéo \, mũ ^, ngoặc nhọn, ngoặc vuông
+    t = re.sub(r"[•#\*\_~`|\\^<>{}\[\]]", " ", t)
+    # Bỏ gạch nối đơn độc (tránh đọc thành 'trừ' hoặc 'gạch')
+    t = re.sub(r"(?:^|\s)[-\u2013\u2014]+(?:\s|$)", " ", t)
+    # Chuẩn hóa khoảng trắng
     return re.sub(r"\s+", " ", t).strip()
 
 

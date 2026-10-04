@@ -25,14 +25,18 @@ def _fmt_ts(seconds: float) -> str:
 
 
 def _clean_sub_text(text: str) -> str:
-    """Loại bỏ ký tự markdown (*, **, _, ~, `) để phụ đề không dính dấu sao."""
+    """Loại bỏ ký tự markdown, emoji, bullet, URL để phụ đề hiển thị sạch sẽ."""
     if not text:
         return ""
+    t = re.sub(r"https?://\S+|www\.\S+", "", text)
+    t = re.sub(r"\[([^\]]+)\]\([^\)]*\)", r"\1", t)
     t = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
     t = re.sub(r"_{1,3}(.*?)_{1,3}", r"\1", t)
     t = re.sub(r"~~(.*?)~~", r"\1", t)
-    t = re.sub(r"`([^`]+)`", r"\1", t)
-    t = re.sub(r"[\*\_~`#]", " ", t)
+    t = re.sub(r"`+([^`]+)`+", r"\1", t)
+    t = re.sub(r"[\U00010000-\U0010ffff]", "", t)
+    t = re.sub(r"[•#\*\_~`|\\^<>{}\[\]]", " ", t)
+    t = re.sub(r"(?:^|\s)[-\u2013\u2014]+(?:\s|$)", " ", t)
     return re.sub(r"\s+", " ", t).strip()
 
 
