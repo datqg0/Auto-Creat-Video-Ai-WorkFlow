@@ -39,13 +39,13 @@ llm:
       - gemini_latest
       - groq
 
-    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Pollinations -> Groq
+    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq -> Pollinations
     script:
       - anthropic
       - gemini_37
       - gemini_latest
-      - pollinations
       - groq
+      - pollinations
       - openrouter
       - mistral
 
@@ -97,10 +97,10 @@ llm:
       api_key_env: POLLINATIONS_API_KEY
       max_output_tokens: 8192
 
-    # Tier 3 — Groq (Llama 3.3 70B — Siêu tốc độ LPU)
+    # Tier 3 — Groq (gpt-oss-120b / qwen3.8-27b — Siêu tốc độ LPU)
     - name: groq
       type: groq
-      model: llama-3.3-70b-versatile
+      model: openai/gpt-oss-120b
       api_key_env: GROQ_API_KEY
       max_output_tokens: 8192
 

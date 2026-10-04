@@ -57,6 +57,7 @@ def _extract_thumb_meta(script: Script) -> dict:
                 if blk.startswith("{"):
                     raw = blk
                     break
+        data = json.loads(raw)
         kw_str = str(data.get("keyword", "TECH")).upper().rstrip(":").strip()[:15]
         return {
             "keyword": kw_str or "TECH",

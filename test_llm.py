@@ -72,6 +72,27 @@ def probe_opus() -> None:
         print("     LỖI:", e)
 
 
+def probe_groq() -> None:
+    print("\n=== GROQ: test chat.completions ===")
+    key = os.getenv("GROQ_API_KEY")
+    if not key or "your_" in key:
+        print("  [BỎ QUA] chưa có GROQ_API_KEY thật trong .env")
+        return
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=key)
+        resp = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": "Nói 'xin chào' bằng tiếng Việt trong 1 câu ngắn."}],
+        )
+        print("  OK [openai/gpt-oss-120b]:", resp.choices[0].message.content.strip())
+    except Exception as e:  # noqa: BLE001
+        print("  LỖI:", e)
+
+
 if __name__ == "__main__":
     probe_gemini()
     probe_opus()
+    probe_groq()

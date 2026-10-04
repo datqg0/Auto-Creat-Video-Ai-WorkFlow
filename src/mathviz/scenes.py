@@ -216,6 +216,7 @@ def steps_scene(
     scene = Scene(duration=duration)
     W, H = THEME.width, THEME.height
     _title_block(scene, title, subtitle)
+    top = 260 if subtitle else 220
     # Bỏ các bước rỗng/khoảng trắng -> tránh vẽ ô trống không có chữ (chồng ô đen).
     steps = [str(s).strip() for s in steps if str(s).strip()]
     n = len(steps)

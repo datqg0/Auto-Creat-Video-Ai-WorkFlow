@@ -140,7 +140,7 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
                     parts.append(chunk)
             text = "".join(parts).strip()
         except Exception as e:
-            logger.warning(f"Anthropic streaming failed ({e}), thử gọi non-streaming...")
+            log.warning(f"Anthropic streaming failed ({e}), thử gọi non-streaming...")
             text = ""
 
     if not text:
