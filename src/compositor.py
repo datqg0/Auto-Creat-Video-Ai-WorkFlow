@@ -31,6 +31,7 @@ from .mv_compat import (
     set_fps,
     set_position,
     set_start,
+    subclip,
     volumex,
     without_audio,
 )
@@ -289,6 +290,16 @@ def compose(
 
     if len(audio_layers) > 1:
         video = set_audio(video, CompositeAudioClip(audio_layers))
+
+    # Bảo vệ trần thời lượng cho Short: YouTube Shorts giới hạn cứng 3 phút (180 giây).
+    # Nếu dài > 180s, YouTube sẽ chuyển thành video thông thường và mất tab Shorts.
+    cur_dur = getattr(video, "duration", None) or total
+    if CONFIG.get("active_mode") == "short" and cur_dur > 180.0:
+        log.warning(
+            "Thời lượng Short (%.1fs) vượt trần 180s của YouTube Shorts, tự động cắt về 179.0s để đảm bảo định dạng Short.",
+            cur_dur,
+        )
+        video = subclip(video, 0, 179.0)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     video.write_videofile(

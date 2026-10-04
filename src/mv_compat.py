@@ -149,6 +149,11 @@ def without_audio(clip):
     return clip.without_audio() if IS_V2 else clip.set_audio(None)
 
 
+def subclip(clip, t_start: float = 0, t_end: float | None = None):
+    """Cắt đoạn clip theo mốc thời gian, tương thích moviepy 1.x và 2.x."""
+    return clip.subclipped(t_start, t_end) if IS_V2 else clip.subclip(t_start, t_end)
+
+
 __all__ = [
     "AudioFileClip",
     "CompositeAudioClip",
@@ -173,4 +178,5 @@ __all__ = [
     "loop_audio",
     "loop_video",
     "without_audio",
+    "subclip",
 ]

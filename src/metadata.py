@@ -59,7 +59,7 @@ def build_metadata(script: Script, durations: list[float] | None = None) -> dict
         tags.insert(0, "shorts")
     tags = tags[:15]
 
-    # YouTube nhận diện Short qua #Shorts trong tiêu đề/mô tả (kèm khung hình dọc <60s)
+    # YouTube nhận diện Short qua tỉ lệ khung hình dọc 9:16, thời lượng tối đa 3 phút (180s) và #Shorts
     title = script.title[:100]
     if is_short and "#shorts" not in title.lower():
         title = (title[:90] + " #Shorts")[:100]

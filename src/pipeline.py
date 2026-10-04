@@ -334,7 +334,7 @@ def main() -> None:
         "--mode",
         choices=["long", "short", "mega"],
         default=None,
-        help="long = video 16:9 (~5p), short = dọc 9:16 (<60s), mega = siêu dài 16:9 (>15p)",
+        help="long = video 16:9 (~5p), short = dọc 9:16 (tối đa 3p / 180s), mega = siêu dài 16:9 (>15p)",
     )
     parser.add_argument("--topic", type=str, default=None, help="Chủ đề video cụ thể")
     parser.add_argument("--duration", type=int, default=None, help="Ghi đè thời lượng mục tiêu (giây)")

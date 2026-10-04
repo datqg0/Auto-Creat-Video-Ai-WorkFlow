@@ -12,8 +12,11 @@ from .models import Exercise, Scene, Script
 log = logging.getLogger(__name__)
 
 _SYSTEM = (
-    "Bạn là biên kịch cho kênh YouTube giải thích công nghệ bằng hình ảnh trực quan "
-    "(giống 3Blue1Brown, Kurzgesagt). Bạn luôn trả về JSON hợp lệ, không kèm giải thích."
+    "Bạn là biên kịch trưởng kiêm chuyên gia sư phạm công nghệ cho kênh YouTube giáo dục đỉnh cao "
+    "(theo phong cách 3Blue1Brown, Veritasium, Kurzgesagt). Bạn áp dụng triệt để Nguyên lý Feynman: "
+    "biến những khái niệm khoa học máy tính, toán học và kiến trúc hệ thống phức tạp nhất trở nên "
+    "cực kỳ trực quan, dễ hiểu, sáng tỏ qua ẩn dụ đời thường và mô phỏng thị giác chuẩn xác. "
+    "Mọi ví dụ bạn đưa ra đều thực chiến, có số liệu cụ thể. Bạn luôn trả về JSON hợp lệ, không kèm giải thích ngoài."
 )
 
 
@@ -41,50 +44,54 @@ def _build_prompt(topic: str) -> str:
     lang_name = "tiếng Việt" if lang == "vi" else "English"
     duration = int(CONFIG.get("target_duration_seconds", 300))
     mode = CONFIG.get("active_mode", "long")
-    # ~150 từ/phút tiếng Việt khi đọc TTS. Cộng biên để chắc chắn đủ dài.
-    approx_words = int(duration / 60 * 155)
-    min_words = int(approx_words * 0.9)
+    # Tốc độ đọc giáo dục thư thái: ~130 từ/phút tiếng Việt (kèm khoảng nghỉ giữa các câu để người xem kịp ngấm).
+    approx_words = int(duration / 60 * 130)
+    min_words = int(approx_words * 0.85)
 
     if mode == "short":
         return _build_short_prompt(topic, lang_name, duration, min_words, approx_words)
 
     minutes = max(duration // 60, 1)
-    n_scenes_min = max(minutes * 2, 8)   # ~2 scene/phút -> đủ dài, không lê thê
+    n_scenes_min = max(minutes * 2, 8)   # ~2 scene/phút -> nhịp điệu vừa vặn, không lê thê
     n_scenes_max = n_scenes_min + 4
 
     return f"""Viết kịch bản cho video YouTube dài ĐỦ {duration} giây (~{minutes} phút) về chủ đề:
 "{topic}"
 
-Ngôn ngữ: {lang_name}. Đây là yêu cầu độ dài BẮT BUỘC:
-- Tổng lời đọc (cộng dồn tất cả narration) tối thiểu {min_words} từ, mục tiêu ~{approx_words} từ.
+Ngôn ngữ: {lang_name}. YÊU CẦU ĐỘ DÀI & NHỊP ĐIỆU (BẮT BUỘC):
+- Tổng lời đọc (cộng dồn tất cả narration) tối thiểu {min_words} từ, mục tiêu ~{approx_words} từ (nhịp đọc thư thái ~130 từ/phút).
 - Chia thành {n_scenes_min}-{n_scenes_max} scene, phủ ĐỦ 10 bước cấu trúc bên dưới.
-- Mỗi scene narration 3-6 câu (khoảng 60-110 từ), KHÔNG viết narration 1 câu cụt.
+- Mỗi scene narration 3-6 câu (~50-90 từ), câu ngắn gọn (8-16 từ), TUYỆT ĐỐI không viết câu dài lê thê hay đọc dồn dập.
 
-HOOK 5 GIÂY ĐẦU (QUYẾT ĐỊNH GIỮ CHÂN NGƯỜI XEM — cực kỳ quan trọng):
-- Scene 1 BẮT BUỘC có visual_type: "animation" (với preset "pycode" hoặc "manim").
+NGUYÊN TẮC SƯ PHẠM TRỰC QUAN (FEYNMAN & 3BLUE1BROWN — CỰC KỲ QUAN TRỌNG):
+1. ẨN DỤ ĐỜI THƯỜNG TRƯỚC, THUẬT NGỮ SAU:
+   - TUYỆT ĐỐI KHÔNG mở đầu bài học bằng định nghĩa khô khan hay công thức toán học.
+   - BẮT BUỘC mở đầu bằng một Ẩn dụ thực tế gần gũi (ví dụ: giao thông kẹt xe, xếp hàng thanh toán siêu thị, thủ thư xếp sách vào ngăn kéo tủ, gửi bưu phẩm...).
+   - Cho người xem "cảm nhận bằng trực giác" bản chất của vấn đề trước khi gán nhãn thuật ngữ chuyên ngành.
+2. VÍ DỤ THỰC CHIẾN CỰC CHUẨN (ROCK-SOLID EXAMPLES):
+   - Mọi ví dụ giải thích BẮT BUỘC gắn với ứng dụng thực tế từ các hệ thống lớn: Google, Netflix, Shopee Flash Sale, Git, Ngân hàng, Hệ điều hành...
+   - Nêu rõ: Đầu vào cụ thể (Input) -> Quá trình xử lý từng bước -> Đầu ra (Output).
+   - Nêu bật con số định lượng: "Nếu làm cách ngây thơ mất 10 giây; với thuật toán này chỉ mất 2 mili-giây".
+3. TƯ DUY NÚT THẮT & AHA MOMENT:
+   - Đặt câu hỏi: "Tại sao cách làm bình thường lại bế tắc?" -> Nêu bật ý tưởng thông minh tháo gỡ bế tắc.
+
+HOOK 5 GIÂY ĐẦU (QUYẾT ĐỊNH GIỮ CHÂN NGƯỜI XEM):
+- Scene 1 BẮT BUỘC có visual_type: "animation" (preset "pycode" hoặc "manim").
 - Mở đầu video ngay từ giây đầu tiên bằng một animation ĐỘNG do CODE PYTHON trực quan vẽ (sóng xung kích, mô phỏng mạng, đồ thị biến thiên, nghịch lý trực quan...). TUYỆT ĐỐI không mở đầu bằng slide tĩnh hay chữ đơn điệu.
-- Câu ĐẦU TIÊN của narration scene 1 phải là một cú móc mạnh: một con số gây sốc, một
-  nghịch lý, một câu hỏi khiến người xem KHÔNG THỂ lướt qua ("Bạn có biết...?",
-  "Điều gì xảy ra nếu...?", một tuyên bố phản trực giác).
-- TUYỆT ĐỐI không mở đầu bằng "Xin chào", "Trong video này", "Hôm nay chúng ta" hay
-  giới thiệu lê thê. Vào thẳng cú móc trong 1-2 câu đầu, hứa hẹn giá trị người xem sẽ nhận.
+- Câu ĐẦU TIÊN của narration scene 1 phải là một cú móc mạnh: một con số gây sốc, một nghịch lý, hoặc một câu hỏi phản trực giác khiến người xem không thể rời mắt.
+- TUYỆT ĐỐI không mở đầu bằng "Xin chào", "Trong video này", "Hôm nay chúng ta". Vào thẳng vấn đề!
 
-CẤU TRÚC BẮT BUỘC (theo flow video giáo dục kiểu 3Blue1Brown, đi theo ĐÚNG thứ tự này,
-mỗi bước là một hoặc vài scene liền mạch):
-1. HOOK — câu hỏi/tình huống gây tò mò trong 10 giây đầu, khiến người xem muốn biết đáp án.
-2. ĐẶT BÀI TOÁN — nêu rõ vấn đề cần giải quyết, vì sao nó quan trọng/khó.
-3. TRỰC GIÁC / HÌNH DUNG — cho người xem "cảm" được vấn đề bằng hình ảnh, ẩn dụ, so sánh
-   trước khi vào lý thuyết (nên dùng scene animation hoặc image_query mạnh ở đây).
-4. Ý TƯỞNG — ý tưởng cốt lõi để giải quyết, giải thích "tại sao nó hoạt động".
-5. VÍ DỤ TỪNG BƯỚC — đi qua một ví dụ cụ thể, từng bước một (nên dùng diagram/animation steps).
-6. CÔNG THỨC / CODE — hình thức hóa bằng công thức hoặc code (scene code hoặc animation function).
-7. DEMO — cho thấy nó chạy/áp dụng thực tế, kết quả cụ thể, con số.
-8. BÀI TẬP / TỰ SUY NGHĨ — đặt 1 câu hỏi mở hoặc thử thách nhỏ cho người xem tự nghĩ.
-9. TỔNG KẾT — chốt lại các ý chính, câu kết đáng nhớ + kêu gọi đăng ký kênh.
-10. MỞ SANG VIDEO TIẾP THEO — gợi mở chủ đề liên quan sẽ nói ở video sau để giữ chân người xem.
-
-Yêu cầu chiều sâu: giải thích "tại sao" và "cơ chế hoạt động" chứ không chỉ liệt kê "là gì";
-có con số/ví dụ thực tế; nêu một hiểu lầm phổ biến nếu có.
+CẤU TRÚC 10 BƯỚC BẮT BUỘC:
+1. HOOK — câu hỏi/tình huống gây tò mò trong 10 giây đầu, hứa hẹn giá trị.
+2. ĐẶT BÀI TOÁN — nêu rõ vấn đề cần giải quyết, vì sao nó khó và quan trọng.
+3. ẨN DỤ TRỰC GIÁC — hình tượng hóa bằng ẩn dụ đời thường để người xem "cảm" được ngay.
+4. Ý TƯỞNG ĐỘT PHÁ — ý tưởng cốt lõi giải quyết bài toán ("Aha moment").
+5. VÍ DỤ TỪNG BƯỚC — đi qua một ví dụ cụ thể, từng bước một với số liệu thật (nên dùng diagram/animation steps).
+6. CƠ CHẾ KỸ THUẬT / CODE — hình thức hóa bằng cấu trúc dữ liệu, thuật toán hoặc code cụ thể.
+7. DEMO ỨNG DỤNG THỰC TẾ — cho thấy các hệ thống lớn áp dụng ra sao (kèm con số hiệu năng).
+8. BÀI TẬP / THỬ THÁCH — đặt 1 câu hỏi/tình huống thực tế kích thích tư duy người xem.
+9. TỔNG KẾT — chốt lại bản chất trong 1 câu đắt giá + kêu gọi đăng ký kênh.
+10. MỞ SANG CHỦ ĐỀ KẾ TIẾP — gợi mở câu hỏi tiếp theo để giữ chân người xem xem video sau.
 
 Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
 - "title": scene mở đầu, chỉ có heading lớn.
@@ -154,16 +161,23 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
     - Nếu manim chưa cài hoặc render lỗi/timeout, hệ thống tự fallback sang pycode/ảnh tĩnh.
     - CHỈ dùng preset "manim" cho 1-2 scene quan trọng nhất (render manim CHẬM & nặng).
 
-QUAN TRỌNG VỀ NHỊP VĂN & GIỌNG ĐỌC (giữ chân người xem):
-- GIỚI HẠN MỖI CÂU ≤ 20 TỪ: Viết câu ngắn, gãy gọn, nhiều câu hỏi tu từ, ngắt nhịp rõ ràng để giọng đọc TTS không đều đều, buồn ngủ.
-- LỜI ĐỌC TỰ NHIÊN, VĂN BẢN THUẦN: Viết từ ngữ sinh động. TUYỆT ĐỐI KHÔNG dùng dấu sao (* hoặc **) hoặc gạch dưới để bôi đậm từ, vì bộ đọc giọng nói TTS sẽ phát âm thành chữ "sao" hoặc "hoa thị".
-- KỂ CHUYỆN LIÊN TỤC: Dẫn dắt bằng tình huống, đưa người xem đi từ tò mò sang bất ngờ rồi tới giải pháp ("Aha moment").
+QUAN TRỌNG VỀ NHỊP VĂN & GIỌNG ĐỌC (THƯ THÁI, DỄ HIỂU, TỰ NHIÊN):
+- NHỊP ĐỌC ĐÀM THOẠI & CÂU NGẮN (8-16 TỪ): Viết câu ngắn gọn, gãy gọn, giàu tính đàm thoại. Tránh câu phức dài ngoằng.
+  Ngắt nhịp tự nhiên để bộ đọc TTS đọc thư thái, có điểm nhấn, giúp người nghe kịp ngấm kiến thức.
+- LỜI ĐỌC TỰ NHIÊN, VĂN BẢN THUẦN: Dùng ngôn ngữ bình dân, gợi hình, so sánh trực quan.
+  TUYỆT ĐỐI KHÔNG dùng dấu sao (* hoặc **) hoặc gạch dưới để bôi đậm từ, vì bộ đọc giọng nói TTS sẽ phát âm thành chữ "sao" hoặc "hoa thị".
+- NGUYÊN TẮC DỄ HIỂU: Nói như đang trò chuyện với một người bạn thông minh nhưng mới bắt đầu tìm hiểu chủ đề này.
 
-QUAN TRỌNG VỀ HÌNH ẢNH & ANIMATION (video phải chuyển động liên tục, TUYỆT ĐỐI KHÔNG làm slideshow tĩnh):
+QUAN TRỌNG VỀ HÌNH ẢNH & VISUAL PROMPT (BẮT BUỘC ĐẠT ĐỘ CHUẨN XÁC TUYỆT ĐỐI):
 - BẮT BUỘC có ÍT NHẤT 60% - 80% số scene có visual_type: "animation" do code AI viết (preset "pycode" hoặc "manim").
 - Scene 1 (HOOK) BẮT BUỘC có visual_type: "animation" do code AI vẽ ngay từ giây đầu tiên.
 - KHÔNG để 2 scene bullets hoặc 2 ảnh tĩnh liên tiếp. Phải xen kẽ: Animation code -> B-roll video -> Animation code -> Slide trực quan.
-- BẮT BUỘC MỖI SCENE CÓ "visual_prompt": một prompt chi tiết mô tả thuật toán trực quan hoặc chuyển động animation cần vẽ (bằng tiếng Anh hoặc tiếng Việt). Ví dụ: "Animated visualization of Dijkstra algorithm finding shortest path on 7-node graph with glowing neon edges" hoặc "AVL Tree Left-Right rotation step-by-step with moving nodes and arrows". Prompt này sẽ được chuyển thẳng cho AI chuyên code (DeepSeek-Reasoner R1 / Qwen-2.5-Coder) để viết code animation Python (Matplotlib FuncAnimation hoặc Manim).
+- TIÊU CHUẨN VÀNG CHO "visual_prompt" (CỰC KỲ CHI TIẾT ĐỂ AI GEN CODE CHUẨN XÁC):
+  * TUYỆT ĐỐI KHÔNG viết visual_prompt chung chung như "vẽ thuật toán" hay "mô phỏng hệ thống".
+  * BẮT BUỘC mô tả 3 yếu tố:
+    1. DỮ LIỆU CỤ THỂ: Mảng số cụ thể [5, 2, 8, 1, 9], cây nhị phân 3 tầng, 4 node A-B-C-D hay cấu trúc bảng hash...
+    2. CHUYỂN ĐỘNG TỪNG BƯỚC: Con trỏ di chuyển qua đâu, phần tử nào đổi màu (Cyan = chờ, Vàng/Hồng = đang xét, Xanh neon = đã khớp/thành công), mũi tên gửi gói tin `send(a, b)` như thế nào.
+    3. NHỊP ĐIỆU DIỄN HOẠT: Di chuyển mượt mà, có khoảng dừng để người xem nhìn rõ cơ chế hoạt động.
 - ƯU TIÊN preset "pycode" (Matplotlib) hoặc "manim" để mọi khái niệm kỹ thuật đều được mô phỏng sinh động bằng code thực thi.
 - NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để minh họa đúng ý tưởng cốt lõi của video.
 - Với scene animation "custom" hoặc "pycode": nếu đã TỰ ĐẶT chữ tiêu đề bên trong, thì để "heading" TRỐNG ("") để tránh CHỒNG CHỮ.
@@ -177,10 +191,10 @@ Trả về DUY NHẤT một object JSON theo schema:
   "tags": ["tag1", "tag2", "..."],
   "scenes": [
     {{
-      "narration": "lời đọc tự nhiên, câu ngắn dưới 20 từ (văn bản thuần, TUYỆT ĐỐI không dùng dấu * hoặc **)",
+      "narration": "lời đọc tự nhiên, câu ngắn dưới 18 từ (văn bản thuần, TUYỆT ĐỐI không dùng dấu * hoặc **)",
       "visual_type": "bullets",
       "heading": "tiêu đề ngắn hiển thị trên màn hình",
-      "visual_prompt": "prompt chi tiết mô tả thuật toán hoặc chuyển động visual cần vẽ cho scene này",
+      "visual_prompt": "prompt cực kỳ chi tiết về dữ liệu và chuyển động từng bước để AI viết code Python/Manim vẽ chuẩn xác",
       "bullets": ["ý 1", "ý 2"],
       "chart": null,
       "code_language": "python",
@@ -192,7 +206,7 @@ Trả về DUY NHẤT một object JSON theo schema:
   ],
   "exercises": [
     {{
-      "question": "một bài toán/tình huống THỰC TẾ để người xem tự giải",
+      "question": "một bài toán/tình huống THỰC TẾ với số liệu cụ thể để người xem tự giải",
       "hint": "gợi ý ngắn hướng giải (không bắt buộc)",
       "answer": "đáp án hoặc hướng làm ngắn gọn (không bắt buộc)"
     }}
@@ -224,25 +238,29 @@ Lưu ý:
 def _build_short_prompt(
     topic: str, lang_name: str, duration: int, min_words: int, approx_words: int
 ) -> str:
-    """Prompt cho YouTube Short: dọc 9:16, dưới 60s, nhịp nhanh, hook cực mạnh."""
-    return f"""Viết kịch bản cho một YouTube SHORT (video DỌC 9:16, DƯỚI {duration} giây) về chủ đề:
+    """Prompt cho YouTube Short: dọc 9:16, tối đa 3 phút (180s), nhịp chậm rãi, dễ hiểu, hook cực mạnh."""
+    n_scenes_min = max(int(duration / 25), 4)
+    n_scenes_max = max(int(duration / 15), 6)
+    return f"""Viết kịch bản cho một YouTube SHORT (video DỌC 9:16, thời lượng mục tiêu ~{duration} giây, TUYỆT ĐỐI không vượt quá 180 giây / 3 phút) về chủ đề:
 "{topic}"
 
-Ngôn ngữ: {lang_name}. Yêu cầu BẮT BUỘC cho định dạng Short:
-- Tổng lời đọc chỉ khoảng {min_words}-{approx_words} từ (RẤT NGẮN, đọc trong <{duration}s). TUYỆT ĐỐI không dài hơn.
-- Chia thành 4-6 scene ngắn, mỗi scene narration 1-2 câu (10-25 từ), nhịp nhanh, dứt khoát.
+Ngôn ngữ: {lang_name}. YÊU CẦU BẮT BUỘC CHO SHORT (DỄ HIỂU & CHUẨN XÁC):
+- Tổng lời đọc khoảng {min_words}-{approx_words} từ (nhịp đọc thư thái, rõ ràng, TUYỆT ĐỐI không vượt quá 180s).
+- Chia thành {n_scenes_min}-{n_scenes_max} scene ngắn gọn, mỗi scene narration 1-3 câu ngắn (10-20 từ), nhịp điệu tự nhiên, dễ ngấm.
 - Bố cục DỌC 9:16: chữ TO, RẤT ÍT chữ mỗi màn hình để không tràn khung trên điện thoại.
+- DỄ HIỂU & TRỰC QUAN: Mở đầu bằng một câu hỏi sốc hoặc ví dụ đời thường, giải thích bản chất bằng trực giác trước khi nêu giải pháp kỹ thuật.
 
-CẤU TRÚC SHORT (rút gọn từ flow giáo dục, giữ nhịp nhanh):
+CẤU TRÚC SHORT:
 1. HOOK cực mạnh trong 2 giây đầu — một câu hỏi sốc hoặc con số gây tò mò.
-2. VẤN ĐỀ — nêu nhanh điều bất ngờ/khó hiểu.
-3. GIẢI THÍCH TRỰC QUAN — 1-2 scene cốt lõi, dùng animation hoặc ảnh mạnh để "aha".
-4. ĐIỂM CHỐT — insight/con số đáng nhớ nhất.
-5. CALL-TO-ACTION — "Theo dõi để xem phần tiếp theo" hoặc câu hỏi mở kéo comment.
+2. ẨN DỤ / VẤN ĐỀ — nêu nhanh tình huống bất ngờ hoặc ví dụ đời thực dễ hiểu.
+3. GIẢI THÍCH TRỰC QUAN — các scene cốt lõi giải thích cơ chế, dùng animation code trực quan để tạo cảm giác "aha".
+4. ĐIỂM CHỐT — insight hoặc con số đáng nhớ nhất.
+5. CALL-TO-ACTION — câu hỏi mở kéo comment hoặc kêu gọi theo dõi phần tiếp theo.
 
 Yêu cầu hình ảnh cho Short (khung DỌC hẹp, tránh tràn chữ):
+- MỖI scene animation PHẢI có "visual_prompt" chi tiết để AI gen code Python/Manim vẽ chuyển động chính xác.
 - Mỗi scene PHẢI có "image_query" 2-5 từ khóa TIẾNG ANH, ảnh nổi bật, tương phản cao.
-- Nên có 1-2 scene "animation" (counter con số, function, hoặc steps) để bắt mắt.
+- Nên có 2-3 scene "animation" (counter con số, function, hoặc steps) để bắt mắt.
 - Ưu tiên visual_type: "title", "quote", "animation"; hạn chế "bullets".
 - "heading" TỐI ĐA 4-5 từ (chữ to, dễ tràn nếu dài). Mỗi bullet TỐI ĐA 6-8 từ, tối đa 3 bullet/scene.
 - KHÔNG viết câu dài trong heading/bullets; để câu dài cho narration.
@@ -455,7 +473,7 @@ def _write_mega_script(topic: str, duration: int) -> Script:
     """
     lang = CONFIG.get("language", "vi")
     lang_name = "tiếng Việt" if lang == "vi" else "English"
-    approx_words = int(duration / 60 * 155)
+    approx_words = int(duration / 60 * 130)
     minutes = max(duration // 60, 10)
     num_chapters = min(max(minutes // 3, 4), 7)  # 4-7 chương tùy độ dài
 
@@ -613,10 +631,10 @@ def write_script(topic: str) -> Script:
     if mode == "mega" or duration >= 600:
         return _write_mega_script(topic, duration)
 
-    approx_words = int(duration / 60 * 155)
-    # Ngưỡng tối thiểu: long cần ~75% mục tiêu; short vốn ngắn nên không ép dài.
-    min_words = int(approx_words * 0.75) if mode != "short" else 0
-    min_scenes = max((duration // 60) * 2, 8) if mode != "short" else 3
+    approx_words = int(duration / 60 * 130)
+    # Ngưỡng tối thiểu: long cần ~75% mục tiêu; short cần ~65% mục tiêu để kịch bản bám sát thời lượng.
+    min_words = int(approx_words * 0.75) if mode != "short" else int(approx_words * 0.65)
+    min_scenes = max((duration // 60) * 2, 8) if mode != "short" else max(int(duration / 25), 3)
 
     script: Script | None = None
     for attempt in range(2):  # thử tối đa 2 lần nếu kịch bản quá ngắn/thiếu scene

@@ -3,7 +3,7 @@ name: Tạo & upload video tech
 on:
   # Chạy tự động 2 lần/ngày (giờ UTC).
   #  00:00 UTC = 7h VN  -> SÁNG: video dài (long, ngang 16:9)
-  #  12:00 UTC = 19h VN -> TỐI:  video short (dọc 9:16, <60s)
+  #  12:00 UTC = 19h VN -> TỐI:  video short (dọc 9:16, tối đa 3p / 180s)
   schedule:
     - cron: "0 0 * * *"
     - cron: "0 12 * * *"
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Chế độ video (long = 5p 16:9, short = <60s dọc, mega = siêu dài 15-30p)"
+        description: "Chế độ video (long = 5p 16:9, short = tối đa 3p dọc 9:16, mega = siêu dài 15-30p)"
         required: false
         type: choice
         default: "long"

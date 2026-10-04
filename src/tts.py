@@ -96,7 +96,11 @@ def _synth_vieneu(text: str, out: Path) -> None:
 
     cfg = CONFIG["tts"].get("vieneu", {})
     voice = cfg.get("voice", "Minh Quân Pro")
-    audio = engine.infer(text, voice=voice)
+    speed = float(cfg.get("speed", 0.95))
+    try:
+        audio = engine.infer(text, voice=voice, speed=speed)
+    except TypeError:
+        audio = engine.infer(text, voice=voice)
     engine.save(audio, str(out))
 
 
@@ -131,10 +135,12 @@ def _synth_edge(text: str, out: Path) -> None:
     cfg = CONFIG["tts"]["edge"]
     lang = CONFIG.get("language", "vi")
     voice = cfg["voice_vi"] if lang == "vi" else cfg["voice_en"]
+    rate = str(cfg.get("rate", "-6%"))
+    pitch = str(cfg.get("pitch", "+0Hz"))
     mp3_path = out.with_suffix(".mp3")
 
     async def _run() -> None:
-        communicate = edge_tts.Communicate(text, voice)
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
         await communicate.save(str(mp3_path))
 
     asyncio.run(_run())
@@ -270,6 +276,23 @@ def synthesize(text: str, out_path: Path) -> float:
     raise TTSError(f"Tất cả TTS provider đều lỗi. Cuối: {last_err}")
 
 
+def _append_silence(path: Path, duration: float = 0.25) -> None:
+    """Nối thêm một khoảng lặng ngắn vào cuối file wav để tạo nhịp thở tự nhiên."""
+    if duration <= 0:
+        return
+    try:
+        with wave.open(str(path), "rb") as r:
+            params = r.getparams()
+            frames = r.readframes(r.getnframes())
+        silence_bytes = b"\x00" * int(params.framerate * params.sampwidth * params.nchannels * duration)
+        with wave.open(str(path), "wb") as w:
+            w.setparams(params)
+            w.writeframes(frames)
+            w.writeframes(silence_bytes)
+    except Exception as e:
+        log.debug("Thêm khoảng lặng wav lỗi: %s", e)
+
+
 def synthesize_timed(text: str, out_path: Path) -> list[tuple[str, float]]:
     """Đọc text TỪNG CÂU rồi ghép thành 1 file wav; trả về [(câu, thời lượng)].
 
@@ -284,12 +307,17 @@ def synthesize_timed(text: str, out_path: Path) -> list[tuple[str, float]]:
         return [(text.strip(), dur)]
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    pause_sec = float(CONFIG.get("tts", {}).get("sentence_pause", 0.25))
     parts: list[Path] = []
     timings: list[tuple[str, float]] = []
     try:
         for j, sent in enumerate(sentences):
             part = out_path.with_name(f"{out_path.stem}_s{j:02d}.wav")
             dur = synthesize(sent, part)
+            # Chèn khoảng nghỉ ngắn giữa các câu (trừ câu cuối của scene)
+            if pause_sec > 0 and j < len(sentences) - 1:
+                _append_silence(part, pause_sec)
+                dur += pause_sec
             parts.append(part)
             timings.append((sent, dur))
         _concat_wavs(parts, out_path)

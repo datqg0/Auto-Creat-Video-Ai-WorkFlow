@@ -34,7 +34,7 @@ Python plus FFmpeg.
 
 - **End-to-end automation** — topic selection → script → animation → TTS →
   subtitles → compositing → thumbnail → upload, with zero human input.
-- **Three video formats** — long 16:9 explainer, vertical 9:16 Short (<60s), and
+- **Three video formats** — long 16:9 explainer, vertical 9:16 Short (up to 3 mins / 180s), and
   **mega 16:9 deep-dive** (15–30+ minutes) with chapter-based hierarchical scripting.
 - **High animation density ($\ge 70\%$) & instant visual hook** — animations start
   right from second 0 (Scene 1), prioritizing AI-generated Python/Manim animations.
@@ -291,7 +291,7 @@ python -m src.pipeline --no-upload
 
 # Force a specific format
 python -m src.pipeline --no-upload --mode long    # 16:9 explainer (~3-5 mins)
-python -m src.pipeline --no-upload --mode short   # 9:16 Short (<60s)
+python -m src.pipeline --no-upload --mode short   # 9:16 Short (up to 3 mins / 180s)
 python -m src.pipeline --no-upload --mode mega    # 16:9 Mega deep-dive (15-30+ mins)
 
 # Run with a custom topic and target duration
