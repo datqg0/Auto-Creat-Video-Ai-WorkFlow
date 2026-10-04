@@ -8,8 +8,16 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 import traceback
 from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 from . import db
 from .config import CONFIG, OUTPUT_DIR, apply_mode
@@ -115,15 +123,17 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         audios.append(aud)
         scene_texts.append(scene.narration)
 
-        # Scene động: nếu visual_type == "animation" và có cấu hình
+        # Scene động: nếu visual_type == "animation" hoặc bật animate_from_start cho scene mở đầu
         anim = None
         code_video = None
         acfg = scene.animation or {}
-        if scene.visual_type == "animation":
+        anim_cfg = CONFIG.get("animation", {}) or {}
+        is_anim = (scene.visual_type == "animation") or (i == 0 and anim_cfg.get("animate_from_start", True))
+
+        if is_anim:
             from .ai_code_runner import run_ai_code, run_manim_code, generate_matplotlib_from_prompt, generate_manim_from_prompt
 
             preset = str(acfg.get("preset", ""))
-            anim_cfg = CONFIG.get("animation", {}) or {}
             visual_desc = scene.visual_prompt or scene.heading or scene.narration[:120]
 
             # Tầng 1: Manim nếu preset yêu cầu và được bật
@@ -139,8 +149,8 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                             duration=dur,
                             width=CONFIG["visual"]["width"],
                             height=CONFIG["visual"]["height"],
-                            fps=int(anim_cfg.get("manim_fps", 60)),
-                            quality=str(anim_cfg.get("manim_quality", "high_quality")),
+                            fps=int(anim_cfg.get("manim_fps", 30)),
+                            quality=str(anim_cfg.get("manim_quality", "medium_quality")),
                             background_color=str(CONFIG["visual"].get("background_color", "#0d1117")),
                             timeout=int(anim_cfg.get("manim_timeout", 300)),
                             auto_repair=True,
@@ -148,11 +158,11 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                     except Exception as e:  # noqa: BLE001
                         log.warning("Manim scene %d lỗi: %s", i, e)
 
-            # Tầng 2: PyCode (Matplotlib) nếu đã có code hoặc Manim thất bại
+            # Tầng 2: PyCode (Matplotlib) - AI sinh code Python animation trực quan
             if code_video is None:
                 pycode = acfg.get("code") if preset == "pycode" else acfg.get("pycode")
-                # Nếu chưa có code -> Nhờ AI sinh code Matplotlib từ visual_prompt
-                if not pycode and (preset in ("manim", "pycode") or scene.visual_prompt or scene.narration):
+                # Nếu chưa có code -> Nhờ AI chuyên code sinh Matplotlib từ visual_prompt
+                if not pycode and (preset in ("manim", "pycode") or anim_cfg.get("ai_code_primary", True) or scene.visual_prompt or scene.narration):
                     pycode = generate_matplotlib_from_prompt(visual_desc, duration=dur)
 
                 if pycode:
@@ -264,13 +274,18 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
     return video_path, thumb_path, durations, captions_dict
 
 
-def run_once(upload_video: bool = True, dry_run: bool = False) -> None:
+def run_once(
+    topic: str | None = None,
+    upload_video: bool = True,
+    dry_run: bool = False,
+) -> None:
     from .script_writer import write_script
     from .topic_selector import pick_topic
 
     db.init_db()
 
-    topic = pick_topic()
+    if not topic:
+        topic = pick_topic()
     video_id_db = db.create_video(topic)
 
     try:
@@ -317,25 +332,31 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Chỉ in kịch bản")
     parser.add_argument(
         "--mode",
-        choices=["long", "short"],
+        choices=["long", "short", "mega"],
         default=None,
-        help="long = video dài ngang 16:9 (buổi sáng), short = dọc 9:16 <60s (buổi tối)",
+        help="long = video 16:9 (~5p), short = dọc 9:16 (<60s), mega = siêu dài 16:9 (>15p)",
     )
+    parser.add_argument("--topic", type=str, default=None, help="Chủ đề video cụ thể")
+    parser.add_argument("--duration", type=int, default=None, help="Ghi đè thời lượng mục tiêu (giây)")
     args = parser.parse_args()
 
     mode = apply_mode(args.mode)
+    if args.duration:
+        CONFIG["target_duration_seconds"] = int(args.duration)
+
     log.info(
-        "Mode: %s (%dx%d, %ds)",
+        "Mode: %s (%dx%d, %ds) | Topic: %s",
         mode,
         CONFIG["visual"]["width"],
         CONFIG["visual"]["height"],
         CONFIG["target_duration_seconds"],
+        args.topic or "Auto-pick",
     )
 
     n = int(CONFIG.get("videos_per_run", 1))
     for i in range(n):
         log.info("=== Video %d/%d ===", i + 1, n)
-        run_once(upload_video=not args.no_upload, dry_run=args.dry_run)
+        run_once(topic=args.topic, upload_video=not args.no_upload, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

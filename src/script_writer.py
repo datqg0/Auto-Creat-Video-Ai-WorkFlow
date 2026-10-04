@@ -61,6 +61,8 @@ Ngôn ngữ: {lang_name}. Đây là yêu cầu độ dài BẮT BUỘC:
 - Mỗi scene narration 3-6 câu (khoảng 60-110 từ), KHÔNG viết narration 1 câu cụt.
 
 HOOK 5 GIÂY ĐẦU (QUYẾT ĐỊNH GIỮ CHÂN NGƯỜI XEM — cực kỳ quan trọng):
+- Scene 1 BẮT BUỘC có visual_type: "animation" (với preset "pycode" hoặc "manim").
+- Mở đầu video ngay từ giây đầu tiên bằng một animation ĐỘNG do CODE PYTHON trực quan vẽ (sóng xung kích, mô phỏng mạng, đồ thị biến thiên, nghịch lý trực quan...). TUYỆT ĐỐI không mở đầu bằng slide tĩnh hay chữ đơn điệu.
 - Câu ĐẦU TIÊN của narration scene 1 phải là một cú móc mạnh: một con số gây sốc, một
   nghịch lý, một câu hỏi khiến người xem KHÔNG THỂ lướt qua ("Bạn có biết...?",
   "Điều gì xảy ra nếu...?", một tuyên bố phản trực giác).
@@ -158,10 +160,11 @@ QUAN TRỌNG VỀ NHỊP VĂN & GIỌNG ĐỌC (giữ chân người xem):
 - KỂ CHUYỆN LIÊN TỤC: Dẫn dắt bằng tình huống, đưa người xem đi từ tò mò sang bất ngờ rồi tới giải pháp ("Aha moment").
 
 QUAN TRỌNG VỀ HÌNH ẢNH & ANIMATION (video phải chuyển động liên tục, TUYỆT ĐỐI KHÔNG làm slideshow tĩnh):
-- BẮT BUỘC có ÍT NHẤT 35% - 50% số scene có visual_type: "animation" (với preset "pycode", "manim", hoặc preset toán/số liệu).
-- KHÔNG để 2 scene bullets hoặc 2 ảnh tĩnh liên tiếp. Phải xen kẽ: Animation -> B-roll video -> Slide kinetic -> Animation.
-- BẮT BUỘC MỖI SCENE CÓ "visual_prompt": một prompt chi tiết mô tả thuật toán trực quan hoặc chuyển động animation cần vẽ (bằng tiếng Anh hoặc tiếng Việt). Ví dụ: "Animated visualization of Dijkstra algorithm finding shortest path on 7-node graph with glowing neon edges" hoặc "AVL Tree Left-Right rotation step-by-step with moving nodes and arrows". Prompt này sẽ được chuyển thẳng cho AI chuyên code (DeepSeek-Reasoner R1 / Qwen-2.5-Coder) để viết code animation tương ứng.
-- BẮT BUỘC có ÍT NHẤT 2-3 scene animation preset "pycode" hoặc "manim" (tự viết code Python/matplotlib/manim vẽ hình ảnh minh họa cụ thể cho chủ đề).
+- BẮT BUỘC có ÍT NHẤT 60% - 80% số scene có visual_type: "animation" do code AI viết (preset "pycode" hoặc "manim").
+- Scene 1 (HOOK) BẮT BUỘC có visual_type: "animation" do code AI vẽ ngay từ giây đầu tiên.
+- KHÔNG để 2 scene bullets hoặc 2 ảnh tĩnh liên tiếp. Phải xen kẽ: Animation code -> B-roll video -> Animation code -> Slide trực quan.
+- BẮT BUỘC MỖI SCENE CÓ "visual_prompt": một prompt chi tiết mô tả thuật toán trực quan hoặc chuyển động animation cần vẽ (bằng tiếng Anh hoặc tiếng Việt). Ví dụ: "Animated visualization of Dijkstra algorithm finding shortest path on 7-node graph with glowing neon edges" hoặc "AVL Tree Left-Right rotation step-by-step with moving nodes and arrows". Prompt này sẽ được chuyển thẳng cho AI chuyên code (DeepSeek-Reasoner R1 / Qwen-2.5-Coder) để viết code animation Python (Matplotlib FuncAnimation hoặc Manim).
+- ƯU TIÊN preset "pycode" (Matplotlib) hoặc "manim" để mọi khái niệm kỹ thuật đều được mô phỏng sinh động bằng code thực thi.
 - NÊN có ÍT NHẤT 1-2 animation "custom" tự thiết kế (không chỉ dùng preset có sẵn) để minh họa đúng ý tưởng cốt lõi của video.
 - Với scene animation "custom" hoặc "pycode": nếu đã TỰ ĐẶT chữ tiêu đề bên trong, thì để "heading" TRỐNG ("") để tránh CHỒNG CHỮ.
 - MỌI scene (trừ code) đều PHẢI có "image_query": 2-5 từ khóa TIẾNG ANH mô tả ảnh minh họa nền cụ thể, sinh động (ví dụ "neural network brain glowing", "data center servers blue", "encryption padlock circuit", "quantum computer chip"). Không để trống.
@@ -211,7 +214,7 @@ Lưu ý:
   TUYỆT ĐỐI KHÔNG dùng: "Giới thiệu về...", "Tìm hiểu...", "Hướng dẫn...".
   Scene HOOK mở đầu phải đặt lại đúng câu hỏi/tuyên bố này, và scene TỔNG KẾT phải trả lời rõ nó.
 - narration phải liền mạch, kể chuyện, KHÔNG đọc gạch đầu dòng, KHÔNG quá ngắn.
-- Scene đầu là HOOK (visual_type "title"), scene gần cuối là TỔNG KẾT ("quote"),
+- Scene đầu là HOOK (visual_type "animation" do code AI vẽ), scene gần cuối là TỔNG KẾT ("quote"),
   scene cuối cùng là MỞ SANG VIDEO TIẾP THEO (gợi mở + call-to-action đăng ký).
 - Bám sát 10 bước cấu trúc theo đúng thứ tự; heading mỗi scene nên phản ánh bước đang ở.
 - Với "chart", số liệu hợp lý, labels/values cùng độ dài.
@@ -443,9 +446,173 @@ def _parse_script(topic: str, raw: str) -> Script:
     )
 
 
+def _write_mega_script(topic: str, duration: int) -> Script:
+    """Tạo kịch bản siêu dài (mega mode >= 10-30 phút) bằng phương pháp phân tầng (Curriculum Chapters).
+
+    1. Sinh dàn ý mục lục 4-7 chương (Chapters/Modules).
+    2. Viết chi tiết từng chương (mỗi chương 4-6 scene với >=70% animation code).
+    3. Ghép nối thành 1 kịch bản Script hoàn chỉnh có chiều sâu cực đại.
+    """
+    lang = CONFIG.get("language", "vi")
+    lang_name = "tiếng Việt" if lang == "vi" else "English"
+    approx_words = int(duration / 60 * 155)
+    minutes = max(duration // 60, 10)
+    num_chapters = min(max(minutes // 3, 4), 7)  # 4-7 chương tùy độ dài
+
+    log.info("Bắt đầu sinh kịch bản siêu dài (Mega Deep-Dive): %s (%d phút, %d chương)", topic, minutes, num_chapters)
+
+    outline_prompt = f"""Bạn là đạo diễn và biên kịch trưởng cho kênh YouTube giải thích công nghệ chuyên sâu (kiểu 3Blue1Brown, Fireship, ByteByteGo).
+Chúng ta đang sản xuất video MASTERCLASS SIÊU DÀI ĐẶC BIỆT (~{minutes} phút, mục tiêu ~{approx_words} từ lời đọc) về chủ đề:
+"{topic}"
+
+Hãy lập DÀN Ý MỤC LỤC CHI TIẾT gồm {num_chapters} chương lớn (Chapters) theo thứ tự sư phạm xuất sắc từ con số 0 đến làm chủ hoàn toàn:
+1. Chương 1: Cú Móc & Nghịch lý Cốt lõi (Hook, Paradox & Why It Matters) - Scene 1 BẮT BUỘC là animation do code vẽ.
+2. Chương 2: Mô hình Trực giác & Bức tranh Tổng quan (Mental Model & High-level Architecture).
+3. Chương 3: Cơ chế Vận hành Từng bước (Step-by-step Technical Mechanism & Dataflow).
+4. Chương 4: Đi sâu vào Bản chất Toán học / Thuật toán / Code (Under the Hood, Math & Algorithms).
+5. Chương 5: Thử nghiệm Thực tế, Đột phá & So sánh Hiệu năng (Real-world Benchmarks & Implementation).
+{f"6. Chương 6: Cạm bẫy Phổ biến & Ứng dụng Nâng cao (Edge cases & Production Pitfalls)." if num_chapters >= 6 else ""}
+{f"7. Chương 7: Tương lai, Bài toán Mở & Tổng kết (Future Horizon & Next Big Challenge)." if num_chapters >= 7 else "6. Chương cuối: Tương lai, Bài toán Mở & Tổng kết."}
+
+Trả về DUY NHẤT một object JSON theo schema:
+{{
+  "title": "Tiêu đề video cực kỳ hấp dẫn, gây tò mò, dưới 70 ký tự (kết thúc bằng ? hoặc khẳng định sốc)",
+  "description": "Mô tả chuyên sâu 4-5 câu cho video Masterclass YouTube, kèm hashtag",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+  "chapters": [
+    {{
+      "chapter_number": 1,
+      "chapter_title": "Tên chương ngắn gọn",
+      "objective": "Mục tiêu cụ thể và các khái niệm cần mổ xẻ trong chương này",
+      "target_scenes": 5
+    }}
+  ]
+}}
+Chỉ trả về JSON thuần, không kèm markdown hay lời dẫn."""
+
+    raw_outline = generate(outline_prompt, system=_SYSTEM, task="script")
+    data_outline = _extract_json(raw_outline)
+    title = _sentence_case(_as_question(data_outline.get("title", topic)))[:100]
+    description = data_outline.get("description", "")
+    tags = data_outline.get("tags", [])
+    chapters = data_outline.get("chapters", [])
+    if not chapters:
+        chapters = [
+            {"chapter_number": 1, "chapter_title": "Khởi nguyên & Cú móc", "objective": "Đặt vấn đề và nghịch lý", "target_scenes": 5},
+            {"chapter_number": 2, "chapter_title": "Mô hình Trực giác", "objective": "Bức tranh tổng quan", "target_scenes": 5},
+            {"chapter_number": 3, "chapter_title": "Cơ chế Vận hành", "objective": "Chi tiết thuật toán", "target_scenes": 6},
+            {"chapter_number": 4, "chapter_title": "Kiến trúc & Toán học", "objective": "Mổ xẻ tầng sâu", "target_scenes": 6},
+            {"chapter_number": 5, "chapter_title": "Thực tế & Tổng kết", "objective": "Áp dụng thực tế và bài tập", "target_scenes": 5},
+        ]
+
+    all_scenes: list[Scene] = []
+    total_words_target_per_chapter = approx_words // len(chapters)
+
+    for ch_idx, ch in enumerate(chapters):
+        ch_num = ch.get("chapter_number", ch_idx + 1)
+        ch_title = ch.get("chapter_title", f"Chương {ch_num}")
+        ch_obj = ch.get("objective", "")
+        n_scenes = int(ch.get("target_scenes", 5))
+        is_first_ch = (ch_idx == 0)
+
+        log.info("Đang viết Chương %d/%d: %s...", ch_num, len(chapters), ch_title)
+
+        ch_prompt = f"""Bạn đang viết nội dung chi tiết cho Chương {ch_num}: "{ch_title}"
+Nằm trong video Masterclass: "{title}"
+Mục tiêu chương này: {ch_obj}
+
+Yêu cầu BẮT BUỘC cho chương này ({lang_name}):
+- Tạo đúng {n_scenes} scene liền mạch, giải thích sâu sắc, lời đọc tự nhiên (~{total_words_target_per_chapter} từ cho cả chương).
+- Mỗi scene narration dài 3-6 câu (~60-100 từ), câu ngắn dưới 20 từ, TUYỆT ĐỐI không dùng dấu hoa thị/sao (* hoặc **).
+- QUAN TRỌNG VỀ ANIMATION:
+  * TỐI THIỂU 70% số scene phải có visual_type: "animation" (với preset "pycode" hoặc "manim").
+  * {'Scene 1 của chương này là HOOK MỞ ĐẦU TOÀN BỘ VIDEO: BẮT BUỘC visual_type là "animation" do CODE AI vẽ (sóng chuyển động, mô phỏng mạng, đồ thị biến thiên...).' if is_first_ch else ''}
+  * MỖI scene animation BẮT BUỘC có "visual_prompt": mô tả chi tiết hình ảnh chuyển động để AI chuyên code (DeepSeek-Reasoner R1 / Qwen-2.5-Coder) viết code Python Matplotlib/Manim vẽ animation tương ứng.
+  * Mọi scene đều có "image_query" tiếng Anh (và "video_query" nếu hợp cảnh quay thực tế).
+
+Trả về DUY NHẤT một object JSON:
+{{
+  "scenes": [
+    {{
+      "narration": "lời đọc tự nhiên, câu ngắn gãy gọn",
+      "visual_type": "animation",
+      "heading": "tiêu đề ngắn trên màn hình",
+      "visual_prompt": "detailed prompt for AI to write Python matplotlib/manim animation script",
+      "bullets": [],
+      "chart": null,
+      "code_language": "python",
+      "algorithm": "",
+      "image_query": "english keywords for background",
+      "video_query": "english keywords for video footage (hoặc để trống)",
+      "animation": {{"preset": "pycode"}}
+    }}
+  ]
+}}
+Chỉ trả về JSON thuần."""
+
+        for ch_attempt in range(2):
+            try:
+                ch_raw = generate(ch_prompt, system=_SYSTEM, task="script")
+                ch_data = _extract_json(ch_raw)
+                ch_scenes_raw = ch_data.get("scenes", [])
+                if not ch_scenes_raw:
+                    continue
+                parsed_ch_scenes = []
+                for s in ch_scenes_raw:
+                    if not isinstance(s, dict):
+                        continue
+                    if "narration" in s and isinstance(s["narration"], str):
+                        s["narration"] = _clean_narration_markdown(s["narration"])
+                    if "heading" in s and isinstance(s["heading"], str):
+                        s["heading"] = _clean_narration_markdown(s["heading"])
+                    if "bullets" in s and isinstance(s["bullets"], list):
+                        s["bullets"] = [_clean_narration_markdown(b) if isinstance(b, str) else b for b in s["bullets"]]
+                    try:
+                        parsed_ch_scenes.append(Scene(**s))
+                    except Exception as e:
+                        log.warning("Bỏ qua scene lỗi: %s", e)
+                if parsed_ch_scenes:
+                    all_scenes.extend(parsed_ch_scenes)
+                    break
+            except Exception as e:
+                log.warning("Thử lại viết chương %d do lỗi: %s", ch_num, e)
+
+    if not all_scenes:
+        log.warning("Viết chương phân tầng không có scene -> fallback sang prompt truyền thống")
+        raw_fallback = generate(_build_prompt(topic), system=_SYSTEM, task="script")
+        return _parse_script(topic, raw_fallback)
+
+    exercises = [
+        Exercise(
+            question=f"Áp dụng kiến thức trong video, hãy phân tích trường hợp thực tế về {topic} khi quy mô tăng gấp 100 lần.",
+            hint="Xem xét độ phức tạp tính toán và chi phí phần cứng.",
+            answer="Xem phần giải thích ở phần bình luận ghim bên dưới video.",
+        )
+    ]
+
+    mega_script = Script(
+        topic=topic,
+        title=title,
+        description=description,
+        tags=tags,
+        scenes=all_scenes,
+        exercises=exercises,
+    )
+    log.info(
+        "Kịch bản Mega Deep-Dive '%s' hoàn tất: %d scene, %d từ lời đọc",
+        mega_script.title, len(mega_script.scenes), _count_words(mega_script.scenes),
+    )
+    return mega_script
+
+
 def write_script(topic: str) -> Script:
     duration = int(CONFIG.get("target_duration_seconds", 300))
     mode = CONFIG.get("active_mode", "long")
+
+    # Nếu mode là mega hoặc thời lượng >= 600s (~10 phút trở lên) -> dùng kịch bản phân tầng đa chương
+    if mode == "mega" or duration >= 600:
+        return _write_mega_script(topic, duration)
+
     approx_words = int(duration / 60 * 155)
     # Ngưỡng tối thiểu: long cần ~75% mục tiêu; short vốn ngắn nên không ép dài.
     min_words = int(approx_words * 0.75) if mode != "short" else 0

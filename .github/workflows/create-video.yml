@@ -11,13 +11,24 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Chế độ video (long = dài 16:9, short = dọc 9:16)"
+        description: "Chế độ video (long = 5p 16:9, short = <60s dọc, mega = siêu dài 15-30p)"
         required: false
         type: choice
         default: "long"
         options:
           - long
           - short
+          - mega
+      topic:
+        description: "Chủ đề video cụ thể (để trống sẽ tự động bắt trend)"
+        required: false
+        type: string
+        default: ""
+      duration:
+        description: "Thời lượng mục tiêu theo giây (ví dụ: 900 cho 15p, 1200 cho 20p)"
+        required: false
+        type: string
+        default: ""
       no_upload:
         description: "Chỉ render, không upload (true/false)"
         required: false
@@ -116,11 +127,18 @@ jobs:
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
-          if [ "${{ github.event.inputs.no_upload }}" = "true" ]; then
-            python -m src.pipeline --mode "$MODE" --no-upload
-          else
-            python -m src.pipeline --mode "$MODE"
+          CMD=("python" "-m" "src.pipeline" "--mode" "$MODE")
+          if [ -n "${{ github.event.inputs.topic }}" ]; then
+            CMD+=("--topic" "${{ github.event.inputs.topic }}")
           fi
+          if [ -n "${{ github.event.inputs.duration }}" ]; then
+            CMD+=("--duration" "${{ github.event.inputs.duration }}")
+          fi
+          if [ "${{ github.event.inputs.no_upload }}" = "true" ]; then
+            CMD+=("--no-upload")
+          fi
+          echo "Executing: ${CMD[*]}"
+          "${CMD[@]}"
 
       - name: Lưu artifact khi test (không upload)
         if: ${{ github.event.inputs.no_upload == 'true' }}
