@@ -74,6 +74,22 @@ def repair_code_with_ai(
         log.warning("Không thể import llm để sửa code: %s", e)
         return None
 
+    if framework == "manim":
+        framework_rules = (
+            "1. Output ONE Scene class `class NeonScene(Scene):`.\n"
+            "2. Do NOT redefine neon helpers: neon, NeonDot, neon_trail, sym, neon_box, curve, make_grid, send, hud (already injected).\n"
+            "3. NO LaTeX: do NOT use Tex, MathTex, DecimalNumber. Use sym(...) or Text for symbols.\n"
+            "4. Keep coordinates inside safe frame: x in [-6.2, 6.2], y in [-3.3, 3.3].\n"
+            "5. Output ONLY the fixed Python code inside a ```python ... ``` block. No explanations."
+        )
+    else:
+        framework_rules = (
+            "1. Do NOT redefine WIDTH, HEIGHT, FPS, DURATION, OUT_PATH (these are already injected in the runner prelude).\n"
+            "2. Ensure the output animation is saved directly to OUT_PATH ('out.mp4').\n"
+            "3. Only use matplotlib, numpy, math, and standard Python libraries.\n"
+            "4. Output ONLY the fixed Python code inside a ```python ... ``` block. No explanations."
+        )
+
     prompt = (
         f"You are an expert Python graphics and animation developer specializing in {framework}.\n"
         f"The following script failed to execute during rendering.\n\n"
@@ -83,10 +99,7 @@ def repair_code_with_ai(
         f"Fix the code completely so it runs without error.\n"
         f"Target animation duration: {duration} seconds.\n\n"
         f"RULES:\n"
-        f"1. Do NOT redefine WIDTH, HEIGHT, FPS, DURATION, OUT_PATH (these are already injected in the runner prelude).\n"
-        f"2. Ensure the output animation is saved directly to OUT_PATH ('out.mp4').\n"
-        f"3. Only use {framework}, numpy, math, and standard Python libraries.\n"
-        f"4. Output ONLY the fixed Python code inside a ```python ... ``` block. No explanations."
+        f"{framework_rules}"
     )
     try:
         log.info("Đang gọi AI để tự động sửa lỗi code %s...", framework)
@@ -161,17 +174,35 @@ def generate_manim_from_prompt(
         return None
 
     prompt = (
-        f"Write a high quality Python Manim (Community Edition) animation script to visualize the following algorithm/concept:\n"
-        f"Concept / Visual Prompt: {description}\n"
-        f"Target duration: {duration} seconds.\n\n"
-        f"CRITICAL RULES:\n"
-        f"- `from manim import *` is already imported.\n"
-        f"- Define a single Scene class inheriting from `Scene`, e.g. `class AIScene(Scene):`\n"
-        f"- Implement `construct(self)` method.\n"
-        f"- Use modern clean colors: accent '#58a6ff', green '#3fb950', yellow '#d29922', white '#f0f6fc'.\n"
-        f"- Keep animation total time around {duration}s using `self.play(...)` and `self.wait(...)`.\n"
-        f"- Avoid complex LaTeX / MathTex that might fail if LaTeX compiler is minimal. Prefer Text, MarkupText, Arrow, Circle, Square, VGroup.\n"
-        f"- Return ONLY valid Python code inside ```python ... ``` block."
+        f"You are a creative-coding expert. Build a SINGLE-FILE Manim (Community Edition) animation with a "
+        f"beautiful LIGHT NEON look (glowing lines on dark background).\n"
+        f"The scene must be PURELY VISUAL: the picture explains itself. NO descriptive sentences or long text.\n\n"
+        f"TOPIC / CONCEPT TO VISUALIZE:\n"
+        f"{description}\n\n"
+        f"TARGET DURATION: {duration:.1f} seconds.\n\n"
+        f"ENVIRONMENT & PRELUDE (ALREADY INJECTED - DO NOT REDEFINE OR RE-IMPORT):\n"
+        f"- Manim, numpy, DURATION={duration:.1f}, BG='#05060f' are already loaded.\n"
+        f"- Palette: CY='#00f0ff' (cyan), PK='#ff2bd6' (pink), GR='#39ff14' (green), "
+        f"YE='#ffe600' (yellow), PU='#9d4dff' (purple), OR='#ff8a00' (orange).\n"
+        f"- Neon Helpers provided (ready to use):\n"
+        f"  * neon(mob, color=CY, width=3, layers=4, fill=0.0): multi-layer glow + white core on any VMobject.\n"
+        f"  * NeonDot(color=PK, radius=0.08): glowing point.\n"
+        f"  * neon_trail(get_point, color=PK, time=0.9): glowing tail behind a moving point.\n"
+        f"  * sym(s, color=CY, size=22): short symbols / numbers only (uses Text, NO LaTeX).\n"
+        f"  * neon_box(label, color=CY, w=1.6, h=0.9, pos=ORIGIN): node with 1-3 char label.\n"
+        f"  * curve(xs, ys): smooth VMobject from numpy arrays.\n"
+        f"  * make_grid(): faint dark neon background grid.\n"
+        f"  * send(a, b, color=GR, rt=0.8): glowing request packet traveling from a to b.\n"
+        f"  * hud(fn, color=CY): live HUD stats in corner (symbols + numbers only).\n\n"
+        f"HARD RULES (NEVER BREAK):\n"
+        f"1. Output ONE class `class NeonScene(Scene):` with `construct(self)`.\n"
+        f"2. ZERO LaTeX: NEVER use Tex, MathTex, DecimalNumber, Variable, axes.add_coordinates(). "
+        f"Use sym() or Text for symbols (1-3 chars max, e.g. 'A', '7', 'x', 'f(x)').\n"
+        f"3. ZERO descriptive sentences or titles on screen. Pure visual storytelling through shapes, glow, and motion.\n"
+        f"4. EVERY visible line/curve/shape must be wrapped with neon(...). Every glowing point must be NeonDot.\n"
+        f"5. Keep all objects inside safe frame: x in [-6.2, 6.2], y in [-3.3, 3.3].\n"
+        f"6. Total animation duration must fit ~{duration:.1f}s. Every self.play(...) must have an explicit run_time.\n"
+        f"7. Return ONLY the Python code inside ```python ... ``` block. No explanations."
     )
     try:
         log.info("Đang gọi AI chuyên code sinh Manim animation...")
@@ -264,12 +295,88 @@ def run_ai_code(
 # rồi CLI `manim render` sẽ tìm class Scene đầu tiên trong file.
 _MANIM_PRELUDE = '''\
 from manim import *
+import numpy as np
+
 config.frame_rate = {fps}
 config.pixel_width = {width}
 config.pixel_height = {height}
 config.background_color = "{bg}"
-# Thời lượng mục tiêu (giây) để code AI canh nhịp animation.
 DURATION = {duration}
+
+BG = "{bg}"
+CY, PK, GR = "#00f0ff", "#ff2bd6", "#39ff14"
+YE, PU, OR = "#ffe600", "#9d4dff", "#ff8a00"
+FONT = "Monospace"
+
+def neon(mob, color=CY, width=3, layers=4, fill=0.0):
+    """Glow layers + colored line + white hot core. Works on any VMobject."""
+    g = VGroup()
+    for i in range(layers, 0, -1):
+        g.add(mob.copy().set_fill(opacity=0)
+                .set_stroke(color=color, width=width + i * 4,
+                            opacity=0.04 + 0.025 * (layers - i)))
+    g.add(mob.copy().set_fill(color=color, opacity=fill)
+            .set_stroke(color=color, width=width, opacity=1))
+    g.add(mob.copy().set_fill(opacity=0)
+            .set_stroke(color="#ffffff", width=max(width * 0.35, 0.8), opacity=0.9))
+    return g
+
+class NeonDot(VGroup):
+    """Glowing point. Move it with .move_to / .animate.move_to / updaters."""
+    def __init__(self, color=PK, radius=0.08, layers=5, **kw):
+        super().__init__(**kw)
+        for i in range(layers, 0, -1):
+            self.add(Circle(radius=radius + i * 0.07, stroke_width=0,
+                            fill_color=color,
+                            fill_opacity=0.04 + 0.02 * (layers - i)))
+        self.add(Circle(radius=radius, stroke_width=0,
+                        fill_color=color, fill_opacity=1))
+        self.add(Circle(radius=radius * 0.45, stroke_width=0,
+                        fill_color="#ffffff", fill_opacity=0.95))
+
+def neon_trail(get_point, color=PK, time=0.9, width=4):
+    """Short glowing tail behind a moving point."""
+    return VGroup(
+        TracedPath(get_point, stroke_color=color, stroke_width=width * 3,
+                   stroke_opacity=0.12, dissipating_time=time),
+        TracedPath(get_point, stroke_color=color, stroke_width=width * 1.6,
+                   stroke_opacity=0.30, dissipating_time=time),
+        TracedPath(get_point, stroke_color=color, stroke_width=width * 0.6,
+                   stroke_opacity=1.0, dissipating_time=time))
+
+def sym(s, color=CY, size=22):
+    try:
+        t = Text(str(s), font=FONT, font_size=size, color=color)
+    except Exception:
+        t = Text(str(s), font_size=size, color=color)
+    t.set_stroke(color, width=4, opacity=0.25, background=True)
+    return t
+
+def neon_box(label, color=CY, w=1.6, h=0.9, pos=ORIGIN):
+    box = neon(RoundedRectangle(corner_radius=0.2, width=w, height=h).move_to(pos),
+               color, 3, 4, fill=0.12)
+    return VGroup(box, sym(label, color, 22).move_to(pos))
+
+def curve(xs, ys):
+    xs, ys = np.asarray(xs, float), np.asarray(ys, float)
+    m = VMobject()
+    m.set_points_as_corners(np.c_[xs, ys, np.zeros_like(xs)])
+    return m
+
+def make_grid():
+    return NumberPlane(
+        background_line_style={"stroke_color": CY, "stroke_width": 1, "stroke_opacity": 0.08},
+        axis_config={"stroke_color": CY, "stroke_width": 2, "stroke_opacity": 0.2})
+
+def send(a, b, color=GR, rt=0.8):
+    d = NeonDot(color, 0.07, 3).move_to(a)
+    return Succession(FadeIn(d, run_time=0.05),
+                      MoveAlongPath(d, Line(a, b), run_time=rt, rate_func=linear),
+                      FadeOut(d, run_time=0.05))
+
+def hud(fn, color=CY):
+    return always_redraw(lambda: sym(fn(), color, 20).to_corner(UL, buff=0.4))
+
 # ================= CODE AI (MANIM) BÊN DƯỚI =================
 '''
 
