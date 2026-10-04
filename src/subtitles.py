@@ -24,9 +24,21 @@ def _fmt_ts(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
+def _clean_sub_text(text: str) -> str:
+    """Loại bỏ ký tự markdown (*, **, _, ~, `) để phụ đề không dính dấu sao."""
+    if not text:
+        return ""
+    t = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+    t = re.sub(r"_{1,3}(.*?)_{1,3}", r"\1", t)
+    t = re.sub(r"~~(.*?)~~", r"\1", t)
+    t = re.sub(r"`([^`]+)`", r"\1", t)
+    t = re.sub(r"[\*\_~`#]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def _split_sentences(text: str) -> list[str]:
     """Tách narration thành cụm ngắn để hiện phụ đề (theo dấu câu, rồi theo độ dài)."""
-    text = " ".join(text.split())
+    text = _clean_sub_text(" ".join(text.split()))
     parts = re.split(r"(?<=[.!?…:;])\s+|(?<=,)\s+", text)
     chunks: list[str] = []
     for p in parts:

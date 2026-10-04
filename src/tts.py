@@ -198,6 +198,23 @@ def _synth_by_sentences(name: str, text: str, out_path: Path) -> bool:
     return out_path.exists() and out_path.stat().st_size > 0
 
 
+def clean_tts_text(text: str) -> str:
+    """Loại bỏ ký tự markdown (*, **, _, ~, `) để TTS không phát âm thành tiếng 'sao'."""
+    if not text:
+        return ""
+    import re
+
+    # Bỏ markdown bold/italic: ***text***, **text**, *text*, ___text___, __text__, _text_
+    t = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+    t = re.sub(r"_{1,3}(.*?)_{1,3}", r"\1", t)
+    t = re.sub(r"~~(.*?)~~", r"\1", t)
+    t = re.sub(r"`([^`]+)`", r"\1", t)
+    t = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", t)
+    # Bỏ các dấu sao hoặc ký tự đặc biệt còn sót lại
+    t = re.sub(r"[\*\_~`#]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def synthesize(text: str, out_path: Path) -> float:
     """Đọc text ra file wav. Trả về thời lượng (giây).
 
@@ -205,6 +222,7 @@ def synthesize(text: str, out_path: Path) -> float:
     Các lần sau: chỉ dùng provider đã khóa để giữ NGUYÊN một giọng cho cả video.
     """
     global _LOCKED_PROVIDER
+    text = clean_tts_text(text)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Đã khóa provider -> chỉ dùng đúng nó để giọng không đổi.
@@ -251,6 +269,7 @@ def synthesize_timed(text: str, out_path: Path) -> list[tuple[str, float]]:
     sau này) khớp giọng đọc, thay vì chia đều theo số ký tự rồi lệch dần.
     Mỗi câu vẫn đi qua ``synthesize`` nên giữ nguyên cơ chế khóa giọng/fallback.
     """
+    text = clean_tts_text(text)
     sentences = _split_sentences(text)
     if len(sentences) <= 1:
         dur = synthesize(text, out_path)

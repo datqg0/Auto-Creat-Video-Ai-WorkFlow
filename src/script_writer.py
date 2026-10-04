@@ -154,7 +154,7 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
 
 QUAN TRỌNG VỀ NHỊP VĂN & GIỌNG ĐỌC (giữ chân người xem):
 - GIỚI HẠN MỖI CÂU ≤ 20 TỪ: Viết câu ngắn, gãy gọn, nhiều câu hỏi tu từ, ngắt nhịp rõ ràng để giọng đọc TTS không đều đều, buồn ngủ.
-- NHẤN TỪ KHÓA BẰNG DẤU SAO: Bọc 1-2 từ khóa then chốt nhất trong mỗi câu bằng dấu sao, ví dụ: *1 tỷ USD*, *sụp đổ*, *nhanh gấp 10 lần*, *bị lộ*. Hệ thống sẽ dùng mốc này để phóng to chữ và tạo hiệu ứng nhún (punch-in) trên màn hình.
+- LỜI ĐỌC TỰ NHIÊN, VĂN BẢN THUẦN: Viết từ ngữ sinh động. TUYỆT ĐỐI KHÔNG dùng dấu sao (* hoặc **) hoặc gạch dưới để bôi đậm từ, vì bộ đọc giọng nói TTS sẽ phát âm thành chữ "sao" hoặc "hoa thị".
 - KỂ CHUYỆN LIÊN TỤC: Dẫn dắt bằng tình huống, đưa người xem đi từ tò mò sang bất ngờ rồi tới giải pháp ("Aha moment").
 
 QUAN TRỌNG VỀ HÌNH ẢNH & ANIMATION (video phải chuyển động liên tục, TUYỆT ĐỐI KHÔNG làm slideshow tĩnh):
@@ -174,7 +174,7 @@ Trả về DUY NHẤT một object JSON theo schema:
   "tags": ["tag1", "tag2", "..."],
   "scenes": [
     {{
-      "narration": "lời đọc tự nhiên, câu ngắn dưới 20 từ, có *từ khóa* nhấn nhá",
+      "narration": "lời đọc tự nhiên, câu ngắn dưới 20 từ (văn bản thuần, TUYỆT ĐỐI không dùng dấu * hoặc **)",
       "visual_type": "bullets",
       "heading": "tiêu đề ngắn hiển thị trên màn hình",
       "visual_prompt": "prompt chi tiết mô tả thuật toán hoặc chuyển động visual cần vẽ cho scene này",
@@ -380,6 +380,21 @@ Chỉ trả về JSON:
         return script.title
 
 
+def _clean_narration_markdown(text: str) -> str:
+    """Xóa bỏ triệt để ký tự markdown (*, **, _, ~, `) để TTS không đọc thành tiếng 'sao'."""
+    if not text:
+        return ""
+    # Bỏ markdown bold/italic: ***text***, **text**, *text*, ___text___, __text__, _text_
+    t = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+    t = re.sub(r"_{1,3}(.*?)_{1,3}", r"\1", t)
+    t = re.sub(r"~~(.*?)~~", r"\1", t)
+    t = re.sub(r"`([^`]+)`", r"\1", t)
+    t = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", t)
+    # Bỏ các dấu sao hoặc ký tự đặc biệt còn sót lại
+    t = re.sub(r"[\*\_~`#]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def _parse_script(topic: str, raw: str) -> Script:
     data = _extract_json(raw)
 
@@ -387,6 +402,12 @@ def _parse_script(topic: str, raw: str) -> Script:
     for s in data.get("scenes", []):
         if not isinstance(s, dict):
             continue
+        if "narration" in s and isinstance(s["narration"], str):
+            s["narration"] = _clean_narration_markdown(s["narration"])
+        if "heading" in s and isinstance(s["heading"], str):
+            s["heading"] = _clean_narration_markdown(s["heading"])
+        if "bullets" in s and isinstance(s["bullets"], list):
+            s["bullets"] = [_clean_narration_markdown(b) if isinstance(b, str) else b for b in s["bullets"]]
         try:
             scenes.append(Scene(**s))
         except Exception as e:  # noqa: BLE001 - bỏ qua scene lỗi, không giết cả run
