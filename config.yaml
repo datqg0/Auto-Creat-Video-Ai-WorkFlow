@@ -55,13 +55,13 @@ llm:
       - openrouter
       - mistral
 
-    # 3. Viết code thuật toán Visual / Animation: DeepSeek-Reasoner (R1) / Qwen Coder / Claude -> fallback Groq -> Gemini
+    # 3. Viết code thuật toán Visual / Animation: Claude Opus -> Groq LPU (siêu tốc) -> Gemini 3.7 -> Pollinations
     code:
-      - pollinations_coder       # DeepSeek-Reasoner (R1) hoặc Qwen-2.5-Coder qua Pollinations
-      - anthropic                # Claude Opus 4.8
-      - groq                     # Llama 3.3 70B siêu tốc độ
-      - groq_fast
+      - anthropic                # Claude Opus 4.8 (Viết code thuật toán, Manim & Matplotlib chuẩn nhất)
+      - groq                     # LPU gpt-oss-120b siêu tốc độ
+      - groq_fast                # Qwen 3.8 27B
       - gemini_37                # Gemini 3.7 Flash
+      - pollinations_coder       # Qwen Coder qua Pollinations (Dự phòng)
 
   providers:
     # Tier 0 — Anthropic (Opus 4.8 qua justwoker.icu — Model suy luận và viết kịch bản mạnh nhất)

@@ -62,6 +62,53 @@ def _safe_env(out_dir: Path) -> dict:
     return env
 
 
+def _clean_and_validate_code(resp: str, framework: str = "matplotlib") -> str | None:
+    """Tách block code Python sạch từ câu trả lời của AI và kiểm tra tính hợp lệ tối thiểu."""
+    if not resp or not resp.strip():
+        return None
+    cleaned = resp.strip()
+    if "```" in cleaned:
+        parts = cleaned.split("```")
+        for i in range(1, len(parts), 2):
+            block = parts[i]
+            if block.startswith("python"):
+                block = block[6:]
+            c = block.strip()
+            if c:
+                cleaned = c
+                break
+
+    # Phát hiện nếu nội dung chỉ là thông báo lỗi API hoặc text từ chối
+    lower = cleaned.lower()
+    for err in (
+        "enough credits",
+        "paid pollen",
+        "please top up",
+        "credit balance",
+        "insufficient credits",
+        "insufficient_quota",
+        "account behind this api key",
+        "error 401",
+        "error 403",
+        "error 429",
+    ):
+        if err in lower:
+            log.warning("Phản hồi AI không phải code mà là thông báo lỗi API: %s", cleaned[:150])
+            return None
+
+    # Kiểm tra cấu trúc tối thiểu của code theo framework
+    if framework == "manim":
+        if "Scene" not in cleaned and "construct" not in cleaned:
+            log.warning("Code Manim thiếu cấu trúc class Scene / construct")
+            return None
+    elif framework == "matplotlib":
+        if not any(k in cleaned for k in ("plt", "matplotlib", "FuncAnimation", "fig", "ax")):
+            log.warning("Code Matplotlib không chứa các thành phần vẽ quen thuộc")
+            return None
+
+    return cleaned
+
+
 def repair_code_with_ai(
     code: str,
     error_msg: str,
@@ -69,6 +116,12 @@ def repair_code_with_ai(
     duration: float = 5.0,
 ) -> str | None:
     """Gửi code bị lỗi và traceback cho LLM để tự động phân tích và sửa lỗi."""
+    if not code or not code.strip():
+        return None
+    # Nếu code hiện tại vốn là thông báo lỗi API, không thử sửa vô ích
+    if any(k in code.lower() for k in ("enough credits", "paid pollen", "top up", "insufficient credits")):
+        return None
+
     try:
         from .llm import generate_text
     except Exception as e:
@@ -105,16 +158,7 @@ def repair_code_with_ai(
     try:
         log.info("Đang gọi AI để tự động sửa lỗi code %s...", framework)
         resp = generate_text(prompt, max_tokens=2048, task="code")
-        if "```" in resp:
-            parts = resp.split("```")
-            for i in range(1, len(parts), 2):
-                block = parts[i]
-                if block.startswith("python"):
-                    block = block[6:]
-                cleaned = block.strip()
-                if cleaned:
-                    return cleaned
-        return resp.strip() if resp.strip() else None
+        return _clean_and_validate_code(resp, framework=framework)
     except Exception as e:
         log.warning("AI self-repair thất bại: %s", e)
         return None
@@ -174,16 +218,7 @@ def generate_matplotlib_from_prompt(
     try:
         log.info("Đang gọi AI chuyên code sinh Matplotlib animation mới...")
         resp = generate_text(prompt, max_tokens=2048, task="code")
-        if "```" in resp:
-            parts = resp.split("```")
-            for i in range(1, len(parts), 2):
-                block = parts[i]
-                if block.startswith("python"):
-                    block = block[6:]
-                cleaned = block.strip()
-                if cleaned:
-                    return cleaned
-        return resp.strip() if resp.strip() else None
+        return _clean_and_validate_code(resp, framework="matplotlib")
     except Exception as e:
         log.warning("AI sinh code matplotlib thất bại: %s", e)
         return None
@@ -276,16 +311,7 @@ def generate_manim_from_prompt(
     try:
         log.info("Đang gọi AI chuyên code sinh Manim animation...")
         resp = generate_text(prompt, max_tokens=2048, task="code")
-        if "```" in resp:
-            parts = resp.split("```")
-            for i in range(1, len(parts), 2):
-                block = parts[i]
-                if block.startswith("python"):
-                    block = block[6:]
-                cleaned = block.strip()
-                if cleaned:
-                    return cleaned
-        return resp.strip() if resp.strip() else None
+        return _clean_and_validate_code(resp, framework="manim")
     except Exception as e:
         log.warning("AI sinh code manim thất bại: %s", e)
         return None
@@ -434,8 +460,8 @@ def curve(xs, ys):
 
 def make_grid():
     return NumberPlane(
-        background_line_style={"stroke_color": CY, "stroke_width": 1, "stroke_opacity": 0.08},
-        axis_config={"stroke_color": CY, "stroke_width": 2, "stroke_opacity": 0.2})
+        background_line_style={{"stroke_color": CY, "stroke_width": 1, "stroke_opacity": 0.08}},
+        axis_config={{"stroke_color": CY, "stroke_width": 2, "stroke_opacity": 0.2}})
 
 def send(a, b, color=GR, rt=0.8):
     d = NeonDot(color, 0.07, 3).move_to(a)

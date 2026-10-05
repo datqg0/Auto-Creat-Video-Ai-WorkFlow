@@ -85,9 +85,12 @@ def _search_google(query: str, count: int = 8) -> list[str]:
 
 def _search_duckduckgo(query: str, count: int = 8) -> list[str]:
     """Tìm ảnh qua DuckDuckGo / Bing web image search (100% miễn phí, không cần key)."""
-    # 1. Thử qua thư viện duckduckgo_search
+    # 1. Thử qua thư viện ddgs / duckduckgo_search
     try:
-        from duckduckgo_search import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
         with DDGS(timeout=10) as ddgs:
             results = list(ddgs.images(query, max_results=count))
             urls = [r["image"] for r in results if r.get("image")]

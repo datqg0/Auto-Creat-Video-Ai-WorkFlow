@@ -152,18 +152,23 @@ def build_animation_scene(scene: ModelScene, duration: float):
                 steps=cfg.get("steps", scene.bullets or ["Bước 1", "Bước 2"]),
                 subtitle=subtitle,
             )
-        elif preset == "custom":
-            # Animation TUỲ BIẾN do LLM "viết": mô tả bằng spec khai báo
-            # (objects + timeline) -> diễn giải an toàn, KHÔNG exec code.
-            from .mathviz.custom_scene import build_custom_scene  # lazy
+        elif preset in ("pycode", "manim"):
+            # Preset animation mã code (đã được ai_code_runner xử lý trước).
+            # Nếu rơi xuống đây là MathViz fallback:
+            # - Nếu có khai báo spec objects -> dựng custom scene
+            # - Nếu không -> trả về None sạch sẽ (để pipeline dùng ảnh tĩnh)
+            if "objects" in cfg:
+                from .mathviz.custom_scene import build_custom_scene  # lazy
 
-            sc = build_custom_scene(
-                cfg,
-                make_safe_fn,
-                title=title,
-                subtitle=subtitle,
-                duration=duration,
-            )
+                sc = build_custom_scene(
+                    cfg,
+                    make_safe_fn,
+                    title=title,
+                    subtitle=subtitle,
+                    duration=duration,
+                )
+            else:
+                return None
         else:
             log.warning("Preset animation không hỗ trợ: %r", preset)
             return None

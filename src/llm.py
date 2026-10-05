@@ -41,6 +41,63 @@ _DEFAULT_TIMEOUT: float | None = None
 # nên để đủ rộng để chờ hết cửa sổ rate-limit thay vì bỏ luôn provider cuối.
 _MAX_RETRY_WAIT = 65.0
 
+# Các provider đã bị cạn credit / lỗi auth trong phiên chạy hiện tại (tránh gọi lặp lại tốn thời gian)
+_DISABLED_PROVIDERS: set[str] = set()
+
+
+def reset_session_disabled_providers() -> None:
+    """Xóa danh sách provider bị vô hiệu hóa trong phiên (gọi khi bắt đầu pipeline mới nếu cần)."""
+    _DISABLED_PROVIDERS.clear()
+
+
+_CREDIT_OR_ERROR_PATTERNS = (
+    r"doesn'?t have enough credits",
+    r"needs paid pollen",
+    r"please top up",
+    r"insufficient[_\s]credits",
+    r"insufficient[_\s]quota",
+    r"low balance topup",
+    r"account behind this api key",
+    r"credit balance is too low",
+    r"billing[_\s]not[_\s]active",
+    r"quota exceeded",
+    r"rate limit reached",
+    r"invalid api key",
+    r"authentication failed",
+)
+
+
+def _validate_response_text(provider_name: str, text: str) -> str:
+    """Kiểm tra xem response trả về có phải là thông báo lỗi API (nhưng trả mã HTTP 200) không."""
+    lower = text.lower()
+    for pat in _CREDIT_OR_ERROR_PATTERNS:
+        if re.search(pat, lower):
+            raise LLMError(f"{provider_name} trả về thông báo lỗi credit/tài khoản (HTTP 200): {text[:150]}")
+    return text
+
+
+def _is_quota_or_auth_error(e: Exception) -> bool:
+    """Nhận diện lỗi cạn credit, hết quota, proxy chết kênh hoặc API key không hợp lệ để bỏ qua provider ngay lập tức."""
+    msg = str(e).lower()
+    name = type(e).__name__.lower()
+    return any(p in msg for p in (
+        "enough credits",
+        "paid pollen",
+        "top up",
+        "insufficient_quota",
+        "insufficient credits",
+        "credit balance",
+        "invalid api key",
+        "invalid_api_key",
+        "unauthorized",
+        "401",
+        "403",
+        "account behind this api key",
+        "billing not active",
+        "no available channel",
+        "model_not_found",
+    )) or "authenticationerror" in name or "permissiondenied" in name
+
 
 def _retry_after(e: Exception) -> float | None:
     """Rút retry_delay/retry_after (giây) từ exception 429 nếu có."""
@@ -101,7 +158,7 @@ def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -
     text = (resp.text or "").strip()
     if not text:
         raise LLMError("Gemini trả về rỗng")
-    return text
+    return _validate_response_text(provider["name"], text)
 
 
 def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float) -> str:
@@ -150,7 +207,7 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
 
     if not text:
         raise LLMError("Anthropic trả về rỗng")
-    return text
+    return _validate_response_text(provider["name"], text)
 
 
 def _call_groq(provider: dict, prompt: str, system: str, temperature: float) -> str:
@@ -178,7 +235,7 @@ def _call_groq(provider: dict, prompt: str, system: str, temperature: float) -> 
     text = (resp.choices[0].message.content or "").strip()
     if not text:
         raise LLMError("Groq trả về rỗng")
-    return text
+    return _validate_response_text(provider["name"], text)
 
 
 def _call_openai(provider: dict, prompt: str, system: str, temperature: float) -> str:
@@ -214,7 +271,7 @@ def _call_openai(provider: dict, prompt: str, system: str, temperature: float) -
     text = (resp.choices[0].message.content or "").strip()
     if not text:
         raise LLMError(f"{provider['name']} trả về rỗng")
-    return text
+    return _validate_response_text(provider["name"], text)
 
 
 _DISPATCH = {
@@ -260,8 +317,12 @@ def generate(prompt: str, system: str = "", task: str | None = None) -> str:
             if p not in providers_to_try:
                 providers_to_try.append(p)
 
-    # Nếu không chỉ định task, dùng toàn bộ providers
+    # Bỏ qua các provider đã bị xác định cạn credit / lỗi auth trong phiên chạy này
+    providers_to_try = [p for p in providers_to_try if p["name"] not in _DISABLED_PROVIDERS]
+
+    # Nếu không chỉ định task hoặc tất cả đã bị vô hiệu hóa, thử lại từ đầu
     if not providers_to_try:
+        _DISABLED_PROVIDERS.clear()
         providers_to_try = all_providers
 
     last_err: Exception | None = None
@@ -282,6 +343,15 @@ def generate(prompt: str, system: str = "", task: str | None = None) -> str:
             except Exception as e:  # noqa: BLE001 - muốn fallback mọi lỗi
                 last_err = e
                 log.warning("LLM %s lỗi (attempt %d): %s", name, attempt, e)
+
+                # Lỗi cạn credit, hết quota, hoặc invalid api key: vô hiệu hoá provider cho cả phiên
+                if _is_quota_or_auth_error(e):
+                    _DISABLED_PROVIDERS.add(name)
+                    log.warning(
+                        "LLM %s hết credit hoặc lỗi tài khoản -> vô hiệu hoá trong phiên, chuyển ngay provider kế",
+                        name,
+                    )
+                    break
 
                 is_last_attempt = attempt >= retries
                 if _is_rate_limit(e):
