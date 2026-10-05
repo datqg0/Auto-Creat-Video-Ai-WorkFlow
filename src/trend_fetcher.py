@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import json, logging, time
 from pathlib import Path
 from typing import Any
@@ -140,6 +140,16 @@ def fetch_trends(force_refresh: bool = False) -> dict[str, list[str]]:
         result["reddit"] = _reddit_top(6)
     if src.get("google_trends", True):
         result["google_trends"] = _google_trends("VN", 10)
+    if src.get("github_trending", True):
+        try:
+            from .tinyfish_client import is_available, fetch_github_trending
+
+            if is_available():
+                gh = fetch_github_trending(limit=6)
+                if gh:
+                    result["github_trending"] = gh
+        except Exception as e:  # noqa: BLE001
+            log.debug("TinyFish github trending loi: %s", e)
 
     total = sum(len(v) for v in result.values())
     log.info("Trends: %d tin hieu (%s)", total, ", ".join(f"{k}={len(v)}" for k, v in result.items()))
@@ -157,6 +167,11 @@ def format_for_prompt(trends: dict[str, list[str]], max_items: int | None = None
     if hn:
         lines.append("Hacker News dang nong:")
         lines.extend(f"  - {t}" for t in hn)
+
+    gh = trends.get("github_trending", [])[:max_items // 3]
+    if gh:
+        lines.append("GitHub Trending du an moi:")
+        lines.extend(f"  - {t}" for t in gh)
 
     rd = trends.get("reddit", [])[:max_items // 3]
     if rd:

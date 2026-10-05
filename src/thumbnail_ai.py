@@ -47,13 +47,26 @@ def _visual_brief(script: Script) -> str:
         if headings:
             context += ". Nội dung chính: " + "; ".join(headings)
 
+    competitor_context = ""
+    try:
+        from .tinyfish_client import is_available, research_youtube_competitors
+
+        if is_available():
+            comp_data = research_youtube_competitors(subject, limit=3)
+            if comp_data and "competitors" in comp_data:
+                titles = [c["title"] for c in comp_data["competitors"] if c.get("title")]
+                if titles:
+                    competitor_context = "\nTham khảo top video YouTube thành công cùng chủ đề:\n" + "\n".join(f"- {t}" for t in titles)
+    except Exception as e:  # noqa: BLE001
+        log.debug("TinyFish competitor research loi: %s", e)
+
     try:
         from .llm import generate
 
         out = generate(
             prompt=(
                 "Video tiếng Việt sau đây cần một thumbnail minh họa.\n"
-                f"Chủ đề: {context}\n\n"
+                f"Chủ đề: {context}\n{competitor_context}\n\n"
                 "Hãy mô tả BẰNG TIẾNG ANH (1-2 câu, tối đa 40 từ) một cảnh minh họa "
                 "cụ thể, bám sát chủ đề: liệt kê các VẬT THỂ/BIỂU TƯỢNG chính nên "
                 "xuất hiện (ví dụ mạch điện, khóa, nơ-ron, gói tin...). "

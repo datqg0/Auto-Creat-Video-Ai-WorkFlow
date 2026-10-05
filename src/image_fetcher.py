@@ -173,10 +173,23 @@ def _search_openverse(query: str, count: int = 8) -> list[str]:
     return []
 
 
+def _search_tinyfish(query: str, count: int = 5) -> list[str]:
+    """Tìm ảnh qua TinyFish AI Web Agent (chỉ chạy khi khả dụng và các nguồn khác đều xịt)."""
+    try:
+        from .tinyfish_client import is_available, fetch_images_with_tinyfish
+
+        if not is_available():
+            return []
+        return fetch_images_with_tinyfish(query, count=count)
+    except Exception as e:  # noqa: BLE001
+        log.debug("TinyFish image search lỗi: %s", e)
+        return []
+
+
 def fetch_image(query: str, index: int = 0) -> Path | None:
     """Trả về ảnh thứ ``index`` cho từ khóa (cho phép nhiều ảnh khác nhau/1 từ khóa).
 
-    Ưu tiên tìm kiếm: Google Custom Search -> DuckDuckGo/Bing -> Pexels -> Openverse.
+    Ưu tiên tìm kiếm: Google Custom Search -> DuckDuckGo/Bing -> Pexels -> Openverse -> TinyFish (nếu khả dụng).
     """
     query = (query or "").strip()
     if not query:
@@ -186,7 +199,7 @@ def fetch_image(query: str, index: int = 0) -> Path | None:
     if cached.exists():
         return cached
 
-    for search in (_search_google, _search_duckduckgo, _search_pexels, _search_openverse):
+    for search in (_search_google, _search_duckduckgo, _search_pexels, _search_openverse, _search_tinyfish):
         urls = search(query)
         if not urls:
             continue

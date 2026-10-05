@@ -45,7 +45,7 @@ def _sentence_case(title: str) -> str:
     return t[:1].upper() + t[1:] if t else t
 
 
-def _build_prompt(topic: str) -> str:
+def _build_prompt(topic: str, research_context: str = "") -> str:
     lang = CONFIG.get("language", "vi")
     lang_name = "tiếng Việt" if lang == "vi" else "English"
     duration = int(CONFIG.get("target_duration_seconds", 300))
@@ -61,9 +61,17 @@ def _build_prompt(topic: str) -> str:
     n_scenes_min = max(minutes * 2, 8)   # ~2 scene/phút -> nhịp điệu vừa vặn, không lê thê
     n_scenes_max = n_scenes_min + 4
 
+    research_section = ""
+    if research_context and research_context.strip():
+        research_section = (
+            f"\nTƯ LIỆU THỰC TẾ & SỐ LIỆU ĐÃ KIỂM CHỨNG (TỪ WEB RESEARCH AGENT):\n"
+            f"{research_context.strip()}\n"
+            f"(Hãy sử dụng các dữ kiện, độ phức tạp, và ví dụ thực chiến này trong các scene thích hợp)\n"
+        )
+
     return f"""Viết kịch bản cho video YouTube dài ĐỦ {duration} giây (~{minutes} phút) về chủ đề:
 "{topic}"
-
+{research_section}
 Ngôn ngữ: {lang_name}. YÊU CẦU ĐỘ DÀI & NHỊP ĐIỆU (BẮT BUỘC):
 - Tổng lời đọc (cộng dồn tất cả narration) tối thiểu {min_words} từ, mục tiêu ~{approx_words} từ (nhịp đọc thư thái ~130 từ/phút).
 - Chia thành {n_scenes_min}-{n_scenes_max} scene, phủ ĐỦ 10 bước cấu trúc bên dưới.
@@ -481,7 +489,7 @@ def _parse_script(topic: str, raw: str) -> Script:
     )
 
 
-def _write_mega_script(topic: str, duration: int) -> Script:
+def _write_mega_script(topic: str, duration: int, research_context: str = "") -> Script:
     """Tạo kịch bản siêu dài (mega mode >= 10-30 phút) bằng phương pháp phân tầng (Curriculum Chapters).
 
     1. Sinh dàn ý mục lục 4-7 chương (Chapters/Modules).
@@ -496,10 +504,14 @@ def _write_mega_script(topic: str, duration: int) -> Script:
 
     log.info("Bắt đầu sinh kịch bản siêu dài (Mega Deep-Dive): %s (%d phút, %d chương)", topic, minutes, num_chapters)
 
+    research_section = ""
+    if research_context and research_context.strip():
+        research_section = f"\nTƯ LIỆU THỰC TẾ & BẰNG CHỨNG (TỪ WEB RESEARCH):\n{research_context.strip()}\n"
+
     outline_prompt = f"""Bạn là đạo diễn và biên kịch trưởng cho kênh YouTube giải thích công nghệ chuyên sâu (kiểu 3Blue1Brown, Fireship, ByteByteGo).
 Chúng ta đang sản xuất video MASTERCLASS SIÊU DÀI ĐẶC BIỆT (~{minutes} phút, mục tiêu ~{approx_words} từ lời đọc) về chủ đề:
 "{topic}"
-
+{research_section}
 Hãy lập DÀN Ý MỤC LỤC CHI TIẾT gồm {num_chapters} chương lớn (Chapters) theo thứ tự sư phạm xuất sắc từ con số 0 đến làm chủ hoàn toàn:
 1. Chương 1: Cú Móc & Nghịch lý Cốt lõi (Hook, Paradox & Why It Matters) - Scene 1 BẮT BUỘC là animation do code vẽ.
 2. Chương 2: Mô hình Trực giác & Bức tranh Tổng quan (Mental Model & High-level Architecture).
@@ -644,9 +656,22 @@ def write_script(topic: str) -> Script:
     duration = int(CONFIG.get("target_duration_seconds", 300))
     mode = CONFIG.get("active_mode", "long")
 
+    # Lấy tư liệu thực tế & test case qua TinyFish nếu khả dụng
+    research_context = ""
+    try:
+        from .tinyfish_client import is_available, research_topic_context
+
+        if is_available():
+            log.info("TinyFish: Đang trinh sát dữ liệu thực tế cho chủ đề '%s'...", topic)
+            research_context = research_topic_context(topic)
+            if research_context:
+                log.info("TinyFish: Đã thu thập tư liệu thực tế cho kịch bản.")
+    except Exception as e:  # noqa: BLE001
+        log.debug("TinyFish topic research loi: %s", e)
+
     # Nếu mode là mega hoặc thời lượng >= 600s (~10 phút trở lên) -> dùng kịch bản phân tầng đa chương
     if mode == "mega" or duration >= 600:
-        return _write_mega_script(topic, duration)
+        return _write_mega_script(topic, duration, research_context=research_context)
 
     approx_words = int(duration / 60 * 130)
     # Ngưỡng tối thiểu: long cần ~75% mục tiêu; short cần ~80% mục tiêu để kịch bản bám sát thời lượng (FIX-08).
@@ -655,7 +680,7 @@ def write_script(topic: str) -> Script:
 
     script: Script | None = None
     for attempt in range(2):  # thử tối đa 2 lần nếu kịch bản quá ngắn/thiếu scene
-        raw = generate(_build_prompt(topic), system=_SYSTEM, task="script")
+        raw = generate(_build_prompt(topic, research_context=research_context), system=_SYSTEM, task="script")
         script = _parse_script(topic, raw)
         words = _count_words(script.scenes)
         if words >= min_words and len(script.scenes) >= min_scenes:
