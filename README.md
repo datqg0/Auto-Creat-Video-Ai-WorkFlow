@@ -265,6 +265,13 @@ key and a successful response wins.
 4. **Openverse** — Creative Commons open-license image repository (keyless fallback).
 5. **AI FLUX Illustration** (`images.ai_enabled: true`) — 100% free keyless FLUX illustration generation (Pollinations AI / HuggingFace) when stock images return no results or `images.ai_primary: true`.
 
+**Database resilience chain** (`src/db.py`, 4-tier automatic fallback):
+
+1. **Neon Serverless PostgreSQL** (`DATABASE_URL`) — Primary cloud persistence. Syncs multi-episode series state across local dev machines and GitHub Actions runners.
+2. **Local SQLite** (`output/state.db`) — Automatic zero-downtime fallback if Neon connection drops, network times out, credentials are invalid, or Neon database is paused/suspended.
+3. **In-Memory SQLite** (`:memory:`) — Automatic fallback if local file system is read-only, permissions fail, or SQLite file is locked by another process.
+4. **Append-Only File Backup & Safe Execution** (`output/topics_history.txt`) — Topic history is always written to plain text; all DB writes are safe-wrapped with timestamp fallback IDs so video rendering and YouTube upload **NEVER crash** due to database errors.
+
 ---
 
 ## Local Setup
