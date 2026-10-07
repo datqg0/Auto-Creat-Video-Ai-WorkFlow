@@ -73,8 +73,8 @@ llm:
       max_output_tokens: 16000
       supports_temperature: false
       stream: false                         # Proxy justwoker không hỗ trợ stream content chunk, tắt stream để nhận đầy đủ văn bản
-      timeout: 180
-      retries: 2
+      timeout: 25
+      retries: 1
 
     # Tier 1.1 — Google Gemini 3.7 Flash (Mạnh nhất dòng Flash, tốc độ cao, context rộng)
     - name: gemini_37

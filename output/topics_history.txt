@@ -3,3 +3,4 @@
 2026-09-23T00:00:01	Diffie-Hellman: Tạo bí mật chung mà không cần gặp nhau
 2026-10-07T12:43:21.375340	CPU là gì? Cấu trúc cơ bản và vai trò trong tính toán
 2026-10-07T12:52:46.557459	Test Topic
+2026-10-07T13:26:27.036012	Pipeline và Superscalar: Tăng tốc thực thi lệnh
