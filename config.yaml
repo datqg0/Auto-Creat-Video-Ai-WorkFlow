@@ -230,19 +230,37 @@ animation:
   # Timeout cứng cho 1 lần render manim (giây); vượt -> bỏ, fallback.
   manim_timeout: 300
 
-# ---- Ảnh minh họa tự tìm ----
+# ---- Ảnh minh họa (Tự tìm & AI sinh) ----
 images:
   # Tự tìm & tải ảnh nền minh họa theo image_query của mỗi scene.
-  # Nguồn: Openverse (không cần key). Đặt PEXELS_API_KEY để dùng Pexels (đẹp hơn).
+  # Nguồn: Openverse, Google, DuckDuckGo, Pexels.
   enabled: true
+  ai_enabled: true                # Tự động sinh ảnh AI minh họa đúng chủ đề khi stock photo không tìm thấy
+  ai_primary: false               # false: tìm stock trước rồi fallback AI; true: luôn ưu tiên ảnh AI gen
+  ai_provider: "pollinations"     # pollinations (FLUX 100% Free, không cần key) | huggingface | gemini
+  ai_style: "kurzgesagt"          # kurzgesagt | blueprint | realistic
 
-# ---- Video b-roll tự tìm ----
+# ---- Video b-roll footage Pexels ----
 videos:
   # Tải footage VIDEO thật (Pexels Videos) theo video_query của mỗi scene, dùng
   # làm nền động + chữ overlay -> trực quan, sinh động hơn ảnh tĩnh.
-  # CẦN PEXELS_API_KEY (không có key -> tự động fallback về ảnh tĩnh).
+  # CẦN PEXELS_API_KEY (không có key -> tự động fallback về ảnh tĩnh/AI video).
   enabled: true
   max_per_video: 6        # số scene tối đa dùng b-roll trong 1 video
+
+# ---- Video AI sinh (Tối đa 1 clip/video) ----
+ai_video:
+  enabled: true
+  max_per_run: 1                  # Đúng yêu cầu: mỗi video tạo tối đa 1 clip Video AI
+  provider: "ai_motion"           # ai_motion (0đ, không cần key, tức thì) | fal | pollinations
+  duration: 5.0                   # Thời lượng clip AI sinh ra (giây)
+  fal_model: "fal-ai/wan/v2.1/text-to-video" # Model diffusion nếu dùng Fal.ai (cần FAL_KEY)
+  pollinations_model: "alibaba/wan-2.2-fast" # Model nếu dùng Pollinations Video
+
+# ---- Chuỗi video theo chủ đề (Series Engine) ----
+series:
+  enabled: true                   # Bật tự động quản lý theo chuỗi video
+  default_episodes: 5             # Số tập mặc định cho mỗi chuỗi video mới do AI lập giáo trình
 
 # ---- Thumbnail AI (phong cách Kurzgesagt) ----
 thumbnail:

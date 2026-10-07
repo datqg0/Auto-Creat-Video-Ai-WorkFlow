@@ -88,6 +88,11 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
     broll_enabled = bool(video_cfg.get("enabled", False))
     broll_max = int(video_cfg.get("max_per_video", 6))
     broll_used = 0
+
+    ai_vid_cfg = CONFIG.get("ai_video", {}) or {}
+    ai_video_enabled = bool(ai_vid_cfg.get("enabled", True))
+    max_ai_videos = int(ai_vid_cfg.get("max_per_run", 1))
+    ai_video_used = 0
     images: list[Path] = []
     audios: list[Path] = []
     scene_texts: list[str] = []
@@ -199,24 +204,47 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         anim_scenes.append(anim)
         code_videos.append(code_video)
 
-        # Scene b-roll: tải video footage minh họa (chỉ khi không phải animation
-        # và scene có video_query). Nếu không có Pexels key/không tải được -> None.
+        # Scene b-roll / AI Video: ưu tiên tạo tối đa 1 video AI cho mỗi lần chạy pipeline
         broll = None
         overlay = None
-        if broll_enabled and broll_used < broll_max and anim is None and code_video is None and scene.video_query:
+
+        # 1. Thử sinh Video AI nếu chưa đủ hạn mức (tối đa max_ai_videos = 1 clip/video)
+        if ai_video_enabled and ai_video_used < max_ai_videos and anim is None and code_video is None:
+            v_prompt = scene.video_query or scene.image_query or scene.heading or scene.narration[:60]
+            if v_prompt:
+                try:
+                    from .ai_video import generate_ai_video
+
+                    ai_vid = generate_ai_video(
+                        prompt=v_prompt,
+                        out_dir=workdir / f"aivideo_{i:02d}.mp4",
+                        duration=dur,
+                        vertical=is_short,
+                    )
+                    if ai_vid and ai_vid.exists():
+                        broll = ai_vid
+                        ai_video_used += 1
+                        log.info("Scene %d: Dùng Video AI gen (%s)", i, ai_vid.name)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Tạo AI video scene %d lỗi: %s", i, e)
+
+        # 2. Nếu chưa có b-roll từ AI -> tải footage từ Pexels như cũ
+        if broll is None and broll_enabled and broll_used < broll_max and anim is None and code_video is None and scene.video_query:
             try:
                 broll = fetch_video(scene.video_query, index=i % 3, vertical=is_short)
             except Exception as e:  # noqa: BLE001
                 log.debug("Tải b-roll scene %d lỗi: %s", i, e)
                 broll = None
-            if broll is not None:
-                broll_used += 1
-                overlay = workdir / f"overlay_{i:02d}.png"
-                try:
-                    render_overlay(scene, overlay)
-                except Exception as e:  # noqa: BLE001
-                    log.warning("Render overlay scene %d lỗi: %s", i, e)
-                    overlay = None
+
+        if broll is not None:
+            broll_used += 1
+            overlay = workdir / f"overlay_{i:02d}.png"
+            try:
+                render_overlay(scene, overlay)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Render overlay scene %d lỗi: %s", i, e)
+                overlay = None
+
         broll_videos.append(broll)
         scene_overlays.append(overlay)
 
@@ -290,21 +318,52 @@ def run_once(
     dry_run: bool = False,
 ) -> None:
     from .script_writer import write_script
-    from .topic_selector import pick_topic
+    from .series_manager import get_or_create_active_series_task
 
     db.init_db()
 
+    series_context = None
+    episode_id = None
+    series_info = None
+
     if not topic:
-        topic = pick_topic()
+        # Tự động điều phối theo Chuỗi Video (Series):
+        # Nếu DB trống hoặc series cũ xong -> Tự động sinh series mới!
+        try:
+            series_task = get_or_create_active_series_task()
+            topic = series_task["episode"]["topic"]
+            series_context = series_task["series_context"]
+            episode_id = series_task["episode"]["id"]
+            series_info = series_task["series"]
+            db.update_episode(episode_id, status="in_progress")
+            log.info(
+                "▶ Bắt đầu sản xuất: %s - [Tập %d/%d] %s",
+                series_context["series_name"],
+                series_context["episode_num"],
+                series_context["total_episodes"],
+                topic,
+            )
+        except Exception as e:
+            log.warning("Không thể lấy nhiệm vụ series (%s), fallback sang pick_topic đơn lẻ", e)
+            from .topic_selector import pick_topic
+
+            topic = pick_topic()
+
     video_id_db = db.create_video(topic)
+    if episode_id:
+        db.update_episode(episode_id, video_id=video_id_db)
 
     try:
-        script = write_script(topic)
+        script = write_script(topic, series_context=series_context)
         db.update_video(video_id_db, title=script.title, status="scripted")
+        if episode_id:
+            db.update_episode(episode_id, status="scripted")
 
         if dry_run:
             print(script.model_dump_json(indent=2))
             db.update_video(video_id_db, status="dry_run")
+            if episode_id:
+                db.update_episode(episode_id, status="dry_run")
             return
 
         workdir = OUTPUT_DIR / f"video_{video_id_db}"
@@ -312,10 +371,16 @@ def run_once(
 
         video_path, thumb_path, durations, captions = _render_video(script, workdir)
         db.update_video(video_id_db, status="rendered")
+        if episode_id:
+            db.update_episode(episode_id, status="rendered")
 
         if not upload_video:
             log.info("Đã render (không upload): %s", video_path)
             db.update_video(video_id_db, status="rendered_local")
+            if episode_id and series_context and series_info:
+                if series_context["episode_num"] >= series_context["total_episodes"]:
+                    db.update_series(series_info["id"], status="completed")
+                    log.info("🎉 CHÚC MỪNG: Chuỗi video '%s' đã hoàn thành tất cả các tập!", series_info["name"])
             return
 
         from .youtube_uploader import upload
@@ -324,10 +389,18 @@ def run_once(
         meta = build_metadata(script, durations)
         yt_id = upload(video_path, meta, thumb_path, captions=captions)
         db.update_video(video_id_db, status="uploaded", youtube_id=yt_id)
+        if episode_id:
+            db.update_episode(episode_id, status="uploaded")
+            if series_context and series_info:
+                if series_context["episode_num"] >= series_context["total_episodes"]:
+                    db.update_series(series_info["id"], status="completed")
+                    log.info("🎉 CHÚC MỪNG: Chuỗi video '%s' đã hoàn tất tải lên tất cả các tập!", series_info["name"])
         log.info("HOÀN TẤT: https://youtu.be/%s", yt_id)
 
     except Exception as e:  # noqa: BLE001 - ghi lỗi vào DB rồi raise
         db.update_video(video_id_db, status="error", error=str(e)[:500])
+        if episode_id:
+            db.update_episode(episode_id, status="error")
         log.error("Pipeline lỗi: %s\n%s", e, traceback.format_exc())
         raise
 
@@ -346,9 +419,25 @@ def main() -> None:
         default=None,
         help="long = video 16:9 (~5p), short = dọc 9:16 (tối đa 3p / 180s), mega = siêu dài 16:9 (>15p)",
     )
-    parser.add_argument("--topic", type=str, default=None, help="Chủ đề video cụ thể")
+    parser.add_argument("--topic", type=str, default=None, help="Chủ đề video cụ thể (chạy video đơn lẻ)")
     parser.add_argument("--duration", type=int, default=None, help="Ghi đè thời lượng mục tiêu (giây)")
+    parser.add_argument("--list-series", action="store_true", help="Xem danh sách tiến độ các chuỗi video trong DB")
+    parser.add_argument("--plan-series", type=str, default=None, help="Chủ động nhờ AI lên kế hoạch chuỗi video theo chủ đề")
+    parser.add_argument("--episodes", type=int, default=5, help="Số tập cho chuỗi video mới (mặc định 5)")
     args = parser.parse_args()
+
+    if args.list_series:
+        from .series_manager import print_series_table
+
+        print_series_table()
+        return
+
+    if args.plan_series:
+        from .series_manager import plan_new_series, print_series_table
+
+        plan_new_series(theme=args.plan_series, num_episodes=args.episodes)
+        print_series_table()
+        return
 
     mode = apply_mode(args.mode)
     if args.duration:
@@ -360,7 +449,7 @@ def main() -> None:
         CONFIG["visual"]["width"],
         CONFIG["visual"]["height"],
         CONFIG["target_duration_seconds"],
-        args.topic or "Auto-pick",
+        args.topic or "Series Auto-pick",
     )
 
     n = int(CONFIG.get("videos_per_run", 1))

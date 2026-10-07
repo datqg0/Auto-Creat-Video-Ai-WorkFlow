@@ -17,7 +17,7 @@ import re
 
 import requests
 
-from .config import env
+from .config import CONFIG, env
 
 log = logging.getLogger(__name__)
 
@@ -33,9 +33,12 @@ def _cache_path(query: str, index: int = 0) -> Path:
     return _CACHE / f"{key}.jpg"
 
 
-def _download(url: str, out: Path) -> bool:
+def _download(url: str, out: Path, headers: dict | None = None) -> bool:
     try:
-        r = requests.get(url, timeout=_TIMEOUT, headers=_HEADERS, stream=True)
+        req_headers = dict(_HEADERS)
+        if headers:
+            req_headers.update(headers)
+        r = requests.get(url, timeout=_TIMEOUT, headers=req_headers, stream=True)
         r.raise_for_status()
         out.parent.mkdir(parents=True, exist_ok=True)
         with open(out, "wb") as f:
@@ -186,10 +189,140 @@ def _search_tinyfish(query: str, count: int = 5) -> list[str]:
         return []
 
 
+def _format_ai_image_prompt(query: str, style: str = "kurzgesagt") -> str:
+    """Tạo prompt chuẩn phong cách tech illustration/Kurzgesagt, triệt tiêu chữ rác."""
+    cleaned = re.sub(r"[^\w\s\-\.\+]", " ", query).strip()
+    if style == "kurzgesagt":
+        return (
+            f"Flat vector tech editorial illustration of {cleaned}. "
+            "Kurzgesagt art style, bold saturated clean colors, smooth gradients, clean flat 2D shapes, "
+            "soft neon cyber glow, conceptual technology art, dark vignette background. "
+            "STRICT REQUIREMENT: Pure artwork without any text, no typography, no letters, no words, no subtitles, no watermark, no logo."
+        )
+    elif style == "blueprint":
+        return (
+            f"Technical schematic blueprint diagram of {cleaned}. "
+            "Glowing cyan and neon circuit lines, dark blue technical grid, futuristic HUD interface. "
+            "STRICT REQUIREMENT: No text, no letters, no words, no watermark."
+        )
+    else:  # realistic / 3d
+        return (
+            f"Cinematic 3D concept render of {cleaned}. "
+            "Octane render, futuristic cyber technology aesthetic, dramatic volumetric lighting, 8k resolution. "
+            "STRICT REQUIREMENT: No text, no letters, no words, no watermark."
+        )
+
+
+def generate_ai_image(
+    prompt: str,
+    out: Path | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    provider: str | None = None,
+) -> Path | None:
+    """Sinh 1 ảnh minh họa AI (1080p) theo prompt.
+
+    Hỗ trợ các provider:
+      1. Pollinations AI (FLUX) - 100% MIỄN PHÍ, KHÔNG CẦN KEY
+      2. Hugging Face Inference (FLUX.1-schnell) nếu có HF_TOKEN
+      3. Google Gemini (Imagen) nếu có GEMINI_API_KEY
+    """
+    w = width or int(CONFIG.get("visual", {}).get("width", 1920))
+    h = height or int(CONFIG.get("visual", {}).get("height", 1080))
+    img_cfg = CONFIG.get("images", {})
+    style = img_cfg.get("ai_style", "kurzgesagt")
+    prov = (provider or img_cfg.get("ai_provider", "pollinations")).lower()
+
+    full_prompt = _format_ai_image_prompt(prompt, style=style)
+    target_out = out or _cache_path(prompt, 0)
+    target_out.parent.mkdir(parents=True, exist_ok=True)
+
+    # 1. Thử HuggingFace nếu được chỉ định và có token
+    if prov == "huggingface":
+        token = env("HF_TOKEN")
+        if token:
+            try:
+                from huggingface_hub import InferenceClient
+
+                client = InferenceClient(api_key=token)
+                img = client.text_to_image(full_prompt, model="black-forest-labs/FLUX.1-schnell", width=w, height=h)
+                img.save(target_out, format="JPEG", quality=90)
+                if target_out.exists() and target_out.stat().st_size > 2000:
+                    return target_out
+            except Exception as e:
+                log.warning("Hugging Face sinh ảnh lỗi (%s) -> fallback Pollinations", e)
+
+    # 2. Thử Gemini nếu được chỉ định và có key
+    if prov == "gemini":
+        gemini_key = env("GEMINI_API_KEY")
+        if gemini_key:
+            try:
+                from google import genai
+
+                client = genai.Client(api_key=gemini_key)
+                resp = client.models.generate_content(
+                    model="gemini-2.5-flash-image",
+                    contents=full_prompt,
+                )
+                for part in resp.candidates[0].content.parts:
+                    inline = getattr(part, "inline_data", None)
+                    if inline and inline.data:
+                        import io
+                        from PIL import Image
+
+                        img = Image.open(io.BytesIO(inline.data)).convert("RGB")
+                        img.save(target_out, format="JPEG", quality=90)
+                        if target_out.exists() and target_out.stat().st_size > 2000:
+                            return target_out
+            except Exception as e:
+                log.warning("Gemini sinh ảnh lỗi (%s) -> fallback Pollinations", e)
+
+    # 3. Mặc định / Fallback số 1: Pollinations AI (FLUX) - Hoàn toàn miễn phí, không cần key
+    try:
+        import urllib.parse
+
+        negative_clause = urllib.parse.quote(
+            "text,letters,words,typography,watermark,logo,captions,labels,noisy,blurry,deformed,gibberish,symbols"
+        )
+        encoded_prompt = urllib.parse.quote(full_prompt)
+        seed = abs(hash(f"{prompt}_{w}_{h}")) % 1000000
+        # Pollinations free tier cho phép tối đa 1280x720 (ngang) hoặc 720x1280 (dọc)
+        is_vert = h > w
+        poll_w = 720 if is_vert else 1280
+        poll_h = 1280 if is_vert else 720
+        url = (
+            f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+            f"?width={poll_w}&height={poll_h}&model=flux&nologo=true&seed={seed}&negative={negative_clause}"
+        )
+        auth_headers = {}
+        poll_key = env("POLLINATIONS_API_KEY")
+        if poll_key and "your_" not in poll_key:
+            auth_headers["Authorization"] = f"Bearer {poll_key}"
+        if _download(url, target_out, headers=auth_headers):
+            # Co dãn sắc nét sang kích thước chuẩn (1920x1080) bằng Lanczos
+            if (w, h) != (poll_w, poll_h):
+                try:
+                    from PIL import Image
+
+                    with Image.open(target_out) as im:
+                        im_resized = im.resize((w, h), Image.Resampling.LANCZOS)
+                        im_resized.save(target_out, format="JPEG", quality=92)
+                except Exception as e:
+                    log.debug("Resize ảnh AI lỗi: %s", e)
+            return target_out
+    except Exception as e:
+        log.warning("Pollinations sinh ảnh lỗi: %s", e)
+
+    return None
+
+
 def fetch_image(query: str, index: int = 0) -> Path | None:
     """Trả về ảnh thứ ``index`` cho từ khóa (cho phép nhiều ảnh khác nhau/1 từ khóa).
 
-    Ưu tiên tìm kiếm: Google Custom Search -> DuckDuckGo/Bing -> Pexels -> Openverse -> TinyFish (nếu khả dụng).
+    Chiến lược:
+      - Nếu bật ``images.ai_primary: true`` -> Ưu tiên sinh ảnh AI Kurzgesagt/FLUX trước.
+      - Sau đó thử tìm ảnh stock: Google -> DuckDuckGo -> Pexels -> Openverse -> TinyFish.
+      - Nếu không tìm được stock và bật ``images.ai_enabled`` (mặc định) -> Tự động sinh ảnh AI bám sát chủ đề!
     """
     query = (query or "").strip()
     if not query:
@@ -199,13 +332,35 @@ def fetch_image(query: str, index: int = 0) -> Path | None:
     if cached.exists():
         return cached
 
+    img_cfg = CONFIG.get("images", {})
+    ai_enabled = img_cfg.get("ai_enabled", True)
+    ai_primary = img_cfg.get("ai_primary", False)
+    w = int(CONFIG.get("visual", {}).get("width", 1920))
+    h = int(CONFIG.get("visual", {}).get("height", 1080))
+
+    # 1. Nếu ưu tiên AI -> sinh ảnh AI trước
+    if ai_enabled and ai_primary:
+        ai_res = generate_ai_image(query, out=cached, width=w, height=h)
+        if ai_res and ai_res.exists():
+            log.info("Ảnh AI (Primary) '%s' #%d -> %s", query, index, cached.name)
+            return cached
+
+    # 2. Tìm kiếm ảnh stock từ các nguồn
     for search in (_search_google, _search_duckduckgo, _search_pexels, _search_openverse, _search_tinyfish):
         urls = search(query)
         if not urls:
             continue
         url = urls[index] if index < len(urls) else urls[index % len(urls)]
         if _download(url, cached):
-            log.info("Ảnh '%s' #%d -> %s", query, index, cached.name)
+            log.info("Ảnh stock '%s' #%d -> %s", query, index, cached.name)
+            return cached
+
+    # 3. Tự động fallback: Sinh ảnh AI khi stock photo không có
+    if ai_enabled:
+        log.info("Stock không có ảnh cho '%s' #%d -> Kích hoạt AI sinh ảnh minh họa...", query, index)
+        ai_res = generate_ai_image(query, out=cached, width=w, height=h)
+        if ai_res and ai_res.exists():
+            log.info("Ảnh AI (Fallback) '%s' #%d -> %s", query, index, cached.name)
             return cached
 
     log.info("Không tìm được ảnh cho '%s' #%d, dùng nền gradient", query, index)

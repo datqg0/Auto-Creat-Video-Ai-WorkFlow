@@ -16,6 +16,8 @@ Python plus FFmpeg.
 - [Highlights](#highlights)
 - [How It Works](#how-it-works)
 - [Tech Stack](#tech-stack)
+- [Series Engine & Auto-Curriculum Planning](#series-engine--auto-curriculum-planning)
+- [AI Image & AI Video Generation](#ai-image--ai-video-generation)
 - [The `mathviz` Animation Engine](#the-mathviz-animation-engine)
 - [Multi-Tier Fallbacks](#multi-tier-fallbacks)
 - [Local Setup](#local-setup)
@@ -32,8 +34,17 @@ Python plus FFmpeg.
 
 ## Highlights
 
-- **End-to-end automation** — topic selection → script → animation → TTS →
+- **End-to-end automation** — series planning → script → animation → TTS →
   subtitles → compositing → thumbnail → upload, with zero human input.
+- **Series Engine & Auto-Curriculum Planning** — automatically plans multi-episode
+  educational video series (3–7 episodes) when the database is empty or the previous
+  series completes, threading narrative continuity hooks and `[Tập X/Y]` badges.
+- **Dual Database Backend (Neon Serverless PostgreSQL + SQLite)** — seamlessly syncs
+  state across cloud CI/CD runners (GitHub Actions) via `DATABASE_URL` with automatic
+  zero-config fallback to local SQLite (`output/state.db`).
+- **AI Image & Video Generation** — generates high-definition Kurzgesagt-style FLUX
+  illustrations for scene backdrops (keyless, 100% free) plus 1 AI-generated cinematic
+  motion video clip per video (`ai_motion` or Fal.ai diffusion).
 - **Three video formats** — long 16:9 explainer, vertical 9:16 Short (up to 3 mins / 180s), and
   **mega 16:9 deep-dive** (15–30+ minutes) with chapter-based hierarchical scripting.
 - **High animation density ($\ge 70\%$) & instant visual hook** — animations start
@@ -45,7 +56,7 @@ Python plus FFmpeg.
   smooth mathematical and system diagrams with stable framing (zoom locked to 1.0
   to prevent content clipping).
 - **Multi-tier image search** — Google Custom Search API → DuckDuckGo / Bing 16:9
-  web search (100% free, no key needed) → Pexels → Openverse.
+  web search (100% free, no key needed) → Pexels → Openverse → AI FLUX illustration.
 - **Resilient by design** — 10-tier LLM fallback, multi-tier TTS, and multi-tier
   image/video fallbacks keep the pipeline running indefinitely.
 - **Cost-aware** — runs 100% free on GitHub Actions using free-tier LLMs, Edge-TTS,
@@ -104,17 +115,62 @@ Pipeline stages (all orchestrated by [`src/pipeline.py`](src/pipeline.py)):
 | Component      | Technology                                                           |
 | -------------- | -------------------------------------------------------------------- |
 | LLM            | 10-tier fallback: Anthropic (Claude Opus) → Gemini → Groq → OpenRouter → Z.ai → Mistral → NVIDIA NIM → GitHub Models → SambaNova → Cloudflare |
+| Database       | Dual Backend: Neon Serverless PostgreSQL (`DATABASE_URL`) or SQLite Local (`output/state.db`) |
+| Series Engine  | Autonomous curriculum planning (`src/series_manager.py`) with episode continuity hooks |
 | TTS            | VieNeu-TTS → Edge-TTS (free); ElevenLabs available but disabled by default |
 | AI Animation   | Manim Community Edition (Light Neon / Cyberpunk style, zero LaTeX) with AI self-repair |
 | Math Animation | Self-written `mathviz` (Pillow + NumPy, zoom locked to 1.0)           |
 | Static visuals | Matplotlib (mathtext formulas, pure Python — no LaTeX)              |
-| Images         | Google Custom Search → DuckDuckGo / Bing 16:9 Web Scrape → Pexels → Openverse |
-| Video b-roll   | Pexels Videos (dynamic background clips)                             |
+| Images         | Google CSE → DuckDuckGo / Bing 16:9 → Pexels → Openverse → AI FLUX Illustration |
+| Video b-roll   | Pexels Videos + AI Video Generator (`src/ai_video.py`: `ai_motion` / Fal.ai / Pollinations) |
 | Thumbnail      | HuggingFace FLUX.1-schnell → Pollinations Flux (keyless fallback)   |
 | Subtitles      | faster-whisper                                                       |
-| Compositing    | MoviePy (1.x) + FFmpeg                                               |
+| Compositing    | MoviePy (1.x & 2.x via `mv_compat`) + FFmpeg                         |
 | Upload         | YouTube Data API v3 (`google-api-python-client`)                     |
 | Deploy         | GitHub Actions (cron 2×/day + manual trigger with 12GB swap)         |
+
+---
+
+## Series Engine & Auto-Curriculum Planning
+
+Rather than generating isolated, one-off videos, the pipeline features an autonomous **Series Engine** ([`src/series_manager.py`](src/series_manager.py)) designed to boost YouTube audience retention and binge-watching.
+
+- **Auto-Curriculum Planning**: Whenever the database is empty or the active series completes all its episodes, the pipeline automatically prompts the LLM to design a cohesive **3–7 episode educational curriculum** (e.g. *Bí Mật Của Hệ Thống Phân Tán*, *Kiến Trúc CPU & Bộ Nhớ Từ Số 0*).
+- **Pedagogical Scaffolding**: Episodes progress logically from core intuitive concepts (Episode 1) to intermediate mechanics and real-world architectures (Final Episode).
+- **Narrative Continuity**:
+  - **Hook Opening (Scene 1)**: Automatically references the key takeaway from the previous episode (`hook_from_previous`).
+  - **Outro Ending**: Teases the mystery and challenge to be solved in the upcoming episode (`hook_to_next`).
+  - **YouTube Title**: Automatically prepends `[Tập X/Y]` to titles for clear binge-watching cues.
+- **Dual Database Backend (Neon Serverless PostgreSQL + SQLite)**:
+  - **Neon Cloud**: Set `DATABASE_URL=postgresql://...` in `.env` to synchronize series status across local development machines and GitHub Actions runners.
+  - **SQLite Local**: If `DATABASE_URL` is omitted, the pipeline operates 100% offline using `output/state.db`.
+
+```bash
+# View active and completed series roadmap & episode status
+python -m src.pipeline --list-series
+
+# Actively plan a new series with a specific theme and episode count
+python -m src.pipeline --plan-series "Kiến trúc Microservices & Event-Driven" --episodes 5
+
+# Run the pipeline (automatically picks the next pending episode in the active series)
+python -m src.pipeline
+```
+
+---
+
+## AI Image & AI Video Generation
+
+### 1. Keyless AI Scene Illustration (`src/image_fetcher.py`)
+Abstract computer science concepts (e.g. *Cache Coherence*, *Transformer Attention*, *Zero-Knowledge Proofs*) rarely match generic stock photos. The pipeline integrates an **AI Illustration Generator**:
+- **FLUX.1-schnell via Pollinations AI**: 100% free, zero configuration, no API key required.
+- **Consistent Tech Editorial Aesthetic**: Prompts are auto-engineered into flat vector Kurzgesagt / Cyberpunk style, strictly suppressing random text, watermarks, and logos.
+- **Fallback Hierarchy**: Google CSE → DuckDuckGo/Bing → Pexels → Openverse → AI FLUX Illustration. If stock search yields nothing, the AI generator draws a tailored 1080p illustration.
+
+### 2. Autonomous AI Video Generation (`src/ai_video.py`)
+Each video can feature up to 1 AI-generated video clip (`config.yaml → ai_video.max_per_run: 1`):
+- **Provider `ai_motion` (Default & 100% Free)**: Generates a high-resolution FLUX image and instantly renders a 5-second cinematic motion clip with smooth camera zoom, 3D pan, and cyber ambiance in ~2–3 seconds with zero credit costs.
+- **Provider `fal` (Diffusion Models)**: Connects to Fal.ai API (`FAL_KEY`) to generate real video diffusion clips using state-of-the-art models like **Wan 2.1**, **Kling**, or **LTX-Video**.
+- **Resilient Fallback**: If cloud video generation encounters rate limits or errors, it gracefully falls back to `ai_motion` to guarantee pipeline completion.
 
 ---
 
@@ -207,6 +263,7 @@ key and a successful response wins.
 2. **DuckDuckGo & Bing 16:9 Web Search** — **100% free, zero configuration, no key required**. Automatically fetches widescreen 16:9 HD images from the entire web if Google keys are absent or rate-limited.
 3. **Pexels API** (`PEXELS_API_KEY`) — High-res stock photography and video b-roll.
 4. **Openverse** — Creative Commons open-license image repository (keyless fallback).
+5. **AI FLUX Illustration** (`images.ai_enabled: true`) — 100% free keyless FLUX illustration generation (Pollinations AI / HuggingFace) when stock images return no results or `images.ai_primary: true`.
 
 ---
 
@@ -250,15 +307,20 @@ is strictly required.
 | `ANTHROPIC_API_KEY`     | one LLM key required   | your Anthropic-compatible provider           |
 | `GROQ_API_KEY`          | optional LLM tier      | <https://console.groq.com>                   |
 | `OPENROUTER_API_KEY`    | optional LLM tier      | <https://openrouter.ai>                      |
+| `DATABASE_URL`          | optional (dual DB)     | <https://neon.tech> (PostgreSQL; fallback: local SQLite `output/state.db`) |
+| `POLLINATIONS_API_KEY`  | optional (AI images)   | <https://pollinations.ai> (unlimited rate limits, free) |
+| `FAL_KEY`               | optional (AI video)    | <https://fal.ai> (for Wan 2.1 / Kling diffusion video clips) |
 | `GOOGLE_API_KEY`        | optional image search  | <https://console.cloud.google.com/apis/credentials> |
 | `GOOGLE_CSE_ID`         | optional image search  | <https://programmablesearchengine.google.com/> |
-| `PEXELS_API_KEY`        | optional               | <https://www.pexels.com/api/> (nicer images + b-roll) |
+| `PEXELS_API_KEY`        | optional               | <https://www.pexels.com/api/> (stock images + b-roll) |
 | `HF_TOKEN`              | optional               | <https://huggingface.co/settings/tokens> (AI thumbnails) |
 | `ELEVENLABS_API_KEY`    | optional               | <https://elevenlabs.io>                      |
 | `YOUTUBE_CLIENT_SECRET` | only for uploading     | see [YouTube OAuth](#youtube-oauth-one-time) |
 | `YOUTUBE_TOKEN`         | only for uploading     | see [YouTube OAuth](#youtube-oauth-one-time) |
 
-If Google search keys are omitted, the pipeline automatically falls back to **DuckDuckGo & Bing web search** at zero cost with no keys required. Without `PEXELS_API_KEY`, images fall back to Openverse and video b-roll is disabled. Without the two YouTube variables, the pipeline still renders — it just won't upload.
+If `DATABASE_URL` is set, the pipeline automatically connects to **Neon Serverless PostgreSQL** and keeps series/dedup state synced across local dev and GitHub Actions runners. If omitted, it automatically falls back to local SQLite (`output/state.db`).
+AI images use **Pollinations FLUX** for 100% free, keyless generation (`POLLINATIONS_API_KEY` is optional for higher rate limits). AI video uses `ai_motion` by default (0-cost cinematic motion MP4 from FLUX images); setting `FAL_KEY` enables cutting-edge video diffusion models.
+If Google search keys are omitted, the pipeline automatically falls back to **DuckDuckGo & Bing web search** at zero cost with no keys required. Without `PEXELS_API_KEY`, images fall back to Openverse/FLUX and stock video b-roll is skipped. Without the two YouTube variables, the pipeline still renders — it just won't upload.
 
 ---
 
@@ -283,6 +345,18 @@ If Google search keys are omitted, the pipeline automatically falls back to **Du
 ## Running Locally
 
 ```bash
+# === 1. Series Engine & Curriculum Management ===
+# View active/completed series roadmaps, episode progress, and status
+python -m src.pipeline --list-series
+
+# Autonomously plan a new curriculum series (3-7 episodes)
+python -m src.pipeline --plan-series "Kiến Trúc Microservices & Event-Driven" --episodes 5
+
+# Auto-run series: picks the next pending episode in the active series
+# (If DB is empty or previous series completed, automatically plans a new series first!)
+python -m src.pipeline --no-upload
+
+# === 2. One-Off & Custom Topic Runs ===
 # Print the generated script only (no rendering)
 python -m src.pipeline --dry-run
 
@@ -297,7 +371,7 @@ python -m src.pipeline --no-upload --mode mega    # 16:9 Mega deep-dive (15-30+ 
 # Run with a custom topic and target duration
 python -m src.pipeline --no-upload --mode mega --duration 900 --topic "Kiến trúc Microservices và Event-Driven"
 
-# Full run (renders and uploads)
+# Full run (renders and uploads to YouTube)
 python -m src.pipeline
 ```
 
@@ -320,14 +394,17 @@ FFmpeg, Manim, and all Python dependencies. You only need to provide secrets.
    | Secret                                                | Purpose                          |
    | ----------------------------------------------------- | -------------------------------- |
    | At least one of the LLM keys in the table above       | Script writing (any single tier) |
+   | `DATABASE_URL`                                        | Neon PostgreSQL connection string (syncs series across CI runs) |
+   | `POLLINATIONS_API_KEY`                                | Pollinations AI key (higher rate limits for AI images) |
+   | `FAL_KEY`                                             | Fal.ai key for AI diffusion video clips (Wan 2.1 / Kling) |
    | `GOOGLE_API_KEY`, `GOOGLE_CSE_ID`                     | Google Custom Search (falls back to DuckDuckGo/Bing) |
    | `PEXELS_API_KEY`                                       | Nicer images + video b-roll      |
    | `HF_TOKEN`                                             | AI-generated thumbnails          |
    | `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_TOKEN`              | Auto-upload to YouTube           |
 
 3. **Grant write permission** — *Settings → Actions → General → Workflow
-   permissions → Read and write permissions*. The workflow commits
-   `output/state.db` (topic-dedup history) back to the repo.
+   permissions → Read and write permissions*. If using local SQLite, the workflow commits
+   `output/state.db` back to the repo. (With `DATABASE_URL`, state is synced directly to Neon).
 
 4. **Schedule (already configured):**
    - `00:00 UTC` (07:00 Vietnam) → long 16:9 explainer
@@ -351,6 +428,9 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | `videos_per_run`                 | Number of videos generated per pipeline invocation.                |
 | `language`                       | Content language: `vi` or `en`.                                    |
 | `default_mode` / `modes`         | Video format presets: `long`, `short`, and `mega`.                 |
+| `series.auto_plan`               | Automatically plan a new 3–7 episode series when DB is empty/done.  |
+| `series.default_episodes_min`    | Minimum episodes for auto-planned curriculum (default: `3`).       |
+| `series.default_episodes_max`    | Maximum episodes for auto-planned curriculum (default: `7`).       |
 | `animation.ai_code_primary`      | Prioritize AI-generated Python/Manim animations ($\ge 70\%$).      |
 | `animation.animate_from_start`   | Enforce animation from second 0 (Scene 1 Hook).                    |
 | `llm.providers`                  | Ordered fallback chain (model, base_url, key env, retries).        |
@@ -358,6 +438,14 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | `tts.providers`                  | TTS fallback order and per-provider voice settings.                |
 | `visual.*`                       | Resolution, fps, colors, fonts, crossfade duration.                |
 | `images.enabled`                 | Auto-fetch illustration images per scene.                          |
+| `images.ai_enabled`              | Fallback to AI FLUX illustration when stock search fails.          |
+| `images.ai_primary`              | Prioritize AI FLUX illustrations over stock images for all scenes. |
+| `images.ai_provider`             | AI image provider (`pollinations` free, `huggingface`).            |
+| `images.ai_style`                | Style prompt injected into AI image generation.                    |
+| `ai_video.enabled`               | Enable 1 AI cinematic video clip per generated video.               |
+| `ai_video.max_per_run`           | Strict cap on AI video clips per video run (default: `1`).          |
+| `ai_video.provider`              | AI video provider (`ai_motion` free default, `fal`, `pollinations`).|
+| `ai_video.duration`              | Length in seconds of generated AI video clip (default: `5.0`).     |
 | `videos.enabled` / `max_per_video`| Auto-fetch Pexels video b-roll (needs `PEXELS_API_KEY`).          |
 | `thumbnail.*`                    | AI thumbnail source, model, and Kurzgesagt style.                  |
 | `subtitles.*`                    | Whisper model, burn-in toggle.                                     |
@@ -375,22 +463,25 @@ triggers, or set `videos_per_run: 2` with a single trigger.
 ```
 src/
 ├── pipeline.py          # Orchestrator (entry point: python -m src.pipeline)
+├── series_manager.py    # Autonomous curriculum planner & series DB manager
 ├── topic_selector.py    # Picks a fresh topic (LLM + DB dedup)
-├── script_writer.py     # LLM → structured Script (+ hierarchical mega-mode)
+├── script_writer.py     # LLM → structured Script (+ series context & hooks)
 ├── ai_code_runner.py    # AI Python/Manim animation generator & self-repair
-├── llm.py               # Multi-tier LLM client with fallback
+├── ai_video.py          # Autonomous 1-clip AI video generator (ai_motion / fal)
+├── mv_compat.py         # MoviePy 1.x & 2.x cross-version compatibility adapter
+├── llm.py               # Multi-tier LLM client with fallback & quota handling
 ├── animation_bridge.py  # Safe (no eval/exec) bridge: Script → mathviz Scene
 ├── visual_engine.py     # Static scene + overlay rendering
 ├── compositor.py        # MoviePy/FFmpeg sequencing, music, SFX, crossfades
 ├── tts.py               # TTS with provider fallback + per-video voice lock
 ├── subtitles.py         # faster-whisper subtitles
-├── image_fetcher.py     # Google / DuckDuckGo / Bing / Pexels / Openverse
+├── image_fetcher.py     # Multi-tier image fetcher + keyless AI FLUX generator
 ├── thumbnail_ai.py      # AI thumbnail background (FLUX / Pollinations)
-├── metadata.py          # YouTube title/description/tags + thumbnail overlay
+├── metadata.py          # YouTube title/description/tags + series badges
 ├── youtube_uploader.py  # YouTube Data API v3 upload + --auth flow
-├── models.py            # Dataclasses: Script, Scene, Exercise, ...
+├── models.py            # Dataclasses: Script, Scene, Series, Episode, ...
 ├── config.py            # Loads config.yaml, applies mode, exposes CONFIG
-├── db.py                # SQLite state (topic history, video status)
+├── db.py                # Dual-backend state: Neon PostgreSQL & SQLite
 └── mathviz/             # Self-written Pillow + NumPy animation engine
     ├── core.py          # Canvas primitives + Camera (zoom locked to 1.0)
     ├── objects.py       # Drawables (graphs, shapes, Polygon, NeuralNet, ...)

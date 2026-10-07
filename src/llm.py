@@ -148,8 +148,8 @@ def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -
     api_key = _api_key(provider, "GEMINI_API_KEY")
     genai.configure(api_key=api_key)
     gm = genai.GenerativeModel(provider["model"], system_instruction=system or None)
-    timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
-    req_opts = {"timeout": float(timeout)} if timeout is not None else {}
+    timeout = provider.get("timeout") or 20.0
+    req_opts = {"timeout": float(timeout)}
     resp = gm.generate_content(
         prompt,
         generation_config={"temperature": temperature},

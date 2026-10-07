@@ -45,7 +45,7 @@ def _sentence_case(title: str) -> str:
     return t[:1].upper() + t[1:] if t else t
 
 
-def _build_prompt(topic: str, research_context: str = "") -> str:
+def _build_prompt(topic: str, research_context: str = "", series_context: dict | None = None) -> str:
     lang = CONFIG.get("language", "vi")
     lang_name = "tiếng Việt" if lang == "vi" else "English"
     duration = int(CONFIG.get("target_duration_seconds", 300))
@@ -55,7 +55,7 @@ def _build_prompt(topic: str, research_context: str = "") -> str:
     min_words = int(approx_words * 0.80) if mode == "short" else int(approx_words * 0.85)
 
     if mode == "short":
-        return _build_short_prompt(topic, lang_name, duration, min_words, approx_words)
+        return _build_short_prompt(topic, lang_name, duration, min_words, approx_words, series_context=series_context)
 
     minutes = max(duration // 60, 1)
     n_scenes_min = max(minutes * 2, 8)   # ~2 scene/phút -> nhịp điệu vừa vặn, không lê thê
@@ -69,9 +69,28 @@ def _build_prompt(topic: str, research_context: str = "") -> str:
             f"(Hãy sử dụng các dữ kiện, độ phức tạp, và ví dụ thực chiến này trong các scene thích hợp)\n"
         )
 
+    series_section = ""
+    if series_context:
+        s_name = series_context.get("series_name", "")
+        ep_num = series_context.get("episode_num", 1)
+        total_eps = series_context.get("total_episodes", 5)
+        hook_prev = series_context.get("hook_from_previous", "")
+        hook_next = series_context.get("hook_to_next", "")
+
+        prev_clause = f"- Ở Scene 1 (Hook mở đầu): Nhắc lại gắn kết với tập trước: \"{hook_prev}\"" if (hook_prev and ep_num > 1) else ""
+        next_clause = f"- Ở Scene cuối (Kết thúc): Gợi mở gây tò mò tập tiếp theo: \"{hook_next}\"" if (hook_next and ep_num < total_eps) else ""
+
+        series_section = (
+            f"\nNGỮ CẢNH CHUỖI VIDEO (SERIES):\n"
+            f"- Video này là TẬP {ep_num}/{total_eps} thuộc chuỗi \"{s_name}\".\n"
+            f"{prev_clause}\n"
+            f"{next_clause}\n"
+            f"- Tiêu đề kịch bản (title) NÊN có tiền tố '[Tập {ep_num}/{total_eps}]' để người xem dễ theo dõi.\n"
+        )
+
     return f"""Viết kịch bản cho video YouTube dài ĐỦ {duration} giây (~{minutes} phút) về chủ đề:
 "{topic}"
-{research_section}
+{research_section}{series_section}
 Ngôn ngữ: {lang_name}. YÊU CẦU ĐỘ DÀI & NHỊP ĐIỆU (BẮT BUỘC):
 - Tổng lời đọc (cộng dồn tất cả narration) tối thiểu {min_words} từ, mục tiêu ~{approx_words} từ (nhịp đọc thư thái ~130 từ/phút).
 - Chia thành {n_scenes_min}-{n_scenes_max} scene, phủ ĐỦ 10 bước cấu trúc bên dưới.
@@ -652,7 +671,7 @@ Chỉ trả về JSON thuần."""
     return mega_script
 
 
-def write_script(topic: str) -> Script:
+def write_script(topic: str, series_context: dict | None = None) -> Script:
     duration = int(CONFIG.get("target_duration_seconds", 300))
     mode = CONFIG.get("active_mode", "long")
 
@@ -680,7 +699,11 @@ def write_script(topic: str) -> Script:
 
     script: Script | None = None
     for attempt in range(2):  # thử tối đa 2 lần nếu kịch bản quá ngắn/thiếu scene
-        raw = generate(_build_prompt(topic, research_context=research_context), system=_SYSTEM, task="script")
+        raw = generate(
+            _build_prompt(topic, research_context=research_context, series_context=series_context),
+            system=_SYSTEM,
+            task="script",
+        )
         script = _parse_script(topic, raw)
         words = _count_words(script.scenes)
         if words >= min_words and len(script.scenes) >= min_scenes:
@@ -697,6 +720,14 @@ def write_script(topic: str) -> Script:
     optimized = _optimize_title(script)
     if optimized and optimized != script.title:
         script = script.model_copy(update={"title": optimized})
+
+    # Nếu thuộc Series, tự động gắn tiền tố [Tập X/Y] vào tiêu đề
+    if series_context and script:
+        ep_num = series_context.get("episode_num")
+        total_eps = series_context.get("total_episodes")
+        prefix = f"[Tập {ep_num}/{total_eps}]"
+        if prefix not in script.title:
+            script = script.model_copy(update={"title": f"{prefix} {script.title}"})
 
     log.info(
         "Kịch bản '%s' có %d scene, %d bài toán thực tế, %d từ lời đọc",
