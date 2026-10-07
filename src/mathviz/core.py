@@ -411,6 +411,13 @@ class Scene:
         if target <= 0:
             return self
         if cur <= target + 1e-6:
+            # Giãn timeline một phần (tối đa x1.35) để nhịp animation thư thái, không vội vã
+            stretch = min(1.35, target / max(cur, 0.1))
+            if stretch > 1.0:
+                for a in self._anims:
+                    a.start *= stretch
+                    a.run_time *= stretch
+                self.playhead *= stretch
             self._fixed_duration = target
             return self
         factor = target / cur
@@ -432,7 +439,10 @@ class Scene:
             o.reset_state()
         for a in self._anims:
             a.apply_at(t)
-        canvas.set_camera(self.camera.zoom, self.camera.cx, self.camera.cy)
+        # Ambient subtle camera drift (làm cảnh "thở", không bao giờ chết cứng khi hold)
+        amb_dx = math.sin(t * 0.75) * 3.5
+        amb_dy = math.cos(t * 0.55) * 2.5
+        canvas.set_camera(self.camera.zoom, self.camera.cx + amb_dx, self.camera.cy + amb_dy)
         for o in sorted(self._objects, key=lambda x: x.z):
             if t + 1e-6 < o._visible_from:
                 continue

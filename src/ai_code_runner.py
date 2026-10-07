@@ -25,11 +25,55 @@ log = logging.getLogger(__name__)
 _PRELUDE = '''\
 import matplotlib
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.animation import FuncAnimation
 try:
     import imageio_ffmpeg, matplotlib as _mpl
     _mpl.rcParams["animation.ffmpeg_path"] = imageio_ffmpeg.get_ffmpeg_exe()
 except Exception:
     pass
+
+# Dark Cyberpunk Styling Defaults
+plt.rcParams['figure.facecolor'] = '#0a0d14'
+plt.rcParams['axes.facecolor'] = '#0a0d14'
+plt.rcParams['text.color'] = '#e6edf3'
+plt.rcParams['axes.labelcolor'] = '#8b949e'
+plt.rcParams['xtick.color'] = '#484f58'
+plt.rcParams['ytick.color'] = '#484f58'
+plt.rcParams['grid.color'] = '#161b22'
+plt.rcParams['grid.linestyle'] = '--'
+plt.rcParams['grid.alpha'] = 0.5
+
+# Cyberpunk Neon Palette Constants
+CYAN = '#00f0ff'
+NEON_GREEN = '#39ff14'
+PINK = '#ff2bd6'
+PURPLE = '#a855f7'
+GOLD = '#ffe600'
+DARK_BG = '#0a0d14'
+CARD_BG = '#161b22'
+BORDER_COLOR = '#30363d'
+
+def glow_plot(ax, x, y, color=CYAN, lw=2.5, n_glow=3, **kw):
+    """Vẽ đường cong phát sáng neon đa tầng (Cyberpunk Laser Glow)."""
+    lines = []
+    for i in range(n_glow, 0, -1):
+        lines.append(ax.plot(x, y, color=color, lw=lw + i * 2.2, alpha=0.10 / i, **kw)[0])
+    lines.append(ax.plot(x, y, color=color, lw=lw, alpha=0.95, **kw)[0])
+    lines.append(ax.plot(x, y, color='#ffffff', lw=max(1.0, lw * 0.35), alpha=0.85, **kw)[0])
+    return lines
+
+def clean_axes(ax, keep_grid=True):
+    """Loại bỏ viền thô, giữ giao diện sạch tối giản chuẩn tech studio."""
+    for spine in ax.spines.values():
+        spine.set_color('#30363d')
+        spine.set_linewidth(1.0)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    if keep_grid:
+        ax.grid(True, linestyle='--', alpha=0.3, color='#21262d')
+
 WIDTH = {width}
 HEIGHT = {height}
 FPS = {fps}
@@ -186,12 +230,12 @@ def generate_matplotlib_from_prompt(
         )
 
     prompt = (
-        f"You are a master mathematical visualization developer (3Blue1Brown caliber).\n"
+        f"You are a master mathematical visualization developer (3Blue1Brown & Kurzgesagt caliber).\n"
         f"Write an ULTRA-PRECISE, aesthetically gorgeous Python Matplotlib animation script for this concept:\n"
         f"{context_section}"
         f"VISUAL CONCEPT TO RENDER: {description}\n"
         f"TARGET DURATION: {duration:.1f} seconds.\n\n"
-        f"PRECISION & VISUAL QUALITY GUIDELINES:\n"
+        f"PRECISION & CYBERPUNK VISUAL QUALITY GUIDELINES:\n"
         f"1. ACCURACY FIRST: Faithfully model the exact mechanism, mathematical formula, or algorithm progression.\n"
         f"   - Synchronize with the voiceover narration so the graphic visually matches what is being explained.\n"
         f"   - For data structures/algorithms: accurately simulate state changes (comparisons, pointers, swaps, traversal).\n"
@@ -202,15 +246,15 @@ def generate_matplotlib_from_prompt(
         f"   - After each major state change or swap, insert a PAUSE (hold the frame steady for 0.5-1.0s).\n"
         f"   - Use np.linspace for gradual, smooth changes (smooth interpolation), NOT instant jarring jumps.\n"
         f"   - Spread the animation evenly over all frames = int(DURATION * FPS).\n"
-        f"3. PALETTE: Dark cyberpunk theme (#0d1117 background). Crisp high-contrast colors:\n"
-        f"   - Active/highlight: '#58a6ff' (electric blue) or '#ff7b72' (coral/pink).\n"
-        f"   - Verified/target/success: '#3fb950' (neon green).\n"
-        f"   - Secondary/auxiliary: '#d29922' (gold) or '#bc8cff' (purple).\n"
-        f"4. CLEANLINESS: Minimalist styling, subtle grid (alpha 0.15), clear annotations (ax.annotate) for key points.\n\n"
+        f"3. CYBERPUNK PALETTE & HELPERS (ALREADY INJECTED - USE THEM):\n"
+        f"   - Palette constants available: CYAN ('#00f0ff'), NEON_GREEN ('#39ff14'), PINK ('#ff2bd6'), PURPLE ('#a855f7'), GOLD ('#ffe600'), DARK_BG ('#0a0d14').\n"
+        f"   - Helper available: `glow_plot(ax, x, y, color=CYAN, lw=2.5)` creates multi-layer glowing neon laser curves! Use it for dynamic paths/data.\n"
+        f"   - Helper available: `clean_axes(ax)` removes ugly borders, sets subtle grid.\n"
+        f"4. CLEANLINESS: Minimalist styling, subtle grid, clear annotations (ax.annotate) for key points.\n\n"
         f"CRITICAL TECHNICAL RULES:\n"
-        f"- The runner already injects: WIDTH, HEIGHT, FPS, DURATION, OUT_PATH = 'out.mp4'. DO NOT REDEFINE THEM.\n"
+        f"- The runner already injects: WIDTH, HEIGHT, FPS, DURATION, OUT_PATH = 'out.mp4', and sets dark background. DO NOT REDEFINE THEM.\n"
         f"- Use `import matplotlib.pyplot as plt` and `from matplotlib.animation import FuncAnimation`.\n"
-        f"- Figure setup: `fig = plt.figure(figsize=(WIDTH/100, HEIGHT/100), dpi=100, facecolor='#0d1117')`.\n"
+        f"- Figure setup: `fig = plt.figure(figsize=(WIDTH/100, HEIGHT/100), dpi=100, facecolor=DARK_BG)`.\n"
         f"- Number of frames = int(DURATION * FPS).\n"
         f"- MUST save animation to OUT_PATH using `ani.save(OUT_PATH, fps=FPS, writer='ffmpeg', extra_args=['-pix_fmt', 'yuv420p', '-movflags', '+faststart'])`.\n"
         f"- Return ONLY Python code inside ```python ... ``` block. No markdown explanation outside."

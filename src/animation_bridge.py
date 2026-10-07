@@ -152,6 +152,32 @@ def build_animation_scene(scene: ModelScene, duration: float):
                 steps=cfg.get("steps", scene.bullets or ["Bước 1", "Bước 2"]),
                 subtitle=subtitle,
             )
+        elif preset in ("terminal", "code"):
+            lines = cfg.get("code") or cfg.get("lines") or scene.bullets or ["print('Hello, world!')"]
+            if isinstance(lines, str):
+                lines = lines.splitlines()
+            sc = mv_scenes.terminal_scene(
+                title or "Thực thi mã lệnh",
+                code_lines=lines,
+                language=str(cfg.get("language", scene.code_language or "python")),
+                subtitle=subtitle,
+            )
+        elif preset in ("architecture_flow", "architecture"):
+            nodes = cfg.get("nodes") or scene.bullets or ["Client", "API Gateway", "Service", "Database"]
+            sc = mv_scenes.architecture_flow_scene(
+                title or "Kiến trúc hệ thống",
+                nodes=nodes,
+                subtitle=subtitle,
+            )
+        elif preset == "comparison":
+            sc = mv_scenes.comparison_scene(
+                title or "So sánh giải pháp",
+                left_title=str(cfg.get("left_title", "Cách ngây thơ")),
+                left_items=cfg.get("left_items", ["Chậm O(N^2)", "Dễ quá tải"]),
+                right_title=str(cfg.get("right_title", "Giải pháp tối ưu")),
+                right_items=cfg.get("right_items", ["Nhanh O(N log N)", "Tối ưu bộ nhớ"]),
+                subtitle=subtitle,
+            )
         elif preset in ("pycode", "manim"):
             # Preset animation mã code (đã được ai_code_runner xử lý trước).
             # Nếu rơi xuống đây là MathViz fallback:

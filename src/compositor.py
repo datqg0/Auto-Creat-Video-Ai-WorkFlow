@@ -54,14 +54,64 @@ def _FPS() -> int:
     return int(CONFIG["visual"]["fps"])
 
 
-def _ken_burns_clip(image_path: Path, duration: float):
-    """Ảnh tĩnh -> clip động: zoom + pan có easing, hướng chọn theo seed của scene.
+def _get_watermark_sprite() -> "Image.Image | None":
+    """Tạo sprite watermark thương hiệu góc màn hình (nhẹ, tái sử dụng)."""
+    from PIL import Image, ImageDraw, ImageFont
 
-    - Zoom giữa 1.04 và 1.14 (ngẫu nhiên zoom vào hoặc zoom ra).
-    - Pan theo một hướng ngẫu nhiên; biên độ tính theo phần "dư" của khung khi zoom
-      (z > 1 luôn có dư) nên không bao giờ lộ viền đen.
-    - Seed theo tên file -> render lại vẫn y hệt; các scene liên tiếp chuyển động khác nhau.
-    - ``Image.resize(box=...)`` nhận toạ độ thực -> chuyển động mượt dưới pixel, không giật.
+    brand_cfg = CONFIG.get("branding", {})
+    wm_cfg = brand_cfg.get("watermark", {})
+    if wm_cfg.get("enabled", True) is False:
+        return None
+
+    text = wm_cfg.get("text", "TECH LAB | AI")
+    font_p = Path(__file__).resolve().parent.parent / CONFIG["visual"].get("font", "assets/fonts/BeVietnamPro-Bold.ttf")
+    try:
+        font = ImageFont.truetype(str(font_p), 13)
+    except Exception:
+        font = ImageFont.load_default(13)
+
+    # Đo kích thước chữ để đóng khung vừa vặn
+    dummy = Image.new("RGBA", (1, 1))
+    d_dum = ImageDraw.Draw(dummy)
+    tw = int(d_dum.textlength(text, font=font))
+    badge_w = tw + 46
+    badge_h = 32
+
+    sprite = Image.new("RGBA", (badge_w, badge_h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(sprite)
+    # Khung kính mờ công nghệ viền xanh cyan
+    d.rounded_rectangle([0, 0, badge_w - 1, badge_h - 1], radius=8, fill=(15, 23, 42, 175), outline=(56, 189, 248, 130), width=1)
+    # Đèn LED xanh lá neon trạng thái online
+    d.ellipse([10, 11, 18, 19], fill=(57, 255, 20, 255))
+    d.text((26, 8), text, font=font, fill=(226, 232, 240, 230))
+    return sprite
+
+
+def _get_particle_sprites() -> list["Image.Image"]:
+    """Tạo bộ sprite hạt nano cyber phát sáng đa màu."""
+    from PIL import Image, ImageDraw
+
+    colors = [
+        (0, 240, 255),    # Cyan
+        (57, 255, 20),    # Neon green
+        (168, 85, 247),   # Purple
+        (255, 230, 100),  # Gold
+    ]
+    sprites = []
+    for col in colors:
+        dot = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+        d = ImageDraw.Draw(dot)
+        d.ellipse([1, 1, 14, 14], fill=(*col, 40))
+        d.ellipse([4, 4, 11, 11], fill=(*col, 180))
+        d.ellipse([6, 6, 9, 9], fill=(255, 255, 255, 220))
+        sprites.append(dot)
+    return sprites
+
+
+def _ken_burns_clip(image_path: Path, duration: float):
+    """Ảnh tĩnh -> clip động: zoom + pan có easing và beat snapping, kết hợp
+    micro-motion (hạt cyber phát sáng trôi lơ lửng, quét scanline nhẹ holographic,
+    watermark nhận diện thương hiệu góc trên).
     """
     import numpy as np
     from PIL import Image
@@ -78,25 +128,67 @@ def _ken_burns_clip(image_path: Path, duration: float):
     bw, bh = img.size
 
     rng = random.Random(zlib.crc32(image_path.name.encode("utf-8")))
-    # Biên độ giới hạn để KHÔNG cắt chữ: slide có lề MARGIN=120px (6.25%) + footer cách
-    # đáy 90px. Zoom tối đa 1.08 + pan 0.5 phần dư -> mép bị cắt tối đa ~5.6% khung.
     z_lo, z_hi = 1.03, 1.08
     z0, z1 = (z_lo, z_hi) if rng.random() < 0.6 else (z_hi, z_lo)
     ang = rng.uniform(0, 2 * math.pi)
-    ux, uy = math.cos(ang) * 0.5, math.sin(ang) * 0.5  # vị trí chuẩn hóa trong phần dư [-1, 1]
+    ux, uy = math.cos(ang) * 0.5, math.sin(ang) * 0.5
     dur = max(duration, 0.1)
+
+    # Chuẩn bị micro-motion: 20 hạt cyber nhẹ nhàng bay lên
+    dot_sprites = _get_particle_sprites()
+    particles = []
+    for _ in range(20):
+        particles.append({
+            "x": rng.uniform(0.04, 0.96),
+            "y": rng.uniform(0.04, 0.96),
+            "vx": rng.uniform(-0.012, 0.012),
+            "vy": rng.uniform(-0.035, -0.010),
+            "sprite_idx": rng.randint(0, len(dot_sprites) - 1),
+        })
+
+    wm_sprite = _get_watermark_sprite()
+    W, H = _W(), _H()
 
     def frame(t: float):
         x = min(max(t / dur, 0.0), 1.0)
-        p = 0.5 * x + 0.5 * smooth(x)  # nửa tuyến tính, nửa smooth: êm mà không "đứng hình" ở 2 đầu
-        z = z0 + (z1 - z0) * p
-        cw, ch = _W() / z, _H() / z
+        # Beat & rhythm snapping: nhịp mở đầu scene có punch deceleration nhẹ trong 0.35s
+        punch = 0.022 * math.exp(-t * 5.0)
+        p = 0.35 * x + 0.65 * smooth(x)
+        z = z0 + (z1 - z0) * p + punch
+        cw, ch = W / z, H / z
         room_x, room_y = (bw - cw) / 2, (bh - ch) / 2
-        u = -1.0 + 2.0 * p  # đi từ -u -> +u theo hướng đã chọn
+        u = -1.0 + 2.0 * p
         cx = bw / 2 + ux * u * room_x
         cy = bh / 2 + uy * u * room_y
         box = (cx - cw / 2, cy - ch / 2, cx + cw / 2, cy + ch / 2)
-        return np.asarray(img.resize((_W(), _H()), Image.BILINEAR, box=box))
+
+        # Cắt và zoom ảnh nền
+        frame_pil = img.resize((W, H), Image.BILINEAR, box=box).convert("RGBA")
+
+        # 1. Micro-motion: Hạt nano cyber trôi lơ lửng
+        for pt in particles:
+            px = int(((pt["x"] + pt["vx"] * t) % 1.0) * (W - 20))
+            py = int(((pt["y"] + pt["vy"] * t) % 1.0) * (H - 20))
+            spr = dot_sprites[pt["sprite_idx"]]
+            frame_pil.paste(spr, (px, py), spr)
+
+        # 2. Watermark thương hiệu (góc trên bên phải)
+        if wm_sprite is not None:
+            wm_x = W - wm_sprite.width - 32
+            frame_pil.paste(wm_sprite, (wm_x, 32), wm_sprite)
+
+        # 3. Quét tia scanline holographic dịu mắt (chu kỳ 5 giây)
+        arr = np.asarray(frame_pil.convert("RGB")).copy()
+        scan_y = int(((t / 5.0) % 1.0) * H)
+        for dy in range(-8, 9):
+            y = scan_y + dy
+            if 0 <= y < H:
+                intensity = int(14 * (1.0 - abs(dy) / 9.0))
+                arr[y, :, 0] = np.clip(arr[y, :, 0].astype(np.int16) + intensity // 3, 0, 255)
+                arr[y, :, 1] = np.clip(arr[y, :, 1].astype(np.int16) + intensity, 0, 255)
+                arr[y, :, 2] = np.clip(arr[y, :, 2].astype(np.int16) + intensity, 0, 255)
+
+        return arr
 
     return VideoClip(frame, duration=duration)
 

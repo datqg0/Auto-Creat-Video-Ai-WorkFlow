@@ -23,4 +23,9 @@ output/*
 assets/image_cache/
 assets/video_cache/
 
+# Thư mục clone tham khảo nghiên cứu
+_ref_*/
+_ref_MoneyPrinterTurbo/
+MoneyPrinterTurbo/
+
 

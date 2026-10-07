@@ -38,6 +38,31 @@ def main() -> None:
             "Quy trình học máy",
             steps=["Thu thập dữ liệu", "Huấn luyện mô hình", "Đánh giá", "Triển khai"],
         ),
+        "terminal": scenes.terminal_scene(
+            "Thực thi mô hình AI",
+            code_lines=[
+                "import torch",
+                "model = AutoModel.from_pretrained('gpt-oss')",
+                "inputs = tokenizer('Explain Feynman technique', return_tensors='pt')",
+                "outputs = model.generate(**inputs, max_new_tokens=100)",
+                "print('Inference completed in 12ms')",
+            ],
+            language="python",
+            subtitle="Benchmark tốc độ suy luận",
+        ),
+        "architecture": scenes.architecture_flow_scene(
+            "Kiến trúc Distributed Microservices",
+            nodes=["Client App", "API Gateway", "Auth & Cache", "Worker Engine", "Database Cluster"],
+            subtitle="Quy trình xử lý yêu cầu",
+        ),
+        "comparison": scenes.comparison_scene(
+            "Độ phức tạp thuật toán",
+            left_title="Bubble Sort (Naive)",
+            left_items=["Độ phức tạp O(N^2)", "Chậm khi mảng lớn", "Nhiều thao tác swap thừa"],
+            right_title="Merge Sort (Tối ưu)",
+            right_items=["Độ phức tạp O(N log N)", "Chia để trị mượt mà", "Tối ưu cho dữ liệu lớn"],
+            subtitle="Phân tích hiệu năng",
+        ),
         "sorting": scenes.sorting_scene(
             "Sắp xếp nổi bọt", data=[5, 2, 8, 1, 9, 3, 7, 4], duration=6.0
         ),

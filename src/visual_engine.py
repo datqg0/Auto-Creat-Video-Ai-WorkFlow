@@ -103,6 +103,33 @@ def _decor_blobs(img: Image.Image, seed: int, count: int = 3) -> Image.Image:
     return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
 
 
+def _grid_overlay(img: Image.Image, spacing: int = 68) -> Image.Image:
+    """Lưới chấm mờ công nghệ cao (tech dot grid) tạo chiều sâu không gian."""
+    grid = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(grid)
+    for x in range(spacing // 2, _W(), spacing):
+        for y in range(spacing // 2, _H(), spacing):
+            gd.ellipse([x - 1, y - 1, x + 1, y + 1], fill=(88, 166, 255, 26))
+    return Image.alpha_composite(img.convert("RGBA"), grid).convert("RGB")
+
+
+def _glass_card(
+    img: Image.Image,
+    box: tuple[int, int, int, int],
+    radius: int = 24,
+    fill_rgba: tuple[int, int, int, int] = (16, 22, 34, 215),
+    outline_rgba: tuple[int, int, int, int] = (56, 189, 248, 80),
+    width: int = 2,
+) -> Image.Image:
+    """Tạo Card kính mờ (Glassmorphism) với bo góc và viền LED mỏng."""
+    x0, y0, x1, y1 = box
+    panel = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(panel)
+    pd.rounded_rectangle([x0, y0, x1, y1], radius=radius, fill=fill_rgba, outline=outline_rgba, width=width)
+    return Image.alpha_composite(img.convert("RGBA"), panel).convert("RGB")
+
+
+
 def _load_photo(query: str, index: int = 0) -> Image.Image | None:
     """Tải ảnh gốc theo từ khóa (index để lấy ảnh khác nhau, đa dạng hình)."""
     try:
@@ -238,19 +265,23 @@ def _icon(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: str, idx:
 def _render_title(scene: Scene, out: Path) -> None:
     heading = scene.heading or scene.narration[:60]
     img, draw = _new_canvas(_seed(heading), blobs=4, image_query=scene.image_query)
-    cx, cy = _W() // 2, _H() // 2 - 20
-    # vòng tròn đồng tâm trang trí (thu nhỏ theo khung dọc để không tràn ngang)
-    base_r = min(_W(), _H()) // 3
-    rings = (base_r, int(base_r * 0.78), int(base_r * 0.56))
-    for i, rad in enumerate(rings):
-        r, g, b = _hex(_PALETTE[i % len(_PALETTE)])
-        ring = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
-        ImageDraw.Draw(ring).ellipse(
-            [cx - rad, cy - rad, cx + rad, cy + rad], outline=(r, g, b, 90), width=3
-        )
-        img = Image.alpha_composite(img.convert("RGBA"), ring).convert("RGB")
+    img = _grid_overlay(img, spacing=64)
+    cx, cy = _W() // 2, _H() // 2 - 10
 
-    # Tìm icon công nghệ phù hợp với chủ đề để làm visual đặt vấn đề
+    # Hero Glass Frame ở giữa
+    hw = min(740, _W() // 2 - 40)
+    hh = 240 if not _is_vertical() else 360
+    img = _glass_card(img, (cx - hw, cy - hh, cx + hw, cy + hh), radius=28, outline_rgba=(56, 189, 248, 120), width=2)
+    draw = ImageDraw.Draw(img)
+
+    # Category Badge trên đầu hero card
+    badge_w, badge_h = 360, 44
+    bx0 = cx - badge_w // 2
+    by0 = cy - hh + 30
+    draw.rounded_rectangle([bx0, by0, bx0 + badge_w, by0 + badge_h], radius=22, fill=(30, 41, 59, 240), outline=ACCENT, width=1)
+    draw.text((cx, by0 + badge_h // 2), "★ CHUYÊN ĐỀ CÔNG NGHỆ ★", font=_font(18, bold=True), fill=ACCENT, anchor="mm")
+
+    # Icon công nghệ nếu tìm thấy
     try:
         import re
         from .asset_manager import get_tech_icon, icon_to_png
@@ -260,23 +291,25 @@ def _render_title(scene: Scene, out: Path) -> None:
                 svg = get_tech_icon(w, color_hex="38bdf8")
                 if svg:
                     png_path = out.parent / f"_icon_{svg.stem}.png"
-                    png = icon_to_png(svg, png_path, size=140)
+                    png = icon_to_png(svg, png_path, size=110)
                     if png and png.exists():
                         with Image.open(png) as icon_img:
+                            ix, iy = cx - 55, by0 + badge_h + 16
                             glow = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
-                            ix, iy = cx - 70, cy - 240
-                            ImageDraw.Draw(glow).ellipse([cx - 85, cy - 255, cx + 85, cy - 85], fill=(56, 189, 248, 60))
+                            ImageDraw.Draw(glow).ellipse([cx - 70, iy - 15, cx + 70, iy + 125], fill=(56, 189, 248, 50))
                             img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
                             img.paste(icon_img.convert("RGBA"), (ix, iy), icon_img.convert("RGBA"))
+                            draw = ImageDraw.Draw(img)
                             break
     except Exception as e:
         log.debug("Chèn icon visual hook lỗi: %s", e)
 
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([(cx - 140, cy - 110), (cx + 140, cy - 100)], fill=ACCENT)
-    # Cỡ chữ tự co để từ dài nhất vừa bề rộng khung -> không tràn (nhất là short).
-    hfont = _fit_font(draw, heading, 96 if _is_vertical() else 80, _W() - 2 * _margin())
-    _draw_center_text(draw, heading, hfont, cy - 70)
+    # Accent divider
+    draw.rectangle([(cx - 120, cy + 20), (cx + 120, cy + 24)], fill=ACCENT)
+
+    # Heading
+    hfont = _fit_font(draw, heading, 84 if _is_vertical() else 74, 2 * hw - 100)
+    _draw_center_text(draw, heading, hfont, cy + 44)
     _footer(draw)
     img.save(out)
 
@@ -337,79 +370,214 @@ def _render_challenge(scene: Scene, out: Path) -> None:
     img.save(out)
 
 
+def _render_companion_card(
+    img: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    scene: Scene,
+) -> None:
+    """Vẽ Card công nghệ bên phải khi không có ảnh: Terminal code hoặc Hero Icon."""
+    x0, y0, x1, y1 = box
+    cx = (x0 + x1) // 2
+
+    import re
+    from .asset_manager import get_tech_icon, icon_to_png
+    words = re.findall(r"[A-Za-z0-9\+\#\.\-]+", f"{scene.heading} {scene.image_query} {scene.narration[:120]}")
+    svg_found = None
+    for w_word in words:
+        if len(w_word) >= 2 and w_word.lower() not in ("la", "va", "co", "trong", "cho", "cac", "the", "and", "how", "what", "tai", "sao"):
+            svg = get_tech_icon(w_word, color_hex="38bdf8")
+            if svg:
+                svg_found = svg
+                break
+
+    if svg_found:
+        icx, icy = cx, y0 + 175
+        # Vòng tròn hào quang neon
+        for r_glow, alpha_g in ((120, 24), (90, 45), (65, 75)):
+            glow = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
+            ImageDraw.Draw(glow).ellipse([icx - r_glow, icy - r_glow, icx + r_glow, icy + r_glow], fill=(56, 189, 248, alpha_g))
+            img.paste(Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB"))
+        draw = ImageDraw.Draw(img)
+        draw.ellipse([icx - 65, icy - 65, icx + 65, icy + 65], fill="#161b22", outline="#38bdf8", width=3)
+        draw.text((icx, icy), svg_found.stem.upper()[:8], font=_font(26, bold=True), fill="#38bdf8", anchor="mm")
+
+        # 2 Sub-cards bên dưới
+        f1_y0 = y0 + 290
+        f1_y1 = f1_y0 + 105
+        draw.rounded_rectangle([x0 + 40, f1_y0, x1 - 40, f1_y1], radius=16, fill="#161b22", outline="#30363d", width=2)
+        draw.text((x0 + 64, f1_y0 + 26), "🚀 Hiệu Năng Vượt Trội", font=_font(26, bold=True), fill="#39ff14")
+        draw.text((x0 + 64, f1_y0 + 66), "Tối ưu hóa tài nguyên & độ trễ cực thấp", font=_font(20, bold=False), fill=_MUTED)
+
+        f2_y0 = f1_y1 + 24
+        f2_y1 = f2_y0 + 105
+        draw.rounded_rectangle([x0 + 40, f2_y0, x1 - 40, f2_y1], radius=16, fill="#161b22", outline="#30363d", width=2)
+        draw.text((x0 + 64, f2_y0 + 26), "🔒 Thiết Kế Bền Vững", font=_font(26, bold=True), fill="#58a6ff")
+        draw.text((x0 + 64, f2_y0 + 66), "Đảm bảo tính nhất quán & toàn vẹn dữ liệu", font=_font(20, bold=False), fill=_MUTED)
+    else:
+        top_h = 44
+        draw.rounded_rectangle([x0 + 28, y0 + 36, x1 - 28, y1 - 36], radius=18, fill="#0d1117", outline="#30363d", width=2)
+        draw.rounded_rectangle([x0 + 28, y0 + 36, x1 - 28, y0 + 36 + top_h], radius=18, fill="#161b22", outline="#30363d", width=2)
+        for k, dot in enumerate(("#ff5f56", "#ffbd2e", "#27c93f")):
+            r, g, b = _hex(dot)
+            draw.ellipse([x0 + 48 + k * 26, y0 + 48, x0 + 62 + k * 26, y0 + 62], fill=(r, g, b))
+        draw.text((cx, y0 + 56), "execution_terminal.sh", font=_font(18, bold=True), fill=_MUTED, anchor="mm")
+
+        mock_lines = [
+            ("$ system.init --verbose", ACCENT),
+            ("[OK] Connected to cluster (latency: 1.2ms)", "#39ff14"),
+            ("$ query --batch-size=1024", _TEXT),
+            ("Processing 1,000,000 records...", _MUTED),
+            ("Throughput: 85,000 ops/sec", "#d29922"),
+            ("Status: 200 OK (Cache HIT 98.4%)", "#39ff14"),
+        ]
+        my = y0 + 106
+        for cmd, col in mock_lines:
+            draw.text((x0 + 52, my), cmd, font=_font(22, bold=False), fill=col)
+            my += 48
+
+
 def _render_bullets(scene: Scene, out: Path) -> None:
     if _is_vertical():
         _render_bullets_vertical(scene, out)
         return
-    # Bố cục 2 cột: chữ bên trái, ảnh minh họa RÕ NÉT bên phải (nếu có ảnh)
+
     img = _gradient_bg()
+    img = _grid_overlay(img)
     img = _decor_blobs(img, _seed(scene.heading or scene.narration), 3)
-    draw = ImageDraw.Draw(img)
+
+    margin = 90
+    top = 95
+    card_h = _H() - top - 110
+    half_w = (_W() - 2 * margin - 36) // 2
+
+    # Card 1 (Trái): Nội dung chính Glassmorphism
+    lx0 = margin
+    ly0 = top
+    lx1 = lx0 + half_w
+    ly1 = ly0 + card_h
+    img = _glass_card(img, (lx0, ly0, lx1, ly1), radius=24, outline_rgba=(56, 189, 248, 120))
+
+    # Card 2 (Phải): Ảnh minh họa hoặc Tech Companion Card
+    rx0 = lx1 + 36
+    ry0 = top
+    rx1 = rx0 + half_w
+    ry1 = ry0 + card_h
 
     panel_placed = False
-    text_right = _W() - 160
     if _IMAGES_ON and scene.image_query:
-        pw, ph = 620, 620
-        px0 = _W() - 160 - pw
-        py0 = (_H() - ph) // 2 + 20
-        panel_placed = _photo_panel(img, scene.image_query, (px0, py0, px0 + pw, py0 + ph))
-        draw = ImageDraw.Draw(img)
-        if panel_placed:
-            text_right = px0 - 60
+        panel_placed = _photo_panel(img, scene.image_query, (rx0, ry0, rx1, ry1), radius=24)
 
-    text_left = 170
-    text_w = text_right - text_left
-    if scene.heading:
-        draw.rectangle([(120, 120), (132, 200)], fill=ACCENT)
-        hfont = _fit_font(draw, scene.heading, 60, text_w)
-        for j, hl in enumerate(_wrap_lines(draw, scene.heading, hfont, text_w)[:3]):
-            draw.text((text_left, 120 + j * (hfont.size + 8)), hl, font=hfont, fill=_TEXT)
-    y = 320
-    bullet_font = _font(44, bold=False)
-    for i, b in enumerate(scene.bullets[:5]):
-        color = _PALETTE[i % len(_PALETTE)]
-        _icon(draw, 190, y + 8, 34, color, i)
-        for line in _wrap_lines(draw, b, bullet_font, text_right - 260):
-            draw.text((260, y), line, font=bullet_font, fill=_TEXT)
-            y += 58
-        y += 26
+    draw = ImageDraw.Draw(img)
+
+    if not panel_placed:
+        img = _glass_card(img, (rx0, ry0, rx1, ry1), radius=24, outline_rgba=(147, 51, 234, 100))
+        draw = ImageDraw.Draw(img)
+        _render_companion_card(img, draw, (rx0, ry0, rx1, ry1), scene)
+
+    # --- Vẽ Card Trái ---
+    # 1. Badge phân loại
+    badge_w, badge_h = 240, 40
+    bx0, by0 = lx0 + 44, ly0 + 36
+    draw.rounded_rectangle([bx0, by0, bx0 + badge_w, by0 + badge_h], radius=20, fill=(30, 41, 59, 220), outline=ACCENT, width=1)
+    bfont = _font(19, bold=True)
+    draw.text((bx0 + 20, by0 + 9), "⚡ KIẾN TRÚC & NGUYÊN LÝ", font=bfont, fill=ACCENT)
+
+    # 2. Heading
+    hy = by0 + badge_h + 20
+    heading = scene.heading or "Điểm cốt lõi"
+    max_hw = half_w - 88
+    hfont = _fit_font(draw, heading, 52, max_hw)
+    for line in _wrap_lines(draw, heading, hfont, max_hw)[:2]:
+        draw.text((lx0 + 44, hy), line, font=hfont, fill=_TEXT)
+        hy += hfont.size + 10
+
+    draw.line([(lx0 + 44, hy + 6), (lx0 + 180, hy + 6)], fill=ACCENT, width=3)
+
+    # 3. Bullets items trong pill container
+    by = hy + 30
+    b_font = _font(30, bold=False)
+    bullets_to_show = scene.bullets[:4] or [scene.narration]
+    num_bullets = len(bullets_to_show)
+    item_h = min(84, int((ly1 - by - 36) / max(1, num_bullets) - 14))
+
+    for i, b in enumerate(bullets_to_show):
+        col = _PALETTE[i % len(_PALETTE)]
+        # Hộp con của bullet
+        draw.rounded_rectangle([lx0 + 44, by, lx1 - 44, by + item_h], radius=14, fill=(22, 27, 34, 180), outline=(48, 54, 61, 200), width=1)
+        # Badge số tròn
+        draw.ellipse([lx0 + 58, by + (item_h - 32) // 2, lx0 + 90, by + (item_h + 32) // 2], fill=col)
+        draw.text((lx0 + 74, by + item_h // 2), str(i + 1), font=_font(20, bold=True), fill="#0d1117", anchor="mm")
+
+        # Text
+        blines = _wrap_lines(draw, b, b_font, half_w - 170)
+        ty = by + (item_h - len(blines) * 36) // 2 + 3
+        for bl in blines[:2]:
+            draw.text((lx0 + 106, ty), bl, font=b_font, fill=_TEXT)
+            ty += 36
+        by += item_h + 14
+
     _footer(draw)
     img.save(out)
 
 
 def _render_bullets_vertical(scene: Scene, out: Path) -> None:
-    """Bố cục DỌC cho Short: heading trên, ảnh giữa, bullets dưới — chữ to, không tràn."""
+    """Bố cục DỌC cho Short: Glass Card trên, Mockup/Ảnh giữa, Bullets dưới."""
     img = _gradient_bg()
+    img = _grid_overlay(img, spacing=54)
     img = _decor_blobs(img, _seed(scene.heading or scene.narration), 3)
-    draw = ImageDraw.Draw(img)
+
     inner_w = _W() - 2 * _margin()
+    y = 140
 
-    y = 180
+    # Card 1: Heading Glass
+    h_card_h = 200
+    img = _glass_card(img, (_margin(), y, _margin() + inner_w, y + h_card_h), radius=22, outline_rgba=(56, 189, 248, 110))
+    draw = ImageDraw.Draw(img)
+
+    draw.rounded_rectangle([_margin() + 30, y + 24, _margin() + 270, y + 66], radius=20, fill=(30, 41, 59, 220), outline=ACCENT, width=1)
+    draw.text((_margin() + 48, y + 33), "⚡ NGUYÊN LÝ CHÍNH", font=_font(22, bold=True), fill=ACCENT)
+
     if scene.heading:
-        draw.rectangle([(_margin(), y), (_margin() + 14, y + 90)], fill=ACCENT)
-        hfont = _fit_font(draw, scene.heading, 88, inner_w - 40)
-        for hl in _wrap_lines(draw, scene.heading, hfont, inner_w - 40)[:3]:
-            draw.text((_margin() + 40, y), hl, font=hfont, fill=_TEXT)
-            y += hfont.size + 12
-        y += 40
+        hfont = _fit_font(draw, scene.heading, 64, inner_w - 60)
+        hy = y + 84
+        for hl in _wrap_lines(draw, scene.heading, hfont, inner_w - 60)[:2]:
+            draw.text((_margin() + 30, hy), hl, font=hfont, fill=_TEXT)
+            hy += hfont.size + 8
 
-    # Ảnh minh họa vuông ở giữa
+    y += h_card_h + 40
+
+    # Card 2: Ảnh hoặc Tech Mockup
+    mock_h = min(inner_w, 640)
+    img = _glass_card(img, (_margin(), y, _margin() + inner_w, y + mock_h), radius=22, outline_rgba=(147, 51, 234, 90))
+    draw = ImageDraw.Draw(img)
+    panel_placed = False
     if _IMAGES_ON and scene.image_query:
-        side = min(inner_w, 760)
-        px0 = (_W() - side) // 2
-        if _photo_panel(img, scene.image_query, (px0, y, px0 + side, y + side)):
-            draw = ImageDraw.Draw(img)
-            y += side + 60
+        panel_placed = _photo_panel(img, scene.image_query, (_margin(), y, _margin() + inner_w, y + mock_h), radius=22)
 
-    bullet_font = _font(52, bold=False)
-    for i, b in enumerate(scene.bullets[:4]):
-        color = _PALETTE[i % len(_PALETTE)]
-        _icon(draw, _margin(), y + 8, 40, color, i)
-        for line in _wrap_lines(draw, b, bullet_font, inner_w - 80):
-            draw.text((_margin() + 70, y), line, font=bullet_font, fill=_TEXT)
-            y += 68
-        y += 30
+    if not panel_placed:
+        _render_companion_card(img, draw, (_margin(), y, _margin() + inner_w, y + mock_h), scene)
+
+    y += mock_h + 40
+
+    # Card 3: Bullets Glass List
+    bullets_to_show = scene.bullets[:4] or [scene.narration]
+    bullet_font = _font(40, bold=False)
+    for i, b in enumerate(bullets_to_show):
+        col = _PALETTE[i % len(_PALETTE)]
+        item_h = 100
+        draw.rounded_rectangle([_margin(), y, _margin() + inner_w, y + item_h], radius=18, fill=(16, 22, 34, 215), outline=(48, 54, 61, 220), width=2)
+        draw.ellipse([_margin() + 24, y + 28, _margin() + 68, y + 72], fill=col)
+        draw.text((_margin() + 46, y + 50), str(i + 1), font=_font(26, bold=True), fill="#0d1117", anchor="mm")
+        blines = _wrap_lines(draw, b, bullet_font, inner_w - 110)
+        ty = y + 20
+        for line in blines[:2]:
+            draw.text((_margin() + 86, ty), line, font=bullet_font, fill=_TEXT)
+            ty += 46
+        y += item_h + 20
+
     img.save(out)
+
 
 
 def _render_quote(scene: Scene, out: Path) -> None:
@@ -424,23 +592,81 @@ def _render_quote(scene: Scene, out: Path) -> None:
 
 
 def _render_code(scene: Scene, out: Path) -> None:
-    img, draw = _new_canvas(_seed(scene.heading or "code"), blobs=2)
-    if scene.heading:
-        draw.rectangle([(_margin(), 90), (_margin() + 12, 160)], fill=ACCENT)
-        hfont = _fit_font(draw, scene.heading, 52, _W() - 2 * _margin() - 60)
-        draw.text((_margin() + 50, 96), scene.heading, font=hfont, fill=_TEXT)
+    img = _gradient_bg()
+    img = _grid_overlay(img, spacing=64)
+    img = _decor_blobs(img, _seed(scene.heading or "code"), count=2)
+    draw = ImageDraw.Draw(img)
+
     pad = _margin()
-    top = 220
-    draw.rounded_rectangle([(pad, top), (_W() - pad, _H() - 150)], radius=20, fill=_PANEL)
-    draw.rounded_rectangle([(pad, top), (_W() - pad, top + 46)], radius=20, fill="#21262d")
+    top = 110
+
+    # Heading & Badge
+    if scene.heading:
+        draw.rounded_rectangle([(pad, top), (pad + 220, top + 38)], radius=18, fill=(30, 41, 59, 220), outline=ACCENT, width=1)
+        draw.text((pad + 18, top + 8), "💻 THỰC THI MÃ NGUỒN", font=_font(18, bold=True), fill=ACCENT)
+        hfont = _fit_font(draw, scene.heading, 50, _W() - 2 * pad - 40)
+        draw.text((pad, top + 52), scene.heading, font=hfont, fill=_TEXT)
+        win_top = top + 125
+    else:
+        win_top = top + 20
+
+    win_bottom = _H() - 130
+    win_w = _W() - 2 * pad
+    header_h = 48
+
+    # Khung cửa sổ chính
+    draw.rounded_rectangle([(pad, win_top), (pad + win_w, win_bottom)], radius=20, fill="#0d1117", outline="#30363d", width=2)
+    draw.rounded_rectangle([(pad, win_top), (pad + win_w, win_top + header_h)], radius=20, fill="#161b22", outline="#30363d", width=2)
+
+    # 3 nút điều khiển macOS
     for k, dot in enumerate(("#ff5f56", "#ffbd2e", "#27c93f")):
         r, g, b = _hex(dot)
-        draw.ellipse([pad + 24 + k * 34, top + 16, pad + 40 + k * 34, top + 32], fill=(r, g, b))
-    mono = _font(30 if _is_vertical() else 34, bold=False)
-    y = top + 78
-    for line in scene.bullets[:20]:
-        draw.text((pad + 40, y), line, font=mono, fill="#c9d1d9")
-        y += 46
+        draw.ellipse([pad + 24 + k * 30, win_top + 16, pad + 38 + k * 30, win_top + 30], fill=(r, g, b))
+
+    lang = scene.code_language or "python"
+    tab_title = f"solution.{'py' if lang == 'python' else lang}"
+    draw.text((pad + win_w // 2, win_top + 24), tab_title, font=_font(20, bold=True), fill=_MUTED, anchor="mm")
+
+    # Syntax highlighter đơn giản cho code
+    import re
+    keywords = {"def", "class", "return", "import", "from", "if", "else", "elif", "for", "while", "in", "None", "True", "False", "async", "await", "try", "except", "with", "as"}
+    mono_font = _font(28 if _is_vertical() else 32, bold=False)
+    line_y = win_top + header_h + 36
+
+    for idx, raw_line in enumerate(scene.bullets[:18]):
+        # Số dòng
+        num_str = f"{idx + 1:02d}"
+        draw.text((pad + 32, line_y), num_str, font=mono_font, fill="#484f58")
+
+        # Vẽ từng từ có màu sắc
+        tokens = re.split(r'(\s+|[(),:\[\]{}])', raw_line)
+        cur_x = pad + 95
+        is_comment = raw_line.strip().startswith("#")
+
+        if is_comment:
+            draw.text((cur_x, line_y), raw_line, font=mono_font, fill="#8b949e")
+        else:
+            for tok in tokens:
+                if not tok:
+                    continue
+                if tok in keywords:
+                    tok_col = "#ff7b72"  # đỏ/hồng keyword
+                elif tok.startswith('"') or tok.startswith("'"):
+                    tok_col = "#a5d6ff"  # xanh chuỗi string
+                elif tok.isdigit():
+                    tok_col = "#79c0ff"  # số
+                elif tok in ("(", ")", ":", "[", "]", "{", "}", ",", "."):
+                    tok_col = "#d2a8ff"  # toán tử
+                else:
+                    tok_col = "#e6edf3"  # mặc định
+
+                draw.text((cur_x, line_y), tok, font=mono_font, fill=tok_col)
+                cur_x += _text_w(draw, tok, mono_font)
+
+        line_y += 42
+        if line_y > win_bottom - 40:
+            break
+
     _footer(draw)
     img.save(out)
 

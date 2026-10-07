@@ -83,13 +83,15 @@ def _visual_brief(script: Script) -> str:
 
 
 def _build_bg_prompt(script: Script) -> str:
-    """Prompt tả ảnh minh họa Kurzgesagt căn giữa, viền mềm tối, không chữ."""
+    """Prompt tả ảnh minh họa Kurzgesagt căn giữa, viền mềm tối, triệt tiêu hoàn toàn rác chữ."""
     brief = _visual_brief(script)
     return (
         f"Flat vector illustration in Kurzgesagt art style. Scene: {brief}. "
-        "Bold saturated colors, smooth gradients, clean flat 2D shapes, soft glow, "
-        "cinematic lighting, conceptual editorial illustration. "
-        "Main subject centered in the frame, fills the scene, dark soft edges, no text, no watermark, no words."
+        "Bold saturated vibrant colors, smooth gradients, clean flat 2D shapes, soft neon glow, "
+        "cinematic lighting, conceptual tech editorial art. "
+        "Main subject centered in the frame, dark vignette edges. "
+        "STRICT VISUAL REQUIREMENT: Pure artwork without any text, no typography, "
+        "no letters, no alphabet, no words, no subtitles, no captions, no watermark, no logo, no labels."
     )
 
 
@@ -188,12 +190,13 @@ def _huggingface_background(script: Script, size: tuple[int, int]) -> Image.Imag
 
 
 def _pollinations_background(script: Script, size: tuple[int, int]) -> Image.Image | None:
-    """Fallback sinh ảnh KHÔNG cần key qua Pollinations (Flux)."""
+    """Fallback sinh ảnh KHÔNG cần key qua Pollinations (Flux) có negative prompt chống chữ rác."""
     prompt = _build_bg_prompt(script)
+    negative_clause = urllib.parse.quote("text,letters,words,typography,watermark,logo,captions,labels,noisy,blurry,deformed,gibberish,symbols")
     url = (
         "https://image.pollinations.ai/prompt/"
         + urllib.parse.quote(prompt)
-        + f"?width={size[0]}&height={size[1]}&nologo=true&model=flux"
+        + f"?width={size[0]}&height={size[1]}&nologo=true&model=flux&negative={negative_clause}"
     )
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -272,7 +275,7 @@ def _compose_split(
 
 
 def _draw_split_title(canvas: Image.Image, script: Script, text_w: int) -> Image.Image:
-    """Vẽ cụm tiêu đề to bản, sắc nét ở cột bên trái (0 -> text_w)."""
+    """Vẽ cụm tiêu đề to bản, sắc nét ở cột bên trái (0 -> text_w) kèm watermark nhận diện thương hiệu."""
     W, H = canvas.size
     draw = ImageDraw.Draw(canvas)
 
@@ -293,22 +296,24 @@ def _draw_split_title(canvas: Image.Image, script: Script, text_w: int) -> Image
     line_h = int(size * 1.18)
     badge_h = 36
     spacing = 16
-    total_h = badge_h + spacing + line_h * len(lines)
+    total_h = badge_h + spacing + line_h * len(lines) + 20
     start_y = max(40, (H - total_h) // 2)
 
     # 1. Badge pill chủ đề phía trên tiêu đề
-    badge_font = _font(18, bold=True)
-    badge_text = "KIẾN THỨC CÔNG NGHỆ"
-    bw = int(draw.textlength(badge_text, font=badge_font)) + 26
+    badge_font = _font(16, bold=True)
+    badge_text = "⚡ KIẾN THỨC CÔNG NGHỆ"
+    bw = int(draw.textlength(badge_text, font=badge_font)) + 28
     badge_rect = [pad_left, start_y, pad_left + bw, start_y + badge_h]
     draw.rounded_rectangle(badge_rect, radius=8, fill=(15, 23, 42, 220), outline="#38bdf8", width=2)
-    draw.text((pad_left + 13, start_y + 8), badge_text, font=badge_font, fill="#38bdf8")
+    draw.text((pad_left + 14, start_y + 8), badge_text, font=badge_font, fill="#38bdf8")
 
-    # 2. Tiêu đề chính: màu trắng, viền đen dày dặn nổi bật
+    # 2. Tiêu đề chính: màu trắng, shadow bóng mờ và viền đen dày dặn nổi bật
     text_y = start_y + badge_h + spacing
     stroke = max(5, size // 10)
     for i, line in enumerate(lines[:4]):
         y = text_y + i * line_h
+        # Shadow bóng đổ tối tăng độ tương phản
+        draw.text((pad_left + 3, y + 4), line, font=font, fill="#000000", stroke_width=stroke + 2, stroke_fill="#000000")
         draw.text(
             (pad_left, y),
             line,
@@ -317,6 +322,23 @@ def _draw_split_title(canvas: Image.Image, script: Script, text_w: int) -> Image
             stroke_width=stroke,
             stroke_fill="#000000",
         )
+
+    # 3. Dải gạch phân cách accent glow bên dưới tiêu đề
+    last_y = text_y + len(lines[:4]) * line_h + 8
+    draw.line([(pad_left, last_y), (pad_left + 120, last_y)], fill="#00f0ff", width=4)
+    draw.line([(pad_left + 124, last_y), (pad_left + 140, last_y)], fill="#39ff14", width=4)
+
+    # 4. Studio Mascot & Watermark nhận diện thương hiệu ở góc dưới bên trái
+    brand_cfg = CONFIG.get("branding", {})
+    wm_text = brand_cfg.get("watermark", {}).get("text", "TECH LAB | AI").upper()
+    sub_font = _font(14, bold=True)
+    sub_w = int(draw.textlength(wm_text, font=sub_font)) + 46
+    wm_y = H - 58
+    wm_rect = [pad_left, wm_y, pad_left + sub_w, wm_y + 32]
+    draw.rounded_rectangle(wm_rect, radius=8, fill=(10, 15, 26, 210), outline="#30363d", width=1)
+    # Đèn LED xanh neon phát sáng
+    draw.ellipse([pad_left + 12, wm_y + 11, pad_left + 20, wm_y + 19], fill="#39ff14")
+    draw.text((pad_left + 28, wm_y + 7), wm_text, font=sub_font, fill="#94a3b8")
 
     return canvas.convert("RGB")
 

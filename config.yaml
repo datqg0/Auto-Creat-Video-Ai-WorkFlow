@@ -277,11 +277,14 @@ sfx:
   directory: "assets/sfx"  # đặt file whoosh .mp3/.wav vào đây
   volume: 0.3
 
-# ---- Intro / Outro ----
+# ---- Branding & Watermark ----
 branding:
   intro: "assets/branding/intro.mp4"
   outro: "assets/branding/outro.mp4"
   enabled: false          # bật khi đã có file intro/outro
+  watermark:
+    enabled: true         # bật watermark nhận diện thương hiệu
+    text: "TECH LAB | AI" # tên kênh / studio hiển thị góc màn hình
 
 # ---- YouTube ----
 youtube:

@@ -836,9 +836,26 @@ class Group(Drawable):
         return (sum(p[0] for p in cs) / len(cs), sum(p[1] for p in cs) / len(cs))
 
     def draw(self, canvas: Canvas) -> None:
+        gx, gy = self.bounds_center()
         for c in self.children:
-            # truyền thuộc tính nhóm xuống con
-            c.opacity = min(c.opacity, self.opacity)
-            c.dx += self.dx
-            c.dy += self.dy
+            orig_opacity = c.opacity
+            orig_scale = c.scale
+            orig_dx = c.dx
+            orig_dy = c.dy
+
+            cx, cy = c.bounds_center()
+            ox, oy = cx - gx, cy - gy
+
+            # Kết hợp scale quanh tâm nhóm và opacity
+            c.opacity = orig_opacity * self.opacity
+            c.scale = orig_scale * self.scale
+            c.dx = orig_dx + self.dx + ox * (self.scale - 1.0)
+            c.dy = orig_dy + self.dy + oy * (self.scale - 1.0)
+
             c.draw(canvas)
+
+            c.opacity = orig_opacity
+            c.scale = orig_scale
+            c.dx = orig_dx
+            c.dy = orig_dy
+

@@ -227,12 +227,13 @@ def steps_scene(
     for i, s in enumerate(steps):
         y0 = top + i * (box_h + 40)
         box = (W * 0.25, y0, W * 0.75, y0 + box_h)
-        rect = Rect(box, fill=THEME.panel, outline=THEME.color(i), width=3, radius=16)
-        rect.opacity = 0.0
-        label = Text(s, ((box[0] + box[2]) / 2, (y0 + y0 + box_h) / 2), size=34,
+        col = THEME.color(i)
+        rect = Rect(box, fill=THEME.panel, outline=col, width=3, radius=16)
+        label = Text(s, ((box[0] + box[2]) / 2 + 20, (y0 + y0 + box_h) / 2), size=32,
                      color=THEME.text, anchor="mm")
-        label.opacity = 0.0
-        g = Group(rect, label)
+        badge = Circle((box[0] + 50, (y0 + y0 + box_h) / 2), 22, fill=col)
+        badge_num = Text(str(i + 1), (box[0] + 50, (y0 + y0 + box_h) / 2), size=22, color="#000000", bold=True, anchor="mm")
+        g = Group(rect, badge, badge_num, label)
         scene.add(g)
         scene.play(GrowFromCenter(g, run_time=0.5))
         cur_center = ((box[0] + box[2]) / 2, y0)
@@ -247,6 +248,177 @@ def steps_scene(
     return scene
 
 
+# --------------------------------------------------------------- code / terminal
+def terminal_scene(
+    title: str,
+    code_lines: Sequence[str],
+    language: str = "bash",
+    subtitle: str = "",
+    duration: Optional[float] = None,
+) -> Scene:
+    """Cửa sổ Terminal / IDE macOS với 3 nút màu, hiệu ứng gõ code."""
+    from .objects import Rect, Circle, Text
+    from .anims import FadeIn, Write, GrowFromCenter
+
+    scene = Scene(duration=duration)
+    W, H = THEME.width, THEME.height
+    _title_block(scene, title, subtitle)
+
+    top = 230 if subtitle else 190
+    win_w = min(1480, int(W * 0.82))
+    win_h = min(680, int(H * 0.65))
+    x0 = (W - win_w) // 2
+    y0 = top
+    x1, y1 = x0 + win_w, y0 + win_h
+    header_h = 46
+
+    body = Rect((x0, y0, x1, y1), fill="#0d1117", outline="#30363d", width=2, radius=16)
+    header = Rect((x0, y0, x1, y0 + header_h), fill="#161b22", outline="#30363d", width=2, radius=16)
+
+    btn_red = Circle((x0 + 28, y0 + header_h / 2), 7, fill="#ff5f56")
+    btn_yellow = Circle((x0 + 52, y0 + header_h / 2), 7, fill="#ffbd2e")
+    btn_green = Circle((x0 + 76, y0 + header_h / 2), 7, fill="#27c93f")
+    tab_title = Text(f"workspace — {language}", (x0 + win_w / 2, y0 + header_h / 2), size=20, color=THEME.muted, anchor="mm")
+
+    win_group = Group(body, header, btn_red, btn_yellow, btn_green, tab_title)
+    scene.add(win_group)
+    scene.play(GrowFromCenter(win_group, run_time=0.55))
+
+    line_y = y0 + header_h + 36
+    lines = [str(l) for l in code_lines if str(l).strip()][:8]
+    for i, line in enumerate(lines):
+        prompt = "$" if language == "bash" else f"{i + 1:02d}"
+        p_col = THEME.accent if language == "bash" else THEME.muted
+        p_txt = Text(prompt, (x0 + 36, line_y), size=24, color=p_col, anchor="lm")
+        code_txt = Text(line, (x0 + 80, line_y), size=24, color=THEME.text, anchor="lm")
+        scene.add(p_txt, code_txt)
+        scene.play(FadeIn(p_txt, run_time=0.15), Write(code_txt, run_time=0.45))
+        line_y += 42
+    scene.wait(0.6)
+    return scene
+
+
+# --------------------------------------------------------------- architecture flow
+def architecture_flow_scene(
+    title: str,
+    nodes: Sequence[str] = ("Client", "API Gateway", "Microservice", "Database"),
+    subtitle: str = "",
+    duration: Optional[float] = None,
+) -> Scene:
+    """Sơ đồ kiến trúc luồng dữ liệu các node với tín hiệu chạy qua."""
+    from .objects import Rect, Arrow, Circle, Text
+    from .anims import FadeIn, FadeOut, DrawLine, Move, GrowFromCenter
+
+    scene = Scene(duration=duration)
+    W, H = THEME.width, THEME.height
+    _title_block(scene, title, subtitle)
+
+    clean_nodes = [str(n).strip() for n in nodes if str(n).strip()][:5]
+    if not clean_nodes:
+        clean_nodes = ["Client", "Gateway", "Service", "Database"]
+
+    n = len(clean_nodes)
+    box_w = min(250, int((W * 0.82) / n - 36))
+    box_h = 120
+    gap = (W * 0.82 - n * box_w) / max(1, n - 1)
+    start_x = (W - (n * box_w + (n - 1) * gap)) / 2
+    cy = H * 0.54
+
+    centers = []
+    for i, name in enumerate(clean_nodes):
+        bx0 = start_x + i * (box_w + gap)
+        bx1 = bx0 + box_w
+        by0 = cy - box_h / 2
+        by1 = cy + box_h / 2
+        col = THEME.color(i)
+        r = Rect((bx0, by0, bx1, by1), fill="#161b22", outline=col, width=3, radius=18)
+        lbl = Text(name, ((bx0 + bx1) / 2, cy), size=24, color=THEME.text, anchor="mm")
+        g = Group(r, lbl)
+        scene.add(g)
+        scene.play(GrowFromCenter(g, run_time=0.4))
+        centers.append(((bx0 + bx1) / 2, cy))
+
+    arrows = []
+    for i in range(n - 1):
+        p1 = (centers[i][0] + box_w / 2 + 4, cy)
+        p2 = (centers[i + 1][0] - box_w / 2 - 4, cy)
+        arr = Arrow(p1, p2, color=THEME.accent, width=4)
+        scene.add(arr)
+        scene.play(DrawLine(arr, run_time=0.25))
+        arrows.append((p1, p2))
+
+    for i in range(n - 1):
+        p1, p2 = arrows[i]
+        packet = Circle(p1, 9, fill="#39ff14")
+        scene.add(packet)
+        scene.play(Move(packet, dx=p2[0] - p1[0], dy=0, run_time=0.45, easing="ease_in_out"))
+        scene.play(FadeOut(packet, run_time=0.15))
+
+    scene.wait(0.6)
+    return scene
+
+
+# --------------------------------------------------------------- comparison (2 columns)
+def comparison_scene(
+    title: str,
+    left_title: str = "Cách ngây thơ",
+    left_items: Sequence[str] = ("Chậm O(N^2)", "Dễ tràn bộ nhớ", "Bế tắc khi dữ liệu lớn"),
+    right_title: str = "Giải pháp tối ưu",
+    right_items: Sequence[str] = ("Nhanh O(N log N)", "Tiết kiệm RAM", "Đáp ứng triệu QPS"),
+    subtitle: str = "",
+    duration: Optional[float] = None,
+) -> Scene:
+    """So sánh 2 giải pháp trực quan 2 cột (Naive vs Optimal)."""
+    from .objects import Rect, Text
+    from .anims import FadeIn, GrowFromCenter
+
+    scene = Scene(duration=duration)
+    W, H = THEME.width, THEME.height
+    _title_block(scene, title, subtitle)
+
+    card_w = min(640, int(W * 0.38))
+    card_h = min(520, int(H * 0.52))
+    cy = H * 0.55
+    y0, y1 = cy - card_h / 2, cy + card_h / 2
+
+    # Cột trái (Naive)
+    lx0 = W * 0.50 - card_w - 24
+    lx1 = lx0 + card_w
+    l_bg = Rect((lx0, y0, lx1, y1), fill="#161b22", outline="#ff7b72", width=3, radius=18)
+    l_hdr = Rect((lx0, y0, lx1, y0 + 60), fill="#ff7b72", outline="#ff7b72", width=1, radius=18)
+    l_title = Text("✕  " + left_title, ((lx0 + lx1) / 2, y0 + 30), size=26, color="#000000", bold=True, anchor="mm")
+    l_group = Group(l_bg, l_hdr, l_title)
+    scene.add(l_group)
+    scene.play(GrowFromCenter(l_group, run_time=0.45))
+
+    ly = y0 + 96
+    for item in list(left_items)[:4]:
+        it = Text("• " + str(item), (lx0 + 36, ly), size=24, color="#f0883e", anchor="lm")
+        scene.add(it)
+        scene.play(FadeIn(it, shift=10, run_time=0.2))
+        ly += 50
+
+    # Cột phải (Optimal)
+    rx0 = W * 0.50 + 24
+    rx1 = rx0 + card_w
+    r_bg = Rect((rx0, y0, rx1, y1), fill="#161b22", outline="#39ff14", width=3, radius=18)
+    r_hdr = Rect((rx0, y0, rx1, y0 + 60), fill="#238636", outline="#39ff14", width=1, radius=18)
+    r_title = Text("✓  " + right_title, ((rx0 + rx1) / 2, y0 + 30), size=26, color="#ffffff", bold=True, anchor="mm")
+    r_group = Group(r_bg, r_hdr, r_title)
+    scene.add(r_group)
+    scene.play(GrowFromCenter(r_group, run_time=0.45))
+
+    ry = y0 + 96
+    for item in list(right_items)[:4]:
+        it = Text("• " + str(item), (rx0 + 36, ry), size=24, color="#3fb950", anchor="lm")
+        scene.add(it)
+        scene.play(FadeIn(it, shift=10, run_time=0.2))
+        ry += 50
+
+    scene.wait(0.6)
+    return scene
+
+
 # preset registry để pipeline chọn theo tên
 PRESETS = {
     "function": function_scene,
@@ -255,4 +427,10 @@ PRESETS = {
     "sorting": sorting_scene,
     "counter": counter_scene,
     "steps": steps_scene,
+    "terminal": terminal_scene,
+    "code": terminal_scene,
+    "architecture_flow": architecture_flow_scene,
+    "architecture": architecture_flow_scene,
+    "comparison": comparison_scene,
 }
+

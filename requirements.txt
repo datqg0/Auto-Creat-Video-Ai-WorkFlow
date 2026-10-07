@@ -16,11 +16,11 @@ google-genai>=1.0.0
 elevenlabs>=1.0.0
 edge-tts>=6.1.0
 
-# --- Visual engine ---
-# Animation tự viết bằng thư viện mathviz (Pillow + numpy), không cần Manim/LaTeX
+# --- Visual engine & Animation ---
 matplotlib>=3.8.0
 Pillow>=10.0.0
 numpy>=1.26.0
+manim>=0.18.0
 
 # --- Subtitles ---
 faster-whisper>=1.0.0
