@@ -348,24 +348,30 @@ def run_once(
     series_info = None
 
     if not topic:
-        # Tự động điều phối theo Chuỗi Video (Series):
-        # Nếu DB trống hoặc series cũ xong -> Tự động sinh series mới!
-        try:
-            series_task = get_or_create_active_series_task()
-            topic = series_task["episode"]["topic"]
-            series_context = series_task["series_context"]
-            episode_id = series_task["episode"]["id"]
-            series_info = series_task["series"]
-            db.update_episode(episode_id, status="in_progress")
-            log.info(
-                "▶ Bắt đầu sản xuất: %s - [Tập %d/%d] %s",
-                series_context["series_name"],
-                series_context["episode_num"],
-                series_context["total_episodes"],
-                topic,
-            )
-        except Exception as e:
-            log.warning("Không thể lấy nhiệm vụ series (%s), fallback sang pick_topic đơn lẻ", e)
+        series_cfg = CONFIG.get("series", {})
+        if series_cfg.get("enabled", True):
+            # Tự động điều phối theo Chuỗi Video (Series):
+            # Nếu DB trống hoặc series cũ xong -> Tự động sinh series mới!
+            try:
+                series_task = get_or_create_active_series_task()
+                topic = series_task["episode"]["topic"]
+                series_context = series_task["series_context"]
+                episode_id = series_task["episode"]["id"]
+                series_info = series_task["series"]
+                db.update_episode(episode_id, status="in_progress")
+                log.info(
+                    "▶ Bắt đầu sản xuất: %s - [Tập %d/%d] %s",
+                    series_context["series_name"],
+                    series_context["episode_num"],
+                    series_context["total_episodes"],
+                    topic,
+                )
+            except Exception as e:
+                log.warning("Không thể lấy nhiệm vụ series (%s), fallback sang pick_topic đơn lẻ", e)
+                from .topic_selector import pick_topic
+
+                topic = pick_topic()
+        else:
             from .topic_selector import pick_topic
 
             topic = pick_topic()

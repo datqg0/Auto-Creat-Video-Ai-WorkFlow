@@ -42,6 +42,8 @@ concurrency:
 jobs:
   create-video:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     # Repo public: Actions miễn phí không giới hạn, để trần cao cho video dài/nhiều ảnh
     timeout-minutes: 360
 
@@ -112,6 +114,7 @@ jobs:
 
       - name: Chạy pipeline
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}

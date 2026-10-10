@@ -5,3 +5,7 @@
 2026-10-07T12:52:46.557459	Test Topic
 2026-10-07T13:26:27.036012	Pipeline và Superscalar: Tăng tốc thực thi lệnh
 2026-10-07T13:39:13.827679	Tại sao CPU cần bộ nhớ Cache L1 L2 L3?
+2026-10-08T00:00:00	Tại sao máy tính sẽ chậm đi 100 lần nếu thiếu cache?
+2026-10-09T00:00:00	CPU chờ 100ns, sao tốc độ tăng 5 lần chỉ nhờ cache?
+2026-10-10T00:00:00	Tại sao CPU xịn vẫn chậm đi 100 lần vì 3 lớp bộ nhớ này?
+2026-10-10T12:00:00	CPU chạy 4 GHz nhưng phần lớn thời gian chỉ ngồi chờ RAM
