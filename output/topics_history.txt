@@ -9,3 +9,4 @@
 2026-10-09T00:00:00	CPU chờ 100ns, sao tốc độ tăng 5 lần chỉ nhờ cache?
 2026-10-10T00:00:00	Tại sao CPU xịn vẫn chậm đi 100 lần vì 3 lớp bộ nhớ này?
 2026-10-10T12:00:00	CPU chạy 4 GHz nhưng phần lớn thời gian chỉ ngồi chờ RAM
+2026-10-10T12:16:39.821655	Kiến trúc đa lõi, NUMA và tương lai: CPU & Memory trong AI và ML
