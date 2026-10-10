@@ -27,5 +27,8 @@ assets/video_cache/
 _ref_*/
 _ref_MoneyPrinterTurbo/
 MoneyPrinterTurbo/
-
-
+# MoviePy / Render temporary files
+*TEMP_MPY*
+videoTEMP_*
+*.tmp
+.pytest_cache/

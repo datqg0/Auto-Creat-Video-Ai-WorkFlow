@@ -24,7 +24,7 @@ from .models import Script
 log = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parent.parent
-_EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+from .motion_graphics import get_browser_path
 
 
 def _extract_thumb_meta(script: Script) -> dict:
@@ -334,13 +334,16 @@ def render_svg_thumbnail(script: Script, out_path: Path) -> Path | None:
     temp_html = out_path.parent / "_temp_thumb.html"
     temp_html.write_text(html_content, encoding="utf-8")
 
-    # Render bằng Microsoft Edge headless
-    if os.path.exists(_EDGE_PATH):
+    # Render bằng Headless Browser (Edge / Chrome)
+    browser_bin = get_browser_path()
+    if browser_bin:
         try:
             cmd = [
-                _EDGE_PATH,
+                browser_bin,
                 "--headless",
                 "--disable-gpu",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
                 f"--screenshot={out_path.resolve()}",
                 "--window-size=1280,720",
                 "--hide-scrollbars",

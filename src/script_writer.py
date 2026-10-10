@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 
 from .config import CONFIG
@@ -624,11 +625,79 @@ Chỉ trả về JSON thuần."""
         scenes=all_scenes,
         exercises=exercises,
     )
+    mega_script = _enforce_animation_ratio(mega_script)
     log.info(
         "Kịch bản Mega Deep-Dive '%s' hoàn tất: %d scene, %d từ lời đọc",
         mega_script.title, len(mega_script.scenes), _count_words(mega_script.scenes),
     )
     return mega_script
+
+
+def _enforce_animation_ratio(script: Script) -> Script:
+    """Hard Validation: Đảm bảo kịch bản đạt tối thiểu min_animation_ratio (mặc định 70%).
+
+    Nếu LLM sinh thiếu scene animation, tự động ép các scene Pha 3 (Mổ xẻ kỹ thuật, code,
+    diagram) thành visual_type: 'animation' để đảm bảo tính sinh động của video.
+    """
+    if not script.scenes:
+        return script
+
+    min_ratio = float(CONFIG.get("animation", {}).get("min_animation_ratio", 0.70))
+    total_scenes = len(script.scenes)
+    min_required = max(1, math.ceil(total_scenes * min_ratio))
+
+    updated_scenes = list(script.scenes)
+    anim_indices = {i for i, sc in enumerate(updated_scenes) if sc.visual_type == "animation"}
+
+    # 1. Bắt buộc Scene 0 (Hook) luôn là animation
+    if 0 not in anim_indices:
+        sc0 = updated_scenes[0]
+        v_prompt = sc0.visual_prompt or f"Motion graphic hook animation: {sc0.heading or sc0.narration[:60]}"
+        updated_scenes[0] = sc0.model_copy(update={
+            "visual_type": "animation",
+            "visual_prompt": v_prompt,
+            "animation": sc0.animation or {"preset": "motion_graphic"},
+        })
+        anim_indices.add(0)
+
+    # 2. Nếu vẫn chưa đủ min_required: Ưu tiên nâng cấp Pha 3 (các scene ở giữa và có code/diagram/bullets)
+    if len(anim_indices) < min_required:
+        candidate_scores = []
+        for i, sc in enumerate(updated_scenes):
+            if i in anim_indices:
+                continue
+            score = 0
+            if sc.visual_type in ("code", "algorithm", "diagram", "chart"):
+                score += 10
+            if sc.code_language:
+                score += 8
+            if sc.bullets:
+                score += 5
+            pos_ratio = i / total_scenes
+            if 0.20 <= pos_ratio <= 0.85:
+                score += 6
+            candidate_scores.append((score, i))
+
+        candidate_scores.sort(key=lambda x: x[0], reverse=True)
+
+        for _, idx in candidate_scores:
+            if len(anim_indices) >= min_required:
+                break
+            sc = updated_scenes[idx]
+            v_prompt = sc.visual_prompt or f"Dynamic tech motion visualization for: {sc.heading or sc.narration[:80]}"
+            updated_scenes[idx] = sc.model_copy(update={
+                "visual_type": "animation",
+                "visual_prompt": v_prompt,
+                "animation": sc.animation or {"preset": "motion_graphic"},
+            })
+            anim_indices.add(idx)
+
+    actual_ratio = len(anim_indices) / total_scenes
+    log.info(
+        "Hard Validation Animation: %d/%d scene (%.1f%%, yêu cầu >=%.0f%%)",
+        len(anim_indices), total_scenes, actual_ratio * 100, min_ratio * 100,
+    )
+    return script.model_copy(update={"scenes": updated_scenes})
 
 
 def write_script(topic: str, series_context: dict | None = None) -> Script:
@@ -688,6 +757,9 @@ def write_script(topic: str, series_context: dict | None = None) -> Script:
         prefix = f"[Tập {ep_num}/{total_eps}]"
         if prefix not in script.title:
             script = script.model_copy(update={"title": f"{prefix} {script.title}"})
+
+    # Hard Validation: Bắt buộc kịch bản đạt tỉ lệ animation tối thiểu >= 70%
+    script = _enforce_animation_ratio(script)
 
     log.info(
         "Kịch bản '%s' có %d scene, %d bài toán thực tế, %d từ lời đọc",

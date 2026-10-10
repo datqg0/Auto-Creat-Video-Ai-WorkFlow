@@ -178,11 +178,9 @@ def build_animation_scene(scene: ModelScene, duration: float):
                 right_items=cfg.get("right_items", ["Nhanh O(N log N)", "Tối ưu bộ nhớ"]),
                 subtitle=subtitle,
             )
-        elif preset in ("pycode", "manim"):
-            # Preset animation mã code (đã được ai_code_runner xử lý trước).
+        elif preset in ("pycode", "manim", "motion_graphic"):
+            # Preset animation mã code hoặc motion graphic.
             # Nếu rơi xuống đây là MathViz fallback:
-            # - Nếu có khai báo spec objects -> dựng custom scene
-            # - Nếu không -> trả về None sạch sẽ (để pipeline dùng ảnh tĩnh)
             if "objects" in cfg:
                 from .mathviz.custom_scene import build_custom_scene  # lazy
 
@@ -194,13 +192,134 @@ def build_animation_scene(scene: ModelScene, duration: float):
                     duration=duration,
                 )
             else:
-                return None
+                # Tự động dựng 1 procedural scene sống động thay vì trả về None
+                sc = build_procedural_fallback_scene(scene, duration)
         else:
-            log.warning("Preset animation không hỗ trợ: %r", preset)
-            return None
+            log.info("Preset %r không có cấu hình chi tiết, dùng Procedural Fallback Scene.", preset)
+            sc = build_procedural_fallback_scene(scene, duration)
     except Exception as e:  # noqa: BLE001
-        log.warning("Dựng animation lỗi (%s): %s", preset, e)
-        return None
+        log.warning("Dựng animation lỗi (%s): %s, kích hoạt safe procedural fallback", preset, e)
+        try:
+            sc = build_procedural_fallback_scene(scene, duration)
+        except Exception as e2:  # noqa: BLE001
+            log.error("Safe procedural fallback cũng lỗi: %s", e2)
+            return None
+
+    if sc is None:
+        try:
+            sc = build_procedural_fallback_scene(scene, duration)
+        except Exception:
+            return None
 
     sc.fit_duration(duration)
     return sc
+
+
+def build_procedural_fallback_scene(scene: ModelScene, duration: float):
+    """Tự động dựng 1 MathViz animation scene sống động phù hợp ngữ cảnh của scene.
+
+    ĐẢM BẢO KHÔNG BAO GIỜ TRẢ VỀ NONE: giúp 100% scene yêu cầu animation đều có
+    video chuyển động, loại bỏ hoàn toàn việc bị rớt về ảnh tĩnh.
+    """
+    from .mathviz import scenes as mv_scenes
+
+    title = scene.heading or "Phân Tích Cơ Chế Hoạt Động"
+    subtitle = (scene.visual_prompt or scene.narration[:80]).replace("\n", " ").strip()
+    text_corpus = f"{scene.heading or ''} {scene.narration or ''} {scene.visual_prompt or ''}".lower()
+
+    # 1. Phát hiện Code / Lệnh / Terminal
+    code_indicators = [
+        "def ", "class ", "return ", "import ", "select ", "curl ", "docker ",
+        "npm ", "function", "const ", "mã lệnh", "thuật toán", "cú pháp"
+    ]
+    if scene.code_language or any(ci in text_corpus for ci in code_indicators):
+        lines = []
+        if scene.bullets:
+            lines = [b for b in scene.bullets if len(b) < 60][:6]
+        if not lines:
+            lines = [
+                "# Khởi tạo tiến trình xử lý",
+                "pipeline = ExecutionPipeline()",
+                "result = pipeline.process(stream_data)",
+                "if result.status == SUCCESS:",
+                "    commit_transaction(result.id)",
+                "    notify_cluster_nodes()",
+            ]
+        return mv_scenes.terminal_scene(
+            title=title,
+            code_lines=lines,
+            language=scene.code_language or "python",
+            subtitle=subtitle[:60],
+        )
+
+    # 2. Phát hiện So sánh (Comparison / Trade-off)
+    comparison_indicators = [
+        "so sánh", "vs", "versus", "khác biệt", "trade-off", "đánh đổi",
+        "ưu điểm", "nhược điểm", "truyền thống", "tối ưu"
+    ]
+    if any(ci in text_corpus for ci in comparison_indicators):
+        return mv_scenes.comparison_scene(
+            title=title,
+            left_title="Cách Truyền Thống",
+            left_items=["Độ trễ cao", "Nghẽn cổ chai", "Khó mở rộng"],
+            right_title="Kiến Trúc Tối Ưu",
+            right_items=["Xử lý song song", "Đồng bộ phi tập trung", "Tối ưu bộ nhớ"],
+            subtitle=subtitle[:60],
+        )
+
+    # 3. Phát hiện Kiến trúc hệ thống / Network / Luồng dữ liệu (Architecture Flow)
+    arch_indicators = [
+        "kiến trúc", "microservice", "hệ thống", "gateway", "service", "client",
+        "server", "database", "redis", "kafka", "luồng", "pipeline", "cluster",
+        "node", "packet", "mạng", "phân tán"
+    ]
+    if any(ai in text_corpus for ai in arch_indicators):
+        nodes = []
+        if scene.bullets and len(scene.bullets) >= 3:
+            nodes = [b[:20] for b in scene.bullets[:5]]
+        else:
+            nodes = ["Client App", "API Gateway", "Worker Service", "Distributed DB"]
+        return mv_scenes.architecture_flow_scene(
+            title=title,
+            nodes=nodes,
+            subtitle=subtitle[:60],
+        )
+
+    # 4. Phát hiện Con số / Hiệu năng / Tốc độ (Counter Scene)
+    counter_indicators = [
+        "triệu", "tỷ", "nghìn", "%", "qps", "tốc độ", "tỉ lệ", "tăng trưởng",
+        "gấp", "ms", "latency"
+    ]
+    if any(ci in text_corpus for ci in counter_indicators):
+        import re
+        nums = re.findall(r"\b\d+[\.,]?\d*\b", text_corpus)
+        val = 100000.0
+        unit = "requests/s"
+        if nums:
+            try:
+                val = float(nums[0].replace(",", "."))
+                unit = "thông lượng"
+            except Exception:
+                pass
+        return mv_scenes.counter_scene(
+            title=title,
+            to_value=val,
+            unit=unit,
+            subtitle=subtitle[:60],
+        )
+
+    # 5. Phát hiện Quy trình / Các bước (Steps Scene)
+    if scene.bullets and len(scene.bullets) >= 2:
+        return mv_scenes.steps_scene(
+            title=title,
+            steps=[b[:40] for b in scene.bullets[:4]],
+            subtitle=subtitle[:60],
+        )
+
+    # 6. Mặc định an toàn: Architecture Flow sống động
+    default_nodes = ["Yêu Cầu (Input)", "Phân Tích Core", "Xử Lý Logic", "Phản Hồi (Output)"]
+    return mv_scenes.architecture_flow_scene(
+        title=title,
+        nodes=default_nodes,
+        subtitle=subtitle[:60],
+    )

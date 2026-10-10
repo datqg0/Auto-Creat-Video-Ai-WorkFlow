@@ -137,12 +137,15 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
 
         if is_anim:
             from .ai_code_runner import run_ai_code, run_manim_code, generate_matplotlib_from_prompt, generate_manim_from_prompt
+            from .motion_graphics import is_motion_graphics_available, render_motion_graphic_scene
 
             preset = str(acfg.get("preset", ""))
             visual_desc = scene.visual_prompt or scene.heading or scene.narration[:120]
 
-            # Tầng 1: Manim nếu preset yêu cầu và được bật
-            if anim_cfg.get("manim_enabled", True) and (preset == "manim" or "manim" in visual_desc.lower()):
+            # Tầng 1: Manim (Ưu tiên cho thuật toán chuyên sâu, toán học, hoặc yêu cầu rõ Manim)
+            is_math_or_algo = any(k in visual_desc.lower() for k in ("toán", "công thức", "hàm số", "graph", "tree", "sorting", "binary", "matrix"))
+            should_try_manim = anim_cfg.get("manim_enabled", True) and (preset == "manim" or "manim" in visual_desc.lower() or is_math_or_algo)
+            if should_try_manim:
                 manim_code = acfg.get("code") if preset == "manim" else None
                 if not manim_code and visual_desc:
                     manim_code = generate_manim_from_prompt(
@@ -165,13 +168,31 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                             timeout=int(anim_cfg.get("manim_timeout", 300)),
                             auto_repair=True,
                         )
+                        if code_video:
+                            log.info("Scene %d: Render thành công bằng Manim (3Blue1Brown)", i)
                     except Exception as e:  # noqa: BLE001
                         log.warning("Manim scene %d lỗi: %s", i, e)
 
-            # Tầng 2: PyCode (Matplotlib) - AI sinh code Python animation trực quan
+            # Tầng 2 (MỚI & CHỦ ĐẠO): Motion Graphics Engine (HTML5/Canvas qua Edge/Chrome Headless)
+            if code_video is None and anim_cfg.get("motion_graphics_enabled", True) and is_motion_graphics_available():
+                try:
+                    mg_dir = workdir / f"motion_graphic_{i:02d}"
+                    code_video = render_motion_graphic_scene(
+                        scene,
+                        mg_dir,
+                        duration=dur,
+                        width=CONFIG["visual"]["width"],
+                        height=CONFIG["visual"]["height"],
+                        fps=CONFIG["visual"]["fps"],
+                    )
+                    if code_video:
+                        log.info("Scene %d: Render thành công bằng Motion Graphics HTML5/Edge", i)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Motion Graphics scene %d lỗi: %s, chuyển sang fallback", i, e)
+
+            # Tầng 3 (Dự phòng): PyCode (Matplotlib)
             if code_video is None:
                 pycode = acfg.get("code") if preset == "pycode" else acfg.get("pycode")
-                # Nếu chưa có code -> Nhờ AI chuyên code sinh Matplotlib từ visual_prompt
                 if not pycode and (preset in ("manim", "pycode") or anim_cfg.get("ai_code_primary", True) or scene.visual_prompt or scene.narration):
                     pycode = generate_matplotlib_from_prompt(
                         visual_desc,
@@ -194,8 +215,8 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                     except Exception as e:  # noqa: BLE001
                         log.warning("Matplotlib scene %d lỗi: %s", i, e)
 
-            # Tầng 3 (CUỐI CÙNG): MathViz Preset / Custom objects
-            if code_video is None and acfg:
+            # Tầng 4 (CUỐI CÙNG - BẢO ĐẢM 100% CÓ ANIMATION): MathViz Procedural Fallback
+            if code_video is None:
                 try:
                     anim = build_animation_scene(scene, dur)
                 except Exception as e:  # noqa: BLE001

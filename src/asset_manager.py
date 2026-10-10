@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parent.parent
 _ICONS_DIR = _ROOT / "assets" / "icons"
-_EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+from .motion_graphics import get_browser_path
 
 # Mapping một số từ khóa phổ biến sang slug chính xác của SimpleIcons
 _SLUG_MAP = {

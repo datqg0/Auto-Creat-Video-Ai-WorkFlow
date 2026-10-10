@@ -55,13 +55,16 @@ llm:
       - openrouter
       - mistral
 
-    # 3. Viết code thuật toán Visual / Animation: Claude Opus -> Groq LPU (siêu tốc) -> Gemini 3.7 -> Pollinations
+    # 3. Viết code thuật toán Visual / Animation: Claude Opus -> Cerebras -> Groq LPU -> Gemini 3.7 -> Pollinations
     code:
       - anthropic                # Claude Opus 4.8 (Viết code thuật toán, Manim & Matplotlib chuẩn nhất)
+      - cerebras                 # Llama 3.3 70B qua Cerebras siêu tốc (1800+ tokens/giây, 1M tokens free/ngày)
       - groq                     # LPU gpt-oss-120b siêu tốc độ
+      - github_models            # GPT-4o-mini qua GitHub Models (Free 150 req/ngày)
       - groq_fast                # Qwen 3.8 27B
       - gemini_37                # Gemini 3.7 Flash
       - pollinations_coder       # Qwen Coder qua Pollinations (Dự phòng)
+
 
   providers:
     # Tier 0 — Anthropic (Opus 4.8 qua justwoker.icu — Model suy luận và viết kịch bản mạnh nhất)
@@ -116,6 +119,15 @@ llm:
       model: qwen/qwen3.8-27b
       api_key_env: GROQ_API_KEY
       max_output_tokens: 16384              # Max trần của Qwen trên Groq
+
+    # Tier 3.0 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
+    - name: cerebras
+      type: openai
+      model: llama-3.3-70b
+      base_url: https://api.cerebras.ai/v1
+      api_key_env: CEREBRAS_API_KEY
+      max_output_tokens: 8192
+
 
     # Tier 3 — OpenRouter (free models, tương thích OpenAI)
     - name: openrouter
@@ -220,9 +232,8 @@ animation:
   ai_code_primary: true        # Ưu tiên AI sinh code Python (Matplotlib / Manim) cho animation
   animate_from_start: true     # Scene 1 (Hook) luôn mở đầu bằng animation động do code AI vẽ
   min_animation_ratio: 0.70    # Tối thiểu 70% số scene dùng animation
-  # Cho phép LLM viết code manim (đẹp hơn matplotlib nhưng nặng: cần LaTeX + cairo).
-  # Nếu manim chưa cài / render lỗi -> tự fallback về pycode (matplotlib) rồi custom spec.
-  manim_enabled: true
+  motion_graphics_enabled: true # Bật engine Motion Graphics HTML5/Canvas qua Edge Headless (chuẩn Tech Studio)
+  manim_enabled: true          # Bật Manim cho các scene thuật toán sâu (chuẩn 3Blue1Brown)
   # Chất lượng render manim: low_quality|medium_quality|high_quality|production_quality
   manim_quality: "medium_quality"
   # FPS riêng cho manim (30 fps đồng bộ visual.fps để render nhanh hơn trên CI).

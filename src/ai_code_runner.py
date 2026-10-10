@@ -588,7 +588,10 @@ def run_manim_code(
             stderr = str(e)
 
         if proc and proc.returncode == 0:
-            vids = [p for p in media.rglob("*.mp4") if p.stat().st_size > 1024]
+            vids = [
+                p for p in out_dir.rglob("*.mp4")
+                if p.stat().st_size > 1024 and "partial_movie_files" not in p.parts
+            ]
             if vids:
                 if attempt > 0:
                     log.info("AI Self-Repair Manim thành công ở lần thử %d!", attempt)
