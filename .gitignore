@@ -32,3 +32,4 @@ MoneyPrinterTurbo/
 videoTEMP_*
 *.tmp
 .pytest_cache/
+scratch/

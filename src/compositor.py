@@ -442,6 +442,18 @@ def compose(
     return _finalize(out_path, srt_path if burn else None, music_path)
 
 
+def _get_ffmpeg() -> str:
+    try:
+        from .motion_graphics import get_ffmpeg_path
+        ff = get_ffmpeg_path()
+        if ff:
+            return ff
+    except Exception:
+        pass
+    import shutil
+    return shutil.which("ffmpeg") or "ffmpeg"
+
+
 def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) -> Path:
     """Pass ffmpeg cuối: loudnorm giọng (-14 LUFS) + ducking nhạc nền + burn phụ đề."""
     import subprocess
@@ -449,7 +461,7 @@ def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) 
     out = video_path.with_name(video_path.stem + "_final.mp4")
     music_vol = float(CONFIG.get("music", {}).get("volume", 0.12))
 
-    cmd = ["ffmpeg", "-y", "-i", str(video_path)]
+    cmd = [_get_ffmpeg(), "-y", "-i", str(video_path)]
     if music_path is not None:
         cmd += ["-stream_loop", "-1", "-i", str(music_path)]
 
@@ -488,6 +500,10 @@ def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) 
     cmd += audio_map + video_enc + ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)]
     try:
         subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        err_msg = e.stderr.decode("utf-8", errors="replace") if e.stderr else str(e)
+        log.warning("Pass finalize (loudnorm/duck/subtitle) ffmpeg lỗi, dùng video gốc: %s", err_msg)
+        return video_path
     except Exception as e:  # noqa: BLE001 - lỗi pass cuối -> trả video gốc
         log.warning("Pass finalize (loudnorm/duck/subtitle) lỗi, dùng video gốc: %s", e)
         return video_path

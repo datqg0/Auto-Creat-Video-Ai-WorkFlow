@@ -1,94 +1,134 @@
-"""Motion Graphics Engine cao cấp dựng bằng HTML5/Canvas/CSS và Headless Browser (Edge/Chrome).
+"""Motion Graphics Engine dựng bằng HTML5 Canvas + Headless Browser (Edge/Chrome) + FFmpeg.
 
-Phong cách: Tech Studio / Cyberpunk Minimalist (tương tự Fireship, Kurzgesagt, Stripe interactive docs).
-- Render trực tiếp bằng Microsoft Edge hoặc Google Chrome/Chromium Headless + HTML5 Canvas 2D + SVG.
-- Thu nhận frame tất định (deterministic), không giật lag.
-- Đóng gói MP4 chuẩn H.264 qua FFmpeg.
-- Tương thích đa nền tảng: Windows, Linux (Ubuntu/CI), Docker, macOS.
+Phong cách Tech Studio / Cyberpunk Minimalist. Thu frame tất định (deterministic) rồi ghép MP4 H.264.
 
-TEMPLATES MỚI (v2):
-  - "git_flow"       : Git commit graph animation (nhánh, merge, rebase)
-  - "attention_map"  : Transformer attention heatmap tương tác
-  - "algo_trace"     : Trace thuật toán từng bước với array visualization
-  - "github_stats"   : GitHub repo stats, star growth, contributor graph
-  - "neural_flow"    : Neural network forward pass với dữ liệu thực
-  - "diff_view"      : Code diff animation (thêm/xóa dòng)
-  - "matrix_rain"    : Matrix-style animated background + data overlay
-  - "architecture"   : Architecture Flow (Data packet animation) - legacy
-  - "terminal"       : Terminal / Code typewriter - legacy
-  - "comparison"     : Benchmark comparison cards - legacy
-  - "hud"            : Tech HUD / Metric Pulse - legacy
+Nguyên tắc v3:
+  * DATA-DRIVEN: mọi template chỉ vẽ dữ liệu LẤY TỪ Scene (bullets, chart, animation, narration).
+    Không còn số liệu bịa cứng (12,500 ms, 97%, 67k stars...). Phần dữ liệu minh hoạ tự sinh
+    (trọng số attention, mảng mặc định...) luôn kèm huy hiệu "MINH HOẠ" / "ILLUSTRATIVE".
+  * ROUTING có cấu trúc: dựa visual_type / animation.preset / chart / algorithm trước,
+    từ khoá (có ranh giới từ regex) chỉ là tín hiệu phụ, chấm điểm rồi chọn template có dữ liệu.
+  * Template/JS nằm trong chuỗi thường (không f-string), cấu hình đưa vào 1 object JSON an toàn.
+  * Runner bền vững: profile tạm độc lập, server đa luồng, đủ 100% frame mới nhận, kill cả cây process.
+
+Template: conclusion, quote_card, terminal, diff_view, comparison, bar_benchmark, github_stats (đường tăng trưởng),
+hud (bộ đếm), scheduler (interval scheduling), cpu_scheduler, stickman, git_flow, attention_map,
+neural_flow, algo_trace, metaphor, architecture (fallback: các bước tuần tự).
+
+Khoá CONFIG tuỳ chọn (CONFIG["motion_graphics"]): browser_path, font_file, keep_frames, min_timeout,
+extra_args (list). Biến môi trường MOTION_BROWSER cũng ghi đè đường dẫn trình duyệt.
 """
 from __future__ import annotations
 
+import base64
 import http.server
 import json
 import logging
+import math
 import os
-from pathlib import Path
-import random
 import re
 import shutil
-import socketserver
+import signal
 import subprocess
+import tempfile
 import threading
 import time
+from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from .config import CONFIG
 from .models import Scene
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    "get_browser_path",
+    "get_edge_path",
+    "get_ffmpeg_path",
+    "is_motion_graphics_available",
+    "render_motion_graphic_scene",
+    "render_preview_png",
+]
+
+# ---------------------------------------------------------------------------
+# Trình duyệt headless & FFmpeg
+# ---------------------------------------------------------------------------
+
+
+def _mg_cfg() -> dict:
+    cfg = CONFIG.get("motion_graphics", {}) if hasattr(CONFIG, "get") else {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def get_ffmpeg_path() -> str | None:
+    """Tìm đường dẫn FFmpeg thực thi (hỗ trợ Hermes tools, imageio, PATH, cấu hình)."""
+    for forced in (os.environ.get("FFMPEG_PATH"), _mg_cfg().get("ffmpeg_path")):
+        if forced and os.path.exists(str(forced)):
+            return str(forced)
+
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+
+    candidates = [
+        r"C:\ffmpeg\bin\ffmpeg.exe",
+        r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+        r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
+    ]
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        hermes_dir = Path(local_app_data) / "hermes" / "tools"
+        if hermes_dir.exists():
+            for p in hermes_dir.glob("**/ffmpeg.exe"):
+                if p.is_file():
+                    return str(p)
+
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
 
 def get_browser_path() -> str | None:
-    """Tìm đường dẫn trình duyệt Headless (Edge hoặc Chrome/Chromium) trên Windows / Linux / macOS."""
-    # 1. Các binary phổ biến có trong PATH hệ thống
-    candidates_in_path = [
-        "msedge",
-        "microsoft-edge",
-        "google-chrome",
-        "google-chrome-stable",
-        "chromium",
-        "chromium-browser",
-        "chrome",
-    ]
-    for name in candidates_in_path:
+    """Tìm Edge/Chrome/Chromium trên Windows / Linux / macOS (ưu tiên cấu hình/biến môi trường)."""
+    for forced in (os.environ.get("MOTION_BROWSER"), _mg_cfg().get("browser_path")):
+        if forced and os.path.exists(str(forced)):
+            return str(forced)
+
+    for name in ("msedge", "microsoft-edge", "google-chrome", "google-chrome-stable",
+                 "chromium", "chromium-browser", "chrome"):
         found = shutil.which(name)
         if found:
             return found
 
-    # 2. Các đường dẫn chuẩn trên Windows
-    win_candidates = [
+    candidates = [
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
         os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
         os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium",
+        "/usr/bin/chromium-browser", "/usr/bin/microsoft-edge", "/snap/bin/chromium",
     ]
-    for p in win_candidates:
+    for p in candidates:
         if os.path.exists(p):
             return p
-
-    # 3. Các đường dẫn chuẩn trên Linux / Docker / GitHub Actions
-    linux_candidates = [
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable",
-        "/usr/bin/chromium",
-        "/usr/bin/chromium-browser",
-        "/usr/bin/microsoft-edge",
-        "/snap/bin/chromium",
-    ]
-    for p in linux_candidates:
-        if os.path.exists(p):
-            return p
-
     return None
 
 
 def get_edge_path() -> str | None:
-    """Tương thích ngược cho các module cũ gọi get_edge_path()."""
+    """Tương thích ngược cho module cũ."""
     return get_browser_path()
 
 
@@ -97,126 +137,1356 @@ def is_motion_graphics_available() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Template Detection (smart routing based on scene content)
+# Nhãn UI theo ngôn ngữ
 # ---------------------------------------------------------------------------
 
-def _clean_title(text: str | None) -> str:
-    """Loại bỏ triệt để các tiền tố kịch bản như 'Hook:', 'Hook -', 'Cảnh 1:', 'Scene 1:'."""
-    if not text:
-        return "PHÂN TÍCH KỸ THUẬT"
-    t = text.strip()
-    pattern = r"^(?:\[?\s*(?:hook|cảnh\s*\d+|scene\s*\d+|phần\s*\d+|mở\s*đầu|intro|bước\s*\d+|pha\s*\d+)\s*\]?[\s:\-–—|]*)+"
-    t = re.sub(pattern, "", t, flags=re.IGNORECASE).strip()
-    return t or "PHÂN TÍCH KỸ THUẬT"
+_LABELS = {
+    "vi": {
+        "illustrative": "MINH HOẠ",
+        "quote_tag": "BẢN CHẤT CỐT LÕI",
+        "problem": "VẤN ĐỀ", "solution": "GIẢI PHÁP",
+        "room": "Phòng", "rooms_needed": "Cần tối thiểu {n} phòng", "conflict": "TRÙNG LỊCH",
+        "compared": "So sánh", "swaps": "Hoán đổi", "step": "Bước",
+        "running": "Đang chạy", "done": "Hoàn thành", "queue": "HÀNG ĐỢI", "total": "Tổng",
+        "ratio": "Chênh lệch gấp {x} lần", "old": "PHIÊN BẢN CŨ", "new": "PHIÊN BẢN MỚI",
+        "key": "KEY", "query": "QUERY", "input": "Đầu vào", "output": "Đầu ra", "hidden": "Ẩn",
+        "commits": ["Khởi tạo", "Tính năng", "Sửa lỗi", "Hợp nhất", "Phát hành"],
+        "default_title": "PHÂN TÍCH KỸ THUẬT", "branch": "nhánh",
+    },
+    "en": {
+        "illustrative": "ILLUSTRATIVE",
+        "quote_tag": "CORE IDEA",
+        "problem": "PROBLEM", "solution": "SOLUTION",
+        "room": "Room", "rooms_needed": "At least {n} rooms needed", "conflict": "CONFLICT",
+        "compared": "Comparisons", "swaps": "Swaps", "step": "Step",
+        "running": "Running", "done": "Done", "queue": "QUEUE", "total": "Total",
+        "ratio": "{x}x difference", "old": "OLD VERSION", "new": "NEW VERSION",
+        "key": "KEY", "query": "QUERY", "input": "Input", "output": "Output", "hidden": "Hidden",
+        "commits": ["Init", "Feature", "Bugfix", "Merge", "Release"],
+        "default_title": "TECHNICAL BREAKDOWN", "branch": "branch",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Tiện ích văn bản / trích dữ liệu từ Scene
+# ---------------------------------------------------------------------------
+
+_HEADING_PREFIX_RE = re.compile(
+    r"^\s*(?:"
+    r"\[\s*(?:hook|intro|outro|cảnh|scene|phần|part|bước|step|pha|chương|chapter)\s*\d*\s*\]\s*[:\-–—|]?"
+    r"|(?:hook|intro|outro|cảnh|scene|phần|part|bước|step|pha|chương|chapter|mở đầu)\s*\d*\s*[:\-–—|]"
+    r")\s*",
+    re.IGNORECASE,
+)
+_SENT_SPLIT = re.compile(r"(?<=[.!?…])\s+")
+_EMOJI_RE = re.compile("[\U00010000-\U0010ffff\u2600-\u27bf\u200d\ufe0f]")
+
+
+def _clean_title(text: str | None, lang: str = "vi") -> str:
+    """Gỡ tiền tố 'Hook:', 'Cảnh 1 -'... (chỉ khi có dấu phân cách, không cắt 'Bước 3 là...')."""
+    t = _EMOJI_RE.sub("", (text or "")).strip()
+    for _ in range(3):
+        stripped = _HEADING_PREFIX_RE.sub("", t, count=1).strip()
+        if stripped == t:
+            break
+        t = stripped
+    t = re.sub(r"\s+", " ", t).strip(" :-–—|")
+    return t or _LABELS.get(lang, _LABELS["vi"])["default_title"]
+
+
+def _truncate(text: str, n: int) -> str:
+    text = re.sub(r"\s+", " ", text or "").strip()
+    if len(text) <= n:
+        return text
+    cut = text[: n - 1]
+    if " " in cut[int(n * 0.5):]:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:-–—") + "…"
+
+
+def _sentences(text: str | None, n: int, max_chars: int = 120) -> list[str]:
+    parts = [p.strip() for p in _SENT_SPLIT.split(_EMOJI_RE.sub("", text or "")) if p.strip()]
+    return [_truncate(p, max_chars) for p in parts[:n]]
+
+
+def _g(scene: Scene, name: str, default: Any = None) -> Any:
+    v = getattr(scene, name, default)
+    return default if v is None else v
+
+
+def _anim(scene: Scene) -> dict:
+    a = _g(scene, "animation", {})
+    return a if isinstance(a, dict) else {}
+
+
+def _bullets(scene: Scene, limit: int = 12) -> list[str]:
+    out = []
+    for b in _g(scene, "bullets", []) or []:
+        s = re.sub(r"\s+", " ", _EMOJI_RE.sub("", str(b))).strip()
+        if s:
+            out.append(s)
+    return out[:limit]
+
+
+def _to_float(s: str) -> float | None:
+    s = (s or "").strip().replace(" ", "")
+    if re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", s):
+        s = s.replace(",", "")
+    elif re.fullmatch(r"-?\d{1,3}(\.\d{3})+(,\d+)?", s):
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        s = s.replace(",", ".")
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    return v if math.isfinite(v) else None
+
+
+def _num(v: Any) -> float | None:
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v) if math.isfinite(float(v)) else None
+    if isinstance(v, str):
+        return _to_float(v)
+    return None
+
+
+_LV_RE = re.compile(r"^\s*(?P<label>[^:=]+?)\s*[:=]\s*(?P<val>-?\d[\d.,]*)\s*(?P<unit>\S.*)?$")
+
+
+def _label_values(bullets: list[str]) -> list[tuple[str, float, str, str]]:
+    """'Brute force: 12.5 ms' -> (label, value, unit, raw_value_text)."""
+    out = []
+    for b in bullets:
+        m = _LV_RE.match(b)
+        if not m:
+            continue
+        v = _to_float(m.group("val"))
+        if v is None:
+            continue
+        out.append((m.group("label").strip(), v, (m.group("unit") or "").strip(),
+                    (m.group("val") + " " + (m.group("unit") or "")).strip()))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Data builders: trả dict (có thể kèm "_illustrative": True) hoặc None nếu scene không đủ dữ liệu
+# ---------------------------------------------------------------------------
+
+def _steps(scene: Scene, lang: str) -> list[str]:
+    steps = _bullets(scene, 5)
+    if not steps:
+        steps = _sentences(scene.narration, 4, 90)
+    if not steps:
+        steps = [_clean_title(scene.heading, lang)]
+    return [_truncate(s, 110) for s in steps]
+
+
+def _d_takeaways(scene: Scene, lang: str) -> dict | None:
+    items = _bullets(scene, 4) or _sentences(scene.narration, 3, 150)
+    return {"takeaways": [_truncate(i, 150) for i in items]} if items else None
+
+
+def _d_quote(scene: Scene, lang: str) -> dict | None:
+    b = _bullets(scene, 1)
+    q = b[0] if b else (_clean_title(scene.heading, lang) if scene.heading else "")
+    if not q:
+        s = _sentences(scene.narration, 1, 200)
+        q = s[0] if s else ""
+    return {"quote": q} if q else None
+
+
+def _chart(scene: Scene) -> dict | None:
+    c = _g(scene, "chart", None)
+    if not isinstance(c, dict):
+        return None
+    labels, values = c.get("labels"), c.get("values")
+    if not isinstance(labels, list) or not isinstance(values, list) or len(labels) != len(values) or len(values) < 2:
+        return None
+    nums = [_num(v) for v in values]
+    if any(v is None for v in nums):
+        return None
+    return {"kind": c.get("kind", "bar"), "labels": [str(x) for x in labels], "values": nums,
+            "unit": str(c.get("unit", "") or "")}
+
+
+def _d_bars(scene: Scene, lang: str) -> dict | None:
+    c, a = _chart(scene), _anim(scene)
+    labels = values = None
+    unit = ""
+    if c and c["kind"] in ("bar", "pie"):
+        labels, values, unit = c["labels"], c["values"], c["unit"]
+    elif a.get("preset") == "bar_chart" and isinstance(a.get("values"), list):
+        nums = [_num(v) for v in a["values"]]
+        if len(nums) >= 2 and all(v is not None for v in nums):
+            values = nums
+            raw = a.get("labels") if isinstance(a.get("labels"), list) else []
+            labels = [str(raw[i]) if i < len(raw) else str(i + 1) for i in range(len(nums))]
+    if values is None:
+        lv = _label_values(_bullets(scene))
+        if len(lv) >= 2:
+            labels, values = [x[0] for x in lv], [x[1] for x in lv]
+            units = {x[2] for x in lv}
+            unit = units.pop() if len(units) == 1 else ""
+    if values is None:
+        return None
+    return {"bars": {"labels": [_truncate(x, 40) for x in labels[:8]], "values": values[:8], "unit": unit}}
+
+
+def _d_series(scene: Scene, lang: str) -> dict | None:
+    c = _chart(scene)
+    if not c or c["kind"] != "line":
+        return None
+    return {"series": {"labels": [_truncate(x, 16) for x in c["labels"][:12]], "values": c["values"][:12], "unit": c["unit"]}}
+
+
+def _d_hud(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    if a.get("preset") != "counter":
+        return None
+    v = _num(a.get("to_value"))
+    if v is None:
+        return None
+    metrics = [{"label": _truncate(l, 18), "value": _truncate(raw, 14)} for l, _v, _u, raw in _label_values(_bullets(scene))[:3]]
+    return {"hud": {"value": v, "unit": str(a.get("unit", "") or ""), "metrics": metrics}}
+
+
+def _d_code(scene: Scene, lang: str) -> dict | None:
+    raw = [str(b).replace("\t", "    ").rstrip() for b in (_g(scene, "bullets", []) or [])]
+    lines = [ln for ln in raw if ln.strip()][:12]
+    if not lines:
+        return None
+    return {"code": {"lines": lines, "lang": str(_g(scene, "code_language", "") or "")}}
+
+
+def _d_diff(scene: Scene, lang: str) -> dict | None:
+    raw = [str(b).rstrip() for b in (_g(scene, "bullets", []) or []) if str(b).strip()]
+    old = [ln[1:].strip() for ln in raw if ln.lstrip().startswith("-") and not ln.lstrip().startswith("--")]
+    new = [ln[1:].strip() for ln in raw if ln.lstrip().startswith("+")]
+    if old and new:
+        return {"diff": {"old": old[:8], "new": new[:8]}}
+    if len(raw) >= 2:
+        k = math.ceil(len(raw) / 2)
+        return {"diff": {"old": raw[:k][:8], "new": raw[k:][:8]}}
+    return None
+
+
+def _d_compare(scene: Scene, lang: str) -> dict | None:
+    b = _bullets(scene, 10)
+    if len(b) < 2:
+        return None
+    k = math.ceil(len(b) / 2)
+    left, right = b[:k], b[k:]
+    return {"cmp": {"left": {"title": _truncate(left[0], 40), "rows": [_truncate(x, 90) for x in left[1:5]]},
+                    "right": {"title": _truncate(right[0], 40), "rows": [_truncate(x, 90) for x in right[1:5]]}}}
+
+
+_INTERVAL_RE = re.compile(
+    r"^(?P<label>.*?)[\s:,(\[]*(?P<h1>\d{1,2})(?:[:h](?P<m1>\d{2})|h)\s*(?:[-–—]|->|→|đến|to)\s*"
+    r"(?P<h2>\d{1,2})(?:[:h](?P<m2>\d{2})|h)[\s)\]]*$",
+    re.IGNORECASE,
+)
+
+
+def _assign_rooms(ivs: list[dict]) -> int:
+    """Interval partitioning tham lam (sắp theo giờ bắt đầu, first-fit) => số phòng tối thiểu."""
+    order = sorted(range(len(ivs)), key=lambda i: (ivs[i]["start"], ivs[i]["end"]))
+    ends: list[int] = []
+    for i in order:
+        for r, e in enumerate(ends):
+            if e <= ivs[i]["start"]:
+                ends[r] = ivs[i]["end"]
+                ivs[i]["room"] = r
+                break
+        else:
+            ends.append(ivs[i]["end"])
+            ivs[i]["room"] = len(ends) - 1
+    return len(ends)
+
+
+def _d_intervals(scene: Scene, lang: str) -> dict | None:
+    ivs: list[dict] = []
+    for b in _bullets(scene, 8):
+        m = _INTERVAL_RE.match(b)
+        if not m:
+            continue
+        s = int(m["h1"]) * 60 + int(m["m1"] or 0)
+        e = int(m["h2"]) * 60 + int(m["m2"] or 0)
+        if int(m["h1"]) > 24 or int(m["h2"]) > 24 or e <= s:
+            continue
+        ivs.append({"label": _truncate(m["label"].strip(" -–—:,") or f"#{len(ivs) + 1}", 30), "start": s, "end": e})
+    if len(ivs) < 2:
+        return None
+    rooms = _assign_rooms(ivs)
+    return {"intervals": ivs, "rooms": rooms}
+
+
+_TASK_RE = re.compile(r"^(?P<name>.+?)\s*[:(\-–]\s*(?P<d>\d+(?:[.,]\d+)?)\s*(?P<u>ms|µs|us|s|giây|ns)?\)?$", re.IGNORECASE)
+
+
+def _d_tasks(scene: Scene, lang: str) -> dict | None:
+    b = _bullets(scene, 6)
+    if len(b) < 2:
+        return None
+    tasks = []
+    for item in b:
+        m = _TASK_RE.match(item)
+        if m and _to_float(m["d"]) is not None:
+            tasks.append({"name": _truncate(m["name"], 22), "dur": _to_float(m["d"]), "unit": m["u"] or ""})
+        else:
+            tasks.append({"name": _truncate(item, 22), "dur": None, "unit": ""})
+    return {"tasks": tasks}
+
+
+def _d_layers(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    layers = a.get("layers")
+    if isinstance(layers, list):
+        nums = [int(n) for n in (_num(x) for x in layers) if n is not None and n >= 1][:6]
+        if len(nums) >= 2:
+            return {"layers": [min(n, 8) for n in nums]}
+    m = re.search(r"(?<!\d)(\d{1,2})(?:\s*[-–→,]\s*(\d{1,2})){2,5}(?!\d)", " ".join(_bullets(scene)))
+    if m:
+        nums = [int(x) for x in re.findall(r"\d{1,2}", m.group(0))]
+        if len(nums) >= 3:
+            return {"layers": [min(max(n, 1), 8) for n in nums[:6]]}
+    if str(_g(scene, "algorithm", "")).lower() == "neural_network" or a.get("preset") == "neural_net":
+        return {"layers": [3, 5, 4, 2], "_illustrative": True}
+    return None
+
+
+_ARRAY_RE = re.compile(r"\[\s*-?\d+(?:\s*,\s*-?\d+){2,}\s*\]")
+_SORT_KEYS = (
+    ("bubble", ("bubble", "nổi bọt")), ("insertion", ("insertion", "chèn")),
+    ("selection", ("selection", "chọn")), ("quick", ("quicksort", "quick sort", "sắp xếp nhanh")),
+)
+
+
+def _d_array(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    arr = None
+    for key in ("data", "values"):
+        if a.get("preset") == "sorting" and isinstance(a.get(key), list):
+            nums = [_num(x) for x in a[key]]
+            if len(nums) >= 3 and all(x is not None for x in nums):
+                arr = [int(x) for x in nums]
+                break
+    if arr is None:
+        for src in (*_bullets(scene), scene.visual_prompt or "", scene.narration or "", scene.heading or ""):
+            m = _ARRAY_RE.search(src)
+            if m:
+                arr = [int(x) for x in re.findall(r"-?\d+", m.group(0))]
+                break
+    illustrative = False
+    if arr is None:
+        if str(_g(scene, "algorithm", "")).lower() == "sorting" or a.get("preset") == "sorting":
+            arr, illustrative = [5, 2, 8, 1, 9, 3], True
+        else:
+            return None
+    arr = arr[:12]
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {(scene.narration or '')[:300]}".lower()
+    kind = next((k for k, kws in _SORT_KEYS if any(w in corpus for w in kws)), None)
+    if kind is None:
+        kind, illustrative = "bubble", True
+    return {"array": arr, "algo": kind, "_illustrative": illustrative}
+
+
+def _d_attention(scene: Scene, lang: str) -> dict | None:
+    toks = [_truncate(t, 10) for t in _bullets(scene, 7)]
+    if len(toks) < 3:
+        words = re.findall(r"[\wÀ-ỹ]+", (_sentences(scene.narration, 1, 200) or [scene.heading or ""])[0])
+        toks = words[:6]
+    if len(toks) < 3:
+        toks = ["The", "cat", "sat", "on", "mat"]
+    return {"tokens": toks[:7], "_illustrative": True}  # trọng số luôn là mô phỏng
+
+
+def _d_git(scene: Scene, lang: str) -> dict | None:
+    b = _bullets(scene, 5)
+    if len(b) >= 2:
+        return {"commits": [_truncate(x, 28) for x in b]}
+    return {"commits": _LABELS[lang]["commits"][:4], "_illustrative": True}
+
+
+def _d_metaphor(scene: Scene, lang: str, has_image: bool) -> dict | None:
+    caps = [_truncate(x, 60) for x in _bullets(scene, 3)]
+    if not has_image and not caps:
+        return None
+    return {"captions": caps}
+
+
+def _d_story(scene: Scene, lang: str) -> dict | None:
+    items = _bullets(scene, 6) or _sentences(scene.narration, 4, 120)
+    if len(items) < 2:
+        return None
+    k = math.ceil(len(items) / 2)
+    return {"story": {"problem": [_truncate(x, 100) for x in items[:k][:3]],
+                      "solution": [_truncate(x, 100) for x in items[k:][:3]]}}
+
+
+# ---------------------------------------------------------------------------
+# Routing: chấm điểm cấu trúc + từ khoá, chọn template có dữ liệu
+# ---------------------------------------------------------------------------
+
+_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "conclusion": ("tổng kết", "tong ket", "kết luận", "ket luan", "takeaway", "takeaways", "ghi nhớ", "ghi nho",
+                   "điểm cần nhớ", "diem can nho", "tóm lại", "tom lai", "key takeaways", "summary", "conclusion",
+                   "đúc kết", "duc ket"),
+    "quote_card": ("trích dẫn", "trich dan", "châm ngôn", "cham ngon", "bản chất cốt lõi", "ban chat cot loi",
+                   "câu nói", "cau noi", "quote", "insight"),
+    "terminal": ("terminal", "bash", "câu lệnh", "cau lenh", "pseudocode", "mã giả", "ma gia", "console", "command"),
+    "bar_benchmark": ("benchmark", "biểu đồ cột", "bieu do cot", "biểu đồ thanh", "bieu do thanh",
+                      "so sánh hiệu năng", "so sanh hieu nang", "bar chart", "đo lường", "do luong"),
+    "github_stats": ("github", "star", "tăng trưởng", "tang truong", "growth", "trend", "xu hướng", "xu huong"),
+    "algo_trace": ("sorting", "sắp xếp", "sap xep", "bubble", "quicksort", "insertion", "selection", "mảng", "mang"),
+    "neural_flow": ("neural", "mạng neural", "mang neural", "backprop", "forward pass", "activation"),
+    "hud": ("counter", "bộ đếm", "bo dem", "throughput", "qps", "requests"),
+    "scheduler": ("lịch", "lich", "phòng họp", "phong hop", "scheduling", "interval", "meeting",
+                  "trùng lịch", "trung lich", "xếp lịch", "xep lich"),
+    "cpu_scheduler": ("cpu scheduler", "lập lịch cpu", "lap lich cpu", "round robin", "tiến trình", "tien trinh",
+                      "process scheduling", "scheduler"),
+    "git_flow": ("git", "commit", "branch", "merge", "rebase", "pull request"),
+    "attention_map": ("attention", "transformer", "self-attention", "query key value"),
+    "diff_view": ("diff", "code review", "patch", "refactor"),
+    "comparison": ("vs", "versus", "so sánh", "so sanh", "trade-off", "đánh đổi", "danh doi",
+                   "khác biệt", "khac biet"),
+    "metaphor": ("ẩn dụ", "an du", "đời thường", "doi thuong", "tưởng tượng", "tuong tuong",
+                 "ví dụ đời sống", "vi du doi song", "mô hình đời thực", "metaphor", "analogy"),
+    "stickman": ("nghịch lý", "nghich ly", "hỗn loạn", "hon loan", "bế tắc", "be tac",
+                 "sai lầm", "sai lam", "bối rối", "boi roi", "paradox", "chaos", "mistake"),
+}
+_PRIORITY = ["conclusion", "quote_card", "terminal", "scheduler", "bar_benchmark", "github_stats", "algo_trace",
+             "neural_flow", "hud", "diff_view", "cpu_scheduler", "git_flow", "attention_map", "comparison",
+             "metaphor", "stickman", "architecture"]
+
+
+def _kw_hits(text: str, kws: tuple[str, ...]) -> int:
+    return sum(1 for k in kws if re.search(rf"(?<!\w){re.escape(k)}(?!\w)", text))
+
+
+def _structural_scores(scene: Scene) -> dict[str, int]:
+    st: dict[str, int] = {}
+    vt = str(_g(scene, "visual_type", "")).lower()
+    algo = str(_g(scene, "algorithm", "")).lower()
+    preset = _anim(scene).get("preset")
+    chart = _chart(scene)
+
+    def add(k: str, v: int) -> None:
+        st[k] = st.get(k, 0) + v
+
+    if vt in ("conclusion", "summary", "takeaway", "takeaways", "outro"):
+        add("conclusion", 20)
+    elif vt in ("quote", "quotation"):
+        add("quote_card", 20)
+    elif vt in ("code", "terminal", "cmd"):
+        add("terminal", 20)
+    elif vt == "chart" and chart:
+        add("github_stats" if chart["kind"] == "line" else "bar_benchmark", 20)
+    elif vt in ("git", "git_flow"):
+        add("git_flow", 20)
+    elif vt in ("diff", "diff_view"):
+        add("diff_view", 20)
+    elif vt in ("comparison", "compare"):
+        add("comparison", 20)
+    elif vt == "algorithm" and algo == "sorting":
+        add("algo_trace", 20)
+    elif vt == "algorithm" and algo == "neural_network":
+        add("neural_flow", 20)
+    elif vt == "challenge":
+        add("stickman", 18)
+    elif vt == "diagram":
+        add("architecture", 18)
+
+    if preset == "bar_chart":
+        add("bar_benchmark", 15)
+    elif preset == "counter":
+        add("hud", 18)
+    elif preset == "sorting":
+        add("algo_trace", 18)
+    elif preset == "neural_net":
+        add("neural_flow", 18)
+    elif preset == "steps":
+        add("architecture", 15)
+    return st
+
+
+def _plan_scene(scene: Scene, has_image: bool, lang: str) -> dict:
+    """Trả {'template', 'data', 'illustrative'}; luôn có data['steps'] làm dự phòng."""
+    heading = (scene.heading or "").lower()
+    prompt = (scene.visual_prompt or "").lower()
+    narr = (scene.narration or "")[:400].lower()
+    bullets_text = " ".join(_bullets(scene)).lower()
+
+    builders = {
+        "conclusion": lambda: _d_takeaways(scene, lang),
+        "quote_card": lambda: _d_quote(scene, lang),
+        "terminal": lambda: _d_code(scene, lang),
+        "bar_benchmark": lambda: _d_bars(scene, lang),
+        "github_stats": lambda: _d_series(scene, lang),
+        "algo_trace": lambda: _d_array(scene, lang),
+        "neural_flow": lambda: _d_layers(scene, lang),
+        "hud": lambda: _d_hud(scene, lang),
+        "scheduler": lambda: _d_intervals(scene, lang),
+        "cpu_scheduler": lambda: _d_tasks(scene, lang),
+        "git_flow": lambda: _d_git(scene, lang),
+        "attention_map": lambda: _d_attention(scene, lang),
+        "diff_view": lambda: _d_diff(scene, lang),
+        "comparison": lambda: _d_compare(scene, lang),
+        "metaphor": lambda: _d_metaphor(scene, lang, has_image),
+        "stickman": lambda: _d_story(scene, lang),
+    }
+
+    scores = _structural_scores(scene)
+    for tpl, kws in _KEYWORDS.items():
+        h = _kw_hits(heading, kws)
+        p = _kw_hits(prompt, kws)
+        b = _kw_hits(bullets_text, kws)
+        n = _kw_hits(narr, kws)
+        kw_score = (12 if tpl == "conclusion" else 4) * min(h, 2) + 3 * min(p, 2) + 2 * min(b, 2) + min(n, 2)
+        if kw_score >= 2 or scores.get(tpl, 0) > 0:
+            scores[tpl] = scores.get(tpl, 0) + kw_score
+    # Tín hiệu từ chính dữ liệu: bullets dạng giờ họp / dòng diff +/- gần như chắc chắn
+    if _d_intervals(scene, lang):
+        scores["scheduler"] = scores.get("scheduler", 0) + 12
+    if any(str(b).lstrip().startswith(("+", "-")) for b in (_g(scene, "bullets", []) or [])) and _d_diff(scene, lang):
+        scores["diff_view"] = scores.get("diff_view", 0) + 8
+    if has_image and "metaphor" in scores:
+        scores["metaphor"] += 2
+
+    ranked = sorted((t for t in scores if t in builders),
+                    key=lambda t: (-scores[t], _PRIORITY.index(t) if t in _PRIORITY else 99))
+    steps = _steps(scene, lang)
+    for tpl in ranked:
+        data = builders[tpl]()
+        if data:
+            illustrative = bool(data.pop("_illustrative", False))
+            data["steps"] = steps
+            return {"template": tpl, "data": data, "illustrative": illustrative}
+    return {"template": "architecture", "data": {"steps": steps}, "illustrative": False}
 
 
 def _detect_template(scene: Scene) -> str:
-    """Nhận diện template phù hợp nhất dựa trên nội dung scene."""
-    title = (scene.heading or "").lower()
-    narration = (scene.narration or "")[:300].lower()
-    prompt = (scene.visual_prompt or "").lower()
-    corpus = f"{title} {narration} {prompt}"
-
-    # 1. Kết luận / Tổng kết / Takeaways (Ưu tiên số 1 cho các scene kết thúc)
-    if any(k in corpus for k in (
-        "tổng kết", "kết luận", "takeaway", "takeaways", "ghi nhớ", "điểm cần nhớ",
-        "tóm lại", "bài học", "checklist", "đúc kết"
-    )):
-        return "conclusion"
-
-    # 2. Trích dẫn / Triết lý / Bản chất cốt lõi / Quote card
-    if any(k in corpus for k in (
-        "trích dẫn", "triết lý", "châm ngôn", "bản chất cốt lõi", "quy tắc vàng",
-        "câu nói", "quote", "insight", "bản chất trong 1 câu", "câu trích dẫn"
-    )):
-        return "quote_card"
-
-    # 3. CPU / Hệ điều hành / CPU Scheduler / Tiến trình
-    if any(k in corpus for k in (
-        "cpu", "hệ điều hành", "os", "tiến trình", "process", "thread",
-        "cpu scheduler", "phần cứng", "kernel", "core", "vi xử lý"
-    )):
-        return "cpu_scheduler"
-
-    # 4. Biểu đồ cột / So sánh hiệu năng / Benchmark / Thời gian thực thi
-    if any(k in corpus for k in (
-        "biểu đồ thanh", "biểu đồ cột", "thời gian thực thi", "micro giây", "microsecond",
-        "benchmark", "so sánh hiệu năng", "nhanh hơn", "tối ưu thời gian", "đo lường",
-        "bar chart", "performance comparison"
-    )):
-        return "bar_benchmark"
-
-    # 5. Ẩn dụ đời thường / Mô hình đời thực / Tủ đồ / Ngăn kéo
-    if any(k in corpus for k in (
-        "mô hình đời thực", "ẩn dụ", "đời thường", "tủ đồ", "ngăn kéo", "thủ thư",
-        "cao tốc", "ví dụ đời sống", "tưởng tượng", "đời thực"
-    )):
-        return "metaphor"
-
-    # 6. Lịch trình, phòng họp, interval scheduling, timeline, xung đột thời gian, task queue
-    if any(k in corpus for k in (
-        "lịch", "phòng", "hội nghị", "schedule", "scheduling", "meeting", "interval",
-        "thời gian", "xung đột", "trùng lịch", "trùng lặp", "deadline", "slot",
-        "đặt phòng", "bàn giao", "xếp lịch", "xếp phòng", "chồng lên", "chồng chéo"
-    )):
-        return "scheduler"
-
-    # 7. Người que (Stickman) / Con người / Câu chuyện bối rối / Nghịch lý / Tình huống
-    if any(k in corpus for k in (
-        "người que", "stickman", "người", "con người", "bạn nghĩ", "tại sao", "hỗn loạn",
-        "bế tắc", "nghịch lý", "sai lầm", "human", "who", "why", "user", "developer",
-        "kỹ sư", "lập trình viên", "anh ta", "cô ấy", "mọi người", "team", "nhóm",
-        "bối rối", "loay hoay", "thực tế", "vấn đề", "thử thách", "nghĩ lại", "ngẫu nhiên"
-    )):
-        return "stickman"
-
-    # 8. GitHub / Git / Open source
-    if any(k in corpus for k in ("git ", "github", "commit", "branch", "merge", "rebase", "pull request", "repo", "open source", "clone")):
-        return "git_flow"
-
-    # 9. Attention / Transformer / LLM
-    if any(k in corpus for k in ("attention", "transformer", "self-attention", "query key value", "head", "embedding", "token", "bert", "gpt", "llm")):
-        return "attention_map"
-
-    # 10. Thuật toán trace / sorting / search
-    if any(k in corpus for k in ("sorting", "sắp xếp", "search", "tìm kiếm", "mảng", "array", "quicksort", "mergesort", "heap", "bfs", "dfs", "dijkstra", "trace", "từng bước", "step by step")):
-        return "algo_trace"
-
-    # 11. GitHub stats / metrics
-    if any(k in corpus for k in ("star", "fork", "contributor", "release", "version", "changelog", "repo stats", "downloads", "popularity")):
-        return "github_stats"
-
-    # 12. Neural network forward pass
-    if any(k in corpus for k in ("neural", "backprop", "gradient", "layer", "activation", "relu", "sigmoid", "mạng neural", "training", "loss", "epoch")):
-        return "neural_flow"
-
-    # 13. Code diff / review
-    if any(k in corpus for k in ("diff", "thêm dòng", "xóa dòng", "code review", "patch", "refactor", "before after code")):
-        return "diff_view"
-
-    # 14. Code / terminal (Chỉ khi thực sự là gõ lệnh bash hoặc code cụ thể)
-    if any(k in corpus for k in ("def ", "câu lệnh", "cú pháp", "terminal", "log", "api key", "function", "class ", "pip install", "bash", "chạy lệnh")):
-        return "terminal"
-
-    # 15. Comparison / benchmark chung
-    if any(k in corpus for k in ("so sánh", "vs", "versus", "khác biệt", "trade-off", "hiệu năng")):
-        return "comparison"
-
-    # 16. Counter / metrics / HUD
-    if any(k in corpus for k in ("triệu", "tỷ", "qps", "req/s", "counter", "con số", "%", "ms", "latency", "throughput")):
-        return "hud"
-
-    # Mở đầu hoặc tình huống chung chưa rõ kiểu: ưu tiên Stickman trực quan
-    if any(k in corpus for k in ("mở đầu", "bắt đầu", "đầu tiên", "intro", "nguyên nhân")):
-        return "stickman"
-
-    # Default: architecture flow
-    return "architecture"
+    """Tương thích ngược: chỉ trả tên template."""
+    lang = "vi" if str(CONFIG.get("language", "vi")).lower().startswith("vi") else "en"
+    return _plan_scene(scene, False, lang)["template"]
 
 
 # ---------------------------------------------------------------------------
-# HTML / Canvas Templates
+# HTML / JS
 # ---------------------------------------------------------------------------
+
+_HTML = r"""<!DOCTYPE html>
+<html lang="__LANG__">
+<head>
+<meta charset="UTF-8">
+<style>
+__FONTFACE__
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: __WIDTH__px; height: __HEIGHT__px; background: #060a14; overflow: hidden; }
+  #canvas { display: block; width: __WIDTH__px; height: __HEIGHT__px; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="__WIDTH__" height="__HEIGHT__"></canvas>
+<script>
+const CFG = __CFG__;
+</script>
+<script>
+__JS__
+</script>
+</body>
+</html>
+"""
+
+_JS = r"""'use strict';
+const W = CFG.width, H = CFG.height, FPS = CFG.fps, DURATION = Math.max(0.5, CFG.duration);
+const TOTAL_FRAMES = Math.max(1, Math.round(DURATION * FPS));
+const IS_VERTICAL = H > W;
+const U = Math.min(W, H) / 1080;
+const D = CFG.data || {};
+const L = CFG.labels || {};
+let TEMPLATE = CFG.template;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const px = n => n * U;
+
+let stockImg = null;
+if (CFG.image) { stockImg = new Image(); stockImg.src = CFG.image; }
+
+const CYAN = '#00f0ff', PINK = '#ff2bd6', GREEN = '#39ff14', YELLOW = '#ffe600', PURPLE = '#a855f7',
+      ORANGE = '#ff6b35', BLUE = '#3b82f6', RED = '#ef4444', BG = '#060a14';
+const BORDER = 'rgba(56,189,248,0.35)', CARD = 'rgba(12,20,40,0.92)', MUTED = '#94a3b8', DIM = '#64748b';
+const PALETTE = [CYAN, PINK, GREEN, YELLOW, PURPLE, ORANGE, BLUE];
+const FONT = "'MGFont','Noto Sans','Segoe UI','Be Vietnam Pro',Roboto,'Helvetica Neue',Arial,sans-serif";
+const MONO = "'JetBrains Mono','Cascadia Mono',Consolas,'DejaVu Sans Mono','Noto Sans Mono',monospace";
+
+// ---------- easing / math ----------
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const progress = (t, a, b) => clamp((t - a) / Math.max(b - a, 1e-6), 0, 1);
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+const easeInOut = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const easeOutExpo = x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x);
+const pop = (t, delay, dur = 0.5) => easeOutExpo(progress(t, delay, delay + dur));
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return h; }
+function fmtNum(n, maxDec = 2) {
+  if (!isFinite(n)) return '0';
+  const neg = n < 0; n = Math.abs(n);
+  const s = Math.abs(n - Math.round(n)) < 1e-9 ? String(Math.round(n)) : n.toFixed(maxDec).replace(/\.?0+$/, '');
+  let [i, d] = s.split('.');
+  i = i.replace(/\B(?=(\d{3})+(?!\d))/g, CFG.lang === 'vi' ? '.' : ',');
+  return (neg ? '-' : '') + i + (d ? (CFG.lang === 'vi' ? ',' : '.') + d : '');
+}
+function phaseOf(t, n) { return clamp((t - 0.6) / Math.max(DURATION - 1.2, 1), 0, 1) * n; }
+
+// ---------- vẽ cơ bản ----------
+function font(size, weight = 'normal', fam = FONT, style = '') {
+  return `${style ? style + ' ' : ''}${weight} ${Math.max(8, Math.round(size))}px ${fam}`;
+}
+function roundRect(x, y, w, h, r) {
+  const k = v => Math.max(0, Math.min(v || 0, Math.abs(w) / 2, Math.abs(h) / 2));
+  const c = Array.isArray(r) ? r.map(k) : [k(r), k(r), k(r), k(r)];
+  const [tl, tr, br, bl] = c.length === 4 ? c : [c[0], c[0], c[0], c[0]];
+  ctx.beginPath();
+  ctx.moveTo(x + tl, y);
+  ctx.arcTo(x + w, y, x + w, y + h, tr);
+  ctx.arcTo(x + w, y + h, x, y + h, br);
+  ctx.arcTo(x, y + h, x, y, bl);
+  ctx.arcTo(x, y, x + w, y, tl);
+  ctx.closePath();
+}
+function panel(x, y, w, h, o = {}) {
+  ctx.save();
+  roundRect(x, y, w, h, o.rr || px(o.r === undefined ? 18 : o.r));
+  ctx.fillStyle = o.fill || CARD; ctx.fill();
+  if (o.stroke !== null) {
+    ctx.strokeStyle = o.stroke || BORDER; ctx.lineWidth = px(o.lw || 2.5);
+    if (o.glow) { ctx.shadowColor = o.gc || o.stroke || CYAN; ctx.shadowBlur = o.glow; }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function text(str, x, y, f, color, align = 'left', base = 'alphabetic') {
+  ctx.font = f; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = base; ctx.fillText(str, x, y);
+}
+function measure(str, f) { ctx.font = f; return ctx.measureText(str).width; }
+function fitText(str, maxW, f) {
+  ctx.font = f; str = String(str);
+  if (ctx.measureText(str).width <= maxW) return str;
+  while (str.length > 1 && ctx.measureText(str + '…').width > maxW) str = str.slice(0, -1);
+  return str + '…';
+}
+function wrapLines(str, maxW, f, maxLines = 99) {
+  ctx.save(); ctx.font = f;
+  const words = String(str).split(/\s+/).filter(Boolean);
+  const lines = []; let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width <= maxW) { line = test; continue; }
+    if (line) lines.push(line);
+    line = w;
+    while (ctx.measureText(line).width > maxW && line.length > 1) {
+      let k = line.length - 1;
+      while (k > 1 && ctx.measureText(line.slice(0, k)).width > maxW) k--;
+      lines.push(line.slice(0, k)); line = line.slice(k);
+    }
+  }
+  if (line) lines.push(line);
+  if (lines.length > maxLines) {
+    lines.length = maxLines;
+    let last = lines[maxLines - 1].replace(/[\s,.;:]+$/, '');
+    while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1);
+    lines[maxLines - 1] = last + '…';
+  }
+  ctx.restore();
+  return lines;
+}
+// Khối chữ nhiều dòng: y = mép trên. Trả về chiều cao.
+function tb(str, x, y, maxW, fs, color, o = {}) {
+  const f = font(fs, o.weight || 'normal', o.fam || FONT, o.style || '');
+  const lh = fs * (o.lh || 1.3);
+  const lines = wrapLines(str, maxW, f, o.maxLines || 99);
+  lines.forEach((ln, i) => text(ln, x, y + (lh - fs) / 2 + fs * 0.88 + i * lh, f, color, o.align || 'left'));
+  return lines.length * lh;
+}
+function tbHeight(str, maxW, fs, o = {}) {
+  return wrapLines(str, maxW, font(fs, o.weight || 'normal', o.fam || FONT, o.style || ''), o.maxLines || 99).length * fs * (o.lh || 1.3);
+}
+function withScale(cx, cy, s, fn) { ctx.save(); ctx.translate(cx, cy); ctx.scale(s, s); ctx.translate(-cx, -cy); fn(); ctx.restore(); }
+function glowStroke(color, blur, lw) { ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.shadowColor = color; ctx.shadowBlur = blur; }
+function icon(name, cx, cy, s, color) {
+  ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = Math.max(2, s * 0.16);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (name === 'check') { ctx.beginPath(); ctx.moveTo(cx - s * .5, cy); ctx.lineTo(cx - s * .15, cy + s * .35); ctx.lineTo(cx + s * .5, cy - s * .35); ctx.stroke(); }
+  else if (name === 'cross') { ctx.beginPath(); ctx.moveTo(cx - s * .4, cy - s * .4); ctx.lineTo(cx + s * .4, cy + s * .4); ctx.moveTo(cx + s * .4, cy - s * .4); ctx.lineTo(cx - s * .4, cy + s * .4); ctx.stroke(); }
+  else if (name === 'bolt') { ctx.beginPath(); ctx.moveTo(cx + s * .1, cy - s * .55); ctx.lineTo(cx - s * .35, cy + s * .1); ctx.lineTo(cx, cy + s * .1); ctx.lineTo(cx - s * .1, cy + s * .55); ctx.lineTo(cx + s * .35, cy - s * .1); ctx.lineTo(cx, cy - s * .1); ctx.closePath(); ctx.fill(); }
+  else if (name === 'warn') { ctx.beginPath(); ctx.moveTo(cx, cy - s * .5); ctx.lineTo(cx + s * .55, cy + s * .45); ctx.lineTo(cx - s * .55, cy + s * .45); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - s * .12); ctx.lineTo(cx, cy + s * .15); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy + s * .3, s * .04, 0, 7); ctx.fill(); }
+  else if (name === 'bulb') { ctx.beginPath(); ctx.arc(cx, cy - s * .1, s * .38, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - s * .18, cy + s * .42); ctx.lineTo(cx + s * .18, cy + s * .42); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.arc(cx, cy, s * .25, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+// ---------- nền / header / bố cục ----------
+function drawBackground(t) {
+  ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createRadialGradient(W * 0.3 + Math.sin(t * 0.5) * px(50), H * 0.4, px(80), W / 2, H / 2, W * 0.85);
+  g.addColorStop(0, 'rgba(14,165,233,0.10)'); g.addColorStop(0.5, 'rgba(168,85,247,0.06)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const gs = px(IS_VERTICAL ? 50 : 65);
+  ctx.fillStyle = 'rgba(56,189,248,0.07)'; ctx.beginPath();
+  for (let x = gs / 2; x < W; x += gs) for (let y = gs / 2; y < H; y += gs) { ctx.moveTo(x + 1.2, y); ctx.arc(x, y, 1.2, 0, Math.PI * 2); }
+  ctx.fill();
+}
+let HL = null;
+function headerLayout() {
+  if (HL) return HL;
+  const mx = px(72), top = px(IS_VERTICAL ? 96 : 48), tSize = px(IS_VERTICAL ? 52 : 58);
+  const maxW = W - mx * 2 - px(26);
+  const tLines = wrapLines(CFG.title, maxW, font(tSize, 'bold'), 2);
+  const lh = tSize * 1.2;
+  const sSize = px(IS_VERTICAL ? 26 : 28);
+  const sLines = CFG.subtitle ? wrapLines(CFG.subtitle, maxW, font(sSize), 2) : [];
+  const sLh = sSize * 1.35;
+  const bottom = top + tLines.length * lh + (sLines.length ? px(10) + sLines.length * sLh : 0);
+  HL = { mx, top, tSize, tLines, lh, sSize, sLines, sLh, bottom };
+  return HL;
+}
+function drawHeader(t) {
+  const h = headerLayout();
+  const enter = easeOutExpo(clamp(t / 0.7, 0, 1));
+  ctx.save(); ctx.globalAlpha = enter; ctx.translate(0, (1 - enter) * -px(24));
+  ctx.save(); ctx.fillStyle = CYAN; ctx.shadowColor = CYAN; ctx.shadowBlur = px(16);
+  ctx.fillRect(h.mx, h.top + px(4), px(8), h.tLines.length * h.lh - px(8)); ctx.restore();
+  h.tLines.forEach((ln, i) => text(ln, h.mx + px(26), h.top + h.tSize * 0.95 + i * h.lh, font(h.tSize, 'bold'), '#f1f5f9'));
+  const sy = h.top + h.tLines.length * h.lh + px(10);
+  h.sLines.forEach((ln, i) => text(ln, h.mx + px(26), sy + h.sSize * 1.0 + i * h.sLh, font(h.sSize), MUTED));
+  ctx.restore();
+  return h.bottom;
+}
+function contentBox(bottom) {
+  const mx = px(72), y = bottom + px(36), pad = px(IS_VERTICAL ? 230 : 70);
+  return { x: mx, y, w: W - 2 * mx, h: Math.max(px(200), H - y - pad) };
+}
+function drawBadge(box) {
+  const f = font(px(20), 'bold', MONO), tw = measure(L.illustrative, f) + px(28);
+  panel(box.x + box.w - tw, box.y - px(34), tw, px(30), { r: 15, fill: 'rgba(255,230,0,0.10)', stroke: YELLOW, lw: 1.5 });
+  text(L.illustrative, box.x + box.w - tw / 2, box.y - px(13), f, YELLOW, 'center');
+}
+
+// ---------- Người que ----------
+function drawStickman(x, groundY, sc, pose, t, color) {
+  const headR = 24, spine = 65;
+  let tilt = 0, la = 0.5, ra = -0.5, lf = 0.8, rf = -0.8, ll = 0.25, rl = -0.25, jump = 0;
+  const bob = Math.sin(t * 5) * 3;
+  const oy = groundY - 152 * sc;
+  ctx.save(); ctx.translate(x, oy); ctx.scale(sc, sc);
+  // bóng đổ
+  ctx.save(); ctx.fillStyle = 'rgba(0,240,255,0.16)'; ctx.beginPath(); ctx.ellipse(0, 152, 34, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  if (pose === 'confused') {
+    tilt = 0.22 + Math.sin(t * 3) * 0.08; ra = -2.2; rf = -1.4 + Math.sin(t * 8) * 0.28; la = 0.6; lf = -1.1;
+    for (let q = 0; q < 3; q++) {
+      const p = (t * 0.5 + q * 0.33) % 1, qa = Math.sin(p * Math.PI);
+      ctx.save(); ctx.fillStyle = `rgba(255,230,0,${qa})`; ctx.font = font(26, 'bold'); ctx.textAlign = 'center';
+      ctx.shadowColor = YELLOW; ctx.shadowBlur = 14; ctx.fillText('?', (q - 1) * 24 + Math.sin(t * 3 + q) * 12, -headR - 22 - p * 55); ctx.restore();
+    }
+  } else if (pose === 'idea') {
+    jump = -Math.abs(Math.sin(t * 6)) * 14; tilt = -0.05; la = -2.3; lf = -0.3; ra = 2.3; rf = 0.3;
+    ctx.save(); ctx.translate(0, -headR - 50 + jump + bob);
+    const rays = 8, rl2 = 16 + Math.sin(t * 8) * 6;
+    ctx.strokeStyle = YELLOW; ctx.lineWidth = 2.5; ctx.shadowColor = YELLOW; ctx.shadowBlur = 18;
+    for (let i = 0; i < rays; i++) { const a = i * Math.PI * 2 / rays + t * 0.6; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 20, Math.sin(a) * 20); ctx.lineTo(Math.cos(a) * (20 + rl2), Math.sin(a) * (20 + rl2)); ctx.stroke(); }
+    ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, -2, 6, 0, 7); ctx.fill(); ctx.restore();
+  }
+  const cy = bob + jump;
+  ctx.save(); ctx.translate(0, cy); ctx.rotate(tilt);
+  ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.fillStyle = BG; ctx.shadowColor = color; ctx.shadowBlur = 16;
+  ctx.beginPath(); ctx.arc(0, 0, headR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = YELLOW; ctx.shadowColor = YELLOW; ctx.shadowBlur = 10; ctx.fillRect(-12, -4, 24, 7); ctx.restore();
+  const neck = cy + headR, hip = neck + spine, sh = neck + 14;
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 4.5; ctx.lineCap = 'round'; ctx.shadowColor = color; ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.moveTo(0, neck); ctx.lineTo(0, hip); ctx.stroke();
+  const limb = (a, f, len1, len2, x0, y0) => { const ex = x0 + Math.sin(a) * len1, ey = y0 + Math.cos(a) * len1;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(ex, ey); ctx.lineTo(ex + Math.sin(a + f) * len2, ey + Math.cos(a + f) * len2); ctx.stroke(); };
+  limb(la, lf, 30, 26, 0, sh); limb(ra, rf, 30, 26, 0, sh);
+  [ll, rl].forEach(a => { const kx = Math.sin(a) * 34, ky = hip + Math.cos(a) * 34; ctx.beginPath(); ctx.moveTo(0, hip); ctx.lineTo(kx, ky); ctx.lineTo(kx, ky + 30); ctx.stroke(); });
+  ctx.restore(); ctx.restore();
+}
+
+// ================= TEMPLATES (t, box) =================
+const TEMPLATES = {};
+
+// --- architecture: các bước tuần tự (fallback chung) ---
+TEMPLATES.architecture = function (t, box) {
+  const steps = (D.steps || []).slice(0, 5), n = steps.length; if (!n) return;
+  const ph = phaseOf(t, n), active = Math.min(n - 1, Math.floor(ph));
+  const gap = px(28), horiz = !IS_VERTICAL && n > 1;
+  const fs = px(n <= 3 ? 32 : 28);
+  let cw, ch, pos;
+  if (horiz) {
+    cw = Math.min(px(360), (box.w - gap * (n - 1)) / n); ch = Math.min(box.h * 0.8, px(320));
+    const x0 = box.x + (box.w - (n * cw + gap * (n - 1))) / 2, y0 = box.y + (box.h - ch) / 2;
+    pos = i => ({ x: x0 + i * (cw + gap), y: y0 });
+  } else {
+    cw = Math.min(box.w, px(900)); ch = Math.min(px(200), (box.h - gap * (n - 1)) / n);
+    const y0 = box.y + (box.h - (n * ch + gap * (n - 1))) / 2, x0 = box.x + (box.w - cw) / 2;
+    pos = i => ({ x: x0, y: y0 + i * (ch + gap) });
+  }
+  if (n > 1) { // đường dẫn + gói tin
+    const a = pos(0), b = pos(n - 1);
+    const ax = horiz ? a.x + cw / 2 : a.x + cw / 2, ay = horiz ? a.y + ch / 2 : a.y + ch / 2;
+    const bx = horiz ? b.x + cw / 2 : b.x + cw / 2, by = horiz ? b.y + ch / 2 : b.y + ch / 2;
+    ctx.save(); ctx.strokeStyle = 'rgba(0,240,255,0.30)'; ctx.lineWidth = px(4); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore();
+    const f = clamp((ph - 0.5) / (n - 1), 0, 1), px0 = lerp(ax, bx, f), py0 = lerp(ay, by, f);
+    ctx.save(); ctx.fillStyle = GREEN; ctx.shadowColor = GREEN; ctx.shadowBlur = px(22); ctx.beginPath(); ctx.arc(px0, py0, px(10), 0, 7); ctx.fill(); ctx.restore();
+  }
+  steps.forEach((s, i) => {
+    const p = pos(i), e = pop(t, i * 0.2, 0.5), on = i === active;
+    withScale(p.x + cw / 2, p.y + ch / 2, e, () => {
+      ctx.globalAlpha = e;
+      panel(p.x, p.y, cw, ch, { stroke: on ? PINK : BORDER, glow: on ? px(22) : px(8), gc: on ? PINK : CYAN });
+      text('0' + (i + 1), p.x + px(22), p.y + px(36), font(px(22), 'bold', MONO), on ? PINK : CYAN);
+      const th = tbHeight(s, cw - px(44), fs, { weight: 'bold', maxLines: 5 });
+      tb(s, p.x + px(22), p.y + px(48) + Math.max(0, (ch - px(60) - th) / 2), cw - px(44), fs, '#f1f5f9', { weight: 'bold', maxLines: 5 });
+    });
+  });
+};
+
+// --- conclusion: thẻ ghi nhớ từ bullets ---
+TEMPLATES.conclusion = function (t, box) {
+  const items = (D.takeaways || []).slice(0, 4), n = items.length; if (!n) return;
+  const gap = px(22), cw = Math.min(box.w, px(1300)), x0 = box.x + (box.w - cw) / 2;
+  const ch = Math.min(px(190), (box.h - gap * (n - 1)) / n);
+  const y0 = box.y + (box.h - (n * ch + gap * (n - 1))) / 2, step = Math.min(3.2, DURATION * 0.7 / n);
+  const colors = [GREEN, ORANGE, CYAN, PINK];
+  items.forEach((it, i) => {
+    const e = pop(t, 0.8 + i * step, 0.6), col = colors[i % 4], y = y0 + i * (ch + gap);
+    if (e <= 0) return;
+    withScale(x0 + cw / 2, y + ch / 2, e, () => {
+      ctx.globalAlpha = e;
+      panel(x0, y, cw, ch, { fill: 'rgba(10,18,36,0.94)', stroke: col, glow: px(14) });
+      const tag = Math.min(px(64), ch - px(32));
+      panel(x0 + px(18), y + (ch - tag) / 2, tag, tag, { r: 12, fill: col, stroke: null });
+      text(String(i + 1).padStart(2, '0'), x0 + px(18) + tag / 2, y + ch / 2 + px(9), font(px(26), 'bold', MONO), BG, 'center');
+      const tx = x0 + px(18) + tag + px(24), tw = cw - (tx - x0) - px(24);
+      const m = it.match(/^(.{2,40}?):\s+(.+)$/);
+      if (m) {
+        const hh = tbHeight(m[1], tw, px(30), { weight: 'bold', maxLines: 1 }), bh = tbHeight(m[2], tw, px(27), { maxLines: 2 });
+        const top = y + (ch - hh - bh) / 2;
+        tb(m[1], tx, top, tw, px(30), col, { weight: 'bold', maxLines: 1 });
+        tb(m[2], tx, top + hh, tw, px(27), '#cbd5e1', { maxLines: 2 });
+      } else {
+        const fs = px(32), hh = tbHeight(it, tw, fs, { weight: 'bold', maxLines: 3 });
+        tb(it, tx, y + (ch - hh) / 2, tw, fs, '#f1f5f9', { weight: 'bold', maxLines: 3 });
+      }
+    });
+  });
+};
+
+// --- quote_card ---
+TEMPLATES.quote_card = function (t, box) {
+  const q = D.quote || ''; if (!q) return;
+  const cw = Math.min(box.w, px(1200)), ch = Math.min(box.h, px(600));
+  const x = box.x + (box.w - cw) / 2, y = box.y + (box.h - ch) / 2, cx = x + cw / 2, cy = y + ch / 2;
+  const e = pop(t, 0, 0.7);
+  let fs = px(48);
+  while (fs > px(26) && tbHeight(q, cw - px(200), fs, { weight: 'bold', style: 'italic' }) > ch - px(230)) fs -= px(2);
+  withScale(cx, cy, e, () => {
+    ctx.globalAlpha = e;
+    panel(x, y, cw, ch, { r: 22, fill: 'rgba(18,12,38,0.95)', stroke: PURPLE, lw: 3, glow: px(28 + Math.sin(t * 3) * 8) });
+    const tag = L.quote_tag, tf = font(px(20), 'bold'), tw = measure(tag, tf) + px(48);
+    panel(cx - tw / 2, y - px(20), tw, px(40), { r: 20, fill: 'rgba(168,85,247,0.25)', stroke: PURPLE, lw: 1.5 });
+    text(tag, cx, y + px(7), tf, '#e9d5ff', 'center');
+    text('\u201C', x + px(52), y + px(150), font(px(150), 'bold', 'Georgia, serif'), 'rgba(168,85,247,0.35)');
+    const th = tbHeight(q, cw - px(200), fs, { weight: 'bold', style: 'italic' });
+    tb(q, cx, y + px(70) + (ch - px(100) - th) / 2, cw - px(200), fs, '#f8fafc', { weight: 'bold', style: 'italic', align: 'center' });
+  });
+};
+
+// --- terminal ---
+const KEYWORDS = new Set(['def', 'return', 'class', 'if', 'else', 'elif', 'for', 'while', 'in', 'not', 'and', 'or', 'import', 'from', 'break',
+  'continue', 'lambda', 'None', 'True', 'False', 'FOR', 'WHILE', 'IF', 'ELSE', 'THEN', 'RETURN', 'FUNCTION', 'END', 'DO', 'mỗi', 'nếu', 'trả']);
+function tokenize(line) {
+  const out = [], re = /(#.*$|\/\/.*$)|("[^"]*"|'[^']*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_\u00C0-\u1EF9][\w\u00C0-\u1EF9]*)|(\s+|.)/gu;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    if (m[1]) out.push([m[0], '#6b7a90']); else if (m[2]) out.push([m[0], YELLOW]); else if (m[3]) out.push([m[0], ORANGE]);
+    else if (m[4]) out.push([m[0], KEYWORDS.has(m[0]) ? PINK : '#e2e8f0']); else out.push([m[0], MUTED]);
+  }
+  return out;
+}
+TEMPLATES.terminal = function (t, box) {
+  const cd = D.code || { lines: [], lang: '' }; const lines0 = cd.lines || []; if (!lines0.length) return;
+  const tw = Math.min(box.w, px(1500)), x = box.x + (box.w - tw) / 2;
+  const headH = px(56), lh = Math.min(px(54), (box.h - headH - px(40)) / lines0.length), fs = lh * 0.55;
+  const th = Math.min(box.h, headH + px(40) + lh * lines0.length), y = box.y + Math.max(0, (box.h - th) / 3);
+  const e = pop(t, 0, 0.6), mf = font(fs, 'bold', MONO), gut = px(70);
+  ctx.save(); ctx.globalAlpha = e;
+  panel(x, y, tw, th, { r: 18, fill: 'rgba(6,10,22,0.97)', stroke: 'rgba(0,240,255,0.40)', glow: px(24) });
+  roundRect(x, y, tw, headH, [px(18), px(18), 0, 0]); ctx.fillStyle = 'rgba(20,30,50,0.85)'; ctx.fill();
+  ['#ff5f56', '#ffbd2e', '#27c93f'].forEach((c, i) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + px(28 + i * 28), y + headH / 2, px(9), 0, 7); ctx.fill(); });
+  text(cd.lang || 'pseudocode', x + tw / 2, y + headH / 2 + px(7), font(px(20), 'bold', MONO), DIM, 'center');
+  ctx.font = mf; const cw1 = ctx.measureText('M').width, maxCh = Math.floor((tw - gut - px(40)) / cw1);
+  const lines = lines0.map(l => l.length > maxCh ? l.slice(0, maxCh - 1) + '…' : l);
+  const total = lines.reduce((a, l) => a + l.length + 1, 0);
+  const cps = clamp(total / (DURATION * 0.6), 18, 90);
+  let shown = Math.floor(Math.max(0, t - 0.5) * cps), lastY = y + headH + px(36), lastX = x + gut;
+  for (let i = 0; i < lines.length; i++) {
+    const ly = y + headH + px(36) + i * lh;
+    if (shown <= 0 && i > 0) break;
+    text(String(i + 1), x + px(24), ly, mf, '#475569');
+    let cx = x + gut, left = shown;
+    for (const [seg, col] of tokenize(lines[i])) {
+      if (left <= 0) break;
+      const s = seg.length > left ? seg.slice(0, left) : seg;
+      text(s, cx, ly, mf, col); cx += measure(s, mf); left -= s.length;
+    }
+    shown -= lines[i].length + 1; lastY = ly; lastX = cx;
+  }
+  if (Math.floor(t * 2) % 2 === 0) { ctx.fillStyle = CYAN; ctx.fillRect(lastX + px(4), lastY - fs * 0.9, px(12), fs * 1.1); }
+  ctx.restore();
+};
+
+// --- hai khung song song / chồng (dùng cho diff & comparison) ---
+function twoPanels(box) {
+  const gap = px(IS_VERTICAL ? 28 : 40);
+  if (IS_VERTICAL) { const h = Math.min(px(560), (box.h - gap) / 2); const y0 = box.y + (box.h - 2 * h - gap) / 2;
+    return [{ x: box.x, y: y0, w: box.w, h }, { x: box.x, y: y0 + h + gap, w: box.w, h }]; }
+  const w = (box.w - gap) / 2, h = Math.min(box.h, px(640)), y0 = box.y + (box.h - h) / 2;
+  return [{ x: box.x, y: y0, w, h }, { x: box.x + w + gap, y: y0, w, h }];
+}
+TEMPLATES.diff_view = function (t, box) {
+  const df = D.diff || { old: [], new: [] }, ps = twoPanels(box), sets = [df.old, df.new], cols = [RED, GREEN];
+  const titles = [L.old, L.new], maxN = Math.max(1, sets[0].length, sets[1].length);
+  sets.forEach((lines, k) => {
+    const p = ps[k], e = pop(t, k * 0.25, 0.5), col = cols[k], hh = px(54);
+    const lh = Math.min(px(48), (p.h - hh - px(24)) / maxN), fs = lh * 0.56, f = font(fs, 'bold', MONO);
+    ctx.save(); ctx.globalAlpha = e;
+    panel(p.x, p.y, p.w, p.h, { fill: k ? 'rgba(16,50,25,0.9)' : 'rgba(50,10,10,0.9)', stroke: col });
+    roundRect(p.x, p.y, p.w, hh, [px(18), px(18), 0, 0]); ctx.fillStyle = k ? 'rgba(57,255,20,0.15)' : 'rgba(239,68,68,0.15)'; ctx.fill();
+    text(titles[k], p.x + p.w / 2, p.y + hh / 2 + px(7), font(px(20), 'bold', MONO), MUTED, 'center');
+    const cnt = Math.min(lines.length, Math.floor(progress(t, 0.5 + k * 0.4, Math.min(DURATION * 0.6, 5)) * (lines.length + 1)));
+    lines.slice(0, cnt).forEach((ln, i) => {
+      const ly = p.y + hh + px(12) + i * lh;
+      ctx.fillStyle = k ? 'rgba(57,255,20,0.08)' : 'rgba(239,68,68,0.08)'; ctx.fillRect(p.x + px(6), ly, p.w - px(12), lh - px(4));
+      text(k ? '+' : '-', p.x + px(20), ly + lh * 0.68, f, col);
+      text(fitText(ln, p.w - px(80), f), p.x + px(52), ly + lh * 0.68, f, '#e2e8f0');
+    });
+    ctx.restore();
+  });
+};
+TEMPLATES.comparison = function (t, box) {
+  const c = D.cmp; if (!c) return;
+  const ps = twoPanels(box), sides = [c.left, c.right], cols = [PINK, CYAN];
+  sides.forEach((s, k) => {
+    const p = ps[k], e = pop(t, k * 0.3, 0.6), col = cols[k];
+    withScale(p.x + p.w / 2, p.y + p.h / 2, e, () => {
+      ctx.globalAlpha = e;
+      panel(p.x, p.y, p.w, p.h, { fill: 'rgba(12,20,40,0.94)', stroke: col, glow: px(18) });
+      const ty = p.y + px(26), th = tb(s.title, p.x + px(28), ty, p.w - px(56), px(36), col, { weight: 'bold', maxLines: 2 });
+      const avail = p.h - th - px(70), rows = s.rows.slice(0, 4), rowH = rows.length ? Math.min(px(96), avail / rows.length) : 0;
+      rows.forEach((r, i) => {
+        const re = pop(t, 0.8 + k * 0.3 + i * 0.35, 0.4); if (re <= 0) return;
+        ctx.save(); ctx.globalAlpha = e * re;
+        const ry = ty + th + px(22) + i * rowH; icon('dot', p.x + px(44), ry + rowH * 0.35, px(26), col);
+        tb(r, p.x + px(70), ry, p.w - px(100), px(28), '#e2e8f0', { maxLines: 2 }); ctx.restore();
+      });
+    });
+  });
+  const cx = box.x + box.w / 2, cy = IS_VERTICAL ? (ps[0].y + ps[0].h + ps[1].y) / 2 : ps[0].y + ps[0].h / 2;
+  const e = pop(t, 0.5, 0.5);
+  withScale(cx, cy, e, () => { panel(cx - px(34), cy - px(34), px(68), px(68), { rr: px(34), fill: BG, stroke: YELLOW, glow: px(14) }); text('VS', cx, cy + px(9), font(px(26), 'bold', MONO), YELLOW, 'center'); });
+};
+
+// --- bar_benchmark: thanh ngang, số liệu thật ---
+TEMPLATES.bar_benchmark = function (t, box) {
+  const b = D.bars; if (!b) return;
+  const n = b.values.length, maxV = Math.max(...b.values.map(Math.abs), 1e-9);
+  const labelW = Math.min(px(340), box.w * 0.32), barX = box.x + labelW + px(20), vW = px(210), barMax = box.w - labelW - px(20) - vW;
+  const rowH = Math.min(px(100), (box.h - px(110)) / n), barH = rowH * 0.56, y0 = box.y + px(10);
+  ctx.save(); ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = px(2); ctx.beginPath(); ctx.moveTo(barX, y0); ctx.lineTo(barX, y0 + n * rowH); ctx.stroke(); ctx.restore();
+  b.values.forEach((v, i) => {
+    const col = PALETTE[i % PALETTE.length], g = easeOutExpo(progress(t, 0.3 + i * 0.25, 1.3 + i * 0.25)), y = y0 + i * rowH + (rowH - barH) / 2;
+    const w = Math.max(px(4), Math.abs(v) / maxV * barMax * g);
+    const lh = tbHeight(b.labels[i], labelW, px(26), { weight: 'bold', maxLines: 2 });
+    tb(b.labels[i], barX - px(20) - labelW, y + (barH - lh) / 2, labelW, px(26), '#cbd5e1', { weight: 'bold', maxLines: 2, align: 'right' });
+    ctx.save(); roundRect(barX, y, w, barH, [0, px(10), px(10), 0]);
+    const gr = ctx.createLinearGradient(barX, 0, barX + w, 0); gr.addColorStop(0, col + '55'); gr.addColorStop(1, col);
+    ctx.fillStyle = gr; ctx.shadowColor = col; ctx.shadowBlur = px(14); ctx.fill(); ctx.restore();
+    text(fmtNum(v * g) + (b.unit ? ' ' + b.unit : ''), barX + w + px(14), y + barH / 2 + px(9), font(px(26), 'bold', MONO), col);
+  });
+  const posVals = b.values.filter(v => v > 0);
+  const mn = posVals.length ? Math.min(...posVals) : 0;
+  const mx = Math.max(...b.values);
+  const ratio = mn > 0 ? mx / mn : 0;
+  const all = pop(t, 0.3 + n * 0.25 + 1.0, 0.6);
+  if (n >= 2 && isFinite(ratio) && ratio >= 1.5 && all > 0) {
+    const msg = L.ratio.replace('{x}', fmtNum(ratio, 1)), f = font(px(28), 'bold'), w = measure(msg, f) + px(60), cx = box.x + box.w / 2, y = y0 + n * rowH + px(24);
+    withScale(cx, y + px(26), all, () => { panel(cx - w / 2, y, w, px(52), { rr: px(26), fill: 'rgba(57,255,20,0.12)', stroke: GREEN, glow: px(16) }); text(msg, cx, y + px(35), f, GREEN, 'center'); });
+  }
+};
+
+// --- github_stats: đường tăng trưởng từ chart line ---
+TEMPLATES.github_stats = function (t, box) {
+  const s = D.series; if (!s) return;
+  const n = s.values.length, mx = Math.max(...s.values, 1e-9) * 1.1, mn0 = Math.min(0, ...s.values);
+  const x0 = box.x + px(110), cw = box.w - px(130), top = box.y + px(190), ch = Math.min(box.h - px(270), px(520)), base = top + ch;
+  const len = easeInOut(progress(t, 0.4, 0.4 + Math.min(DURATION * 0.7, 8)));
+  const pos = len * (n - 1), i0 = Math.min(n - 2, Math.floor(pos)), cur = lerp(s.values[i0], s.values[i0 + 1], pos - i0);
+  const X = i => x0 + i / (n - 1) * cw, Y = v => base - (v - mn0) / (mx - mn0 || 1) * ch;
+  ctx.save(); ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = px(2); ctx.beginPath(); ctx.moveTo(x0, top); ctx.lineTo(x0, base); ctx.lineTo(x0 + cw, base); ctx.stroke();
+  [0, 0.5, 1].forEach(k => { const v = mn0 + (mx - mn0) * k, y = Y(v); ctx.strokeStyle = 'rgba(100,116,139,0.15)'; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + cw, y); ctx.stroke();
+    text(fmtNum(v, 1), x0 - px(12), y + px(7), font(px(20), 'normal', MONO), DIM, 'right'); }); ctx.restore();
+  const pts = []; for (let i = 0; i <= i0; i++) pts.push([X(i), Y(s.values[i])]); pts.push([X(pos), Y(cur)]);
+  ctx.save(); const gr = ctx.createLinearGradient(0, top, 0, base); gr.addColorStop(0, 'rgba(255,230,0,0.28)'); gr.addColorStop(1, 'rgba(255,230,0,0)');
+  ctx.beginPath(); ctx.moveTo(pts[0][0], base); pts.forEach(p => ctx.lineTo(p[0], p[1])); ctx.lineTo(pts[pts.length - 1][0], base); ctx.closePath(); ctx.fillStyle = gr; ctx.fill();
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); glowStroke(YELLOW, px(14), px(4)); ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore();
+  for (let i = 0; i <= i0; i++) { icon('dot', X(i), Y(s.values[i]), px(20), YELLOW);
+    if (n <= 7 || i === 0 || i === n - 1) text(fitText(s.labels[i], cw / Math.min(n, 7), font(px(20))), X(i), base + px(34), font(px(20)), MUTED, 'center'); }
+  ctx.save(); ctx.shadowColor = YELLOW; ctx.shadowBlur = px(26);
+  text(fmtNum(cur) + (s.unit ? ' ' + s.unit : ''), box.x + box.w / 2, box.y + px(100), font(px(IS_VERTICAL ? 84 : 96), 'bold', MONO), YELLOW, 'center'); ctx.restore();
+  text(s.labels[Math.min(n - 1, Math.round(pos))], box.x + box.w / 2, box.y + px(150), font(px(28), 'bold'), MUTED, 'center');
+};
+
+// --- hud: bộ đếm lớn ---
+TEMPLATES.hud = function (t, box) {
+  const h = D.hud; if (!h) return;
+  const cx = box.x + box.w / 2, cy = box.y + box.h * (h.metrics.length ? 0.38 : 0.45), r = px(IS_VERTICAL ? 230 : 210);
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 1.1); ctx.strokeStyle = 'rgba(0,240,255,0.15)'; ctx.lineWidth = px(2);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.stroke();
+  [CYAN, PINK].forEach((c, i) => { glowStroke(c, px(12), px(5)); ctx.beginPath(); ctx.arc(0, 0, r + px(24), i * Math.PI, i * Math.PI + Math.PI * 0.65); ctx.stroke(); }); ctx.restore();
+  const p = easeOut(progress(t, 0.3, 0.3 + Math.min(DURATION * 0.7, 6))), val = h.value * p;
+  let fs = px(110); const full = fmtNum(h.value); while (fs > px(40) && measure(full, font(fs, 'bold', MONO)) > r * 1.7) fs -= px(4);
+  ctx.save(); ctx.shadowColor = CYAN; ctx.shadowBlur = px(28); text(fmtNum(val), cx, cy + fs * 0.3, font(fs, 'bold', MONO), '#f8fafc', 'center'); ctx.restore();
+  if (h.unit) text(h.unit.toUpperCase(), cx, cy + fs * 0.3 + px(52), font(px(30), 'bold'), MUTED, 'center');
+  const m = h.metrics, mw = Math.min(px(300), (box.w - px(30) * (m.length - 1)) / Math.max(m.length, 1)), tot = m.length * mw + (m.length - 1) * px(30);
+  m.forEach((it, i) => {
+    const e = pop(t, 0.6 + i * 0.2, 0.5), x = cx - tot / 2 + i * (mw + px(30)), y = box.y + box.h * 0.74, col = [GREEN, YELLOW, CYAN][i % 3];
+    withScale(x + mw / 2, y + px(50), e, () => { ctx.globalAlpha = e; panel(x, y, mw, px(100), { stroke: col, glow: px(10) });
+      text(fitText(it.value, mw - px(24), font(px(32), 'bold', MONO)), x + mw / 2, y + px(48), font(px(32), 'bold', MONO), col, 'center');
+      text(fitText(it.label, mw - px(24), font(px(22))), x + mw / 2, y + px(82), font(px(22)), DIM, 'center'); });
+  });
+};
+
+// --- scheduler: interval scheduling (lịch + phân phòng tham lam) ---
+function overlapBands(ivs) {
+  const ev = []; ivs.forEach((a, i) => ivs.forEach((b, j) => { if (j > i) { const s = Math.max(a.start, b.start), e = Math.min(a.end, b.end); if (e > s) ev.push([s, e]); } }));
+  ev.sort((a, b) => a[0] - b[0]); const out = [];
+  ev.forEach(([s, e]) => { const l = out[out.length - 1]; if (l && s <= l[1]) l[1] = Math.max(l[1], e); else out.push([s, e]); });
+  return out;
+}
+TEMPLATES.scheduler = function (t, box) {
+  const ivs = D.intervals || []; if (!ivs.length) return;
+  const n = ivs.length, rooms = D.rooms, tsw = DURATION > 5 ? clamp(DURATION * 0.5, 2.5, DURATION - 2.5) : DURATION * 0.5;
+  const pr = easeInOut(progress(t, tsw, tsw + 0.9));
+  const step = [15, 30, 60, 120, 240].find(s => (Math.max(...ivs.map(i => i.end)) - Math.min(...ivs.map(i => i.start))) / s <= 8) || 240;
+  const t0 = Math.floor(Math.min(...ivs.map(i => i.start)) / step) * step, t1 = Math.ceil(Math.max(...ivs.map(i => i.end)) / step) * step;
+  const ax0 = box.x + px(170), ax1 = box.x + box.w - px(20), X = m => ax0 + (m - t0) / (t1 - t0 || 1) * (ax1 - ax0);
+  const axisY = box.y + px(36), top = axisY + px(24), areaH = box.h - px(130), rows = Math.max(n, rooms), rowH = Math.min(px(92), areaH / rows), barH = rowH * 0.78;
+  const fmtT = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = px(1.5); ctx.beginPath(); ctx.moveTo(ax0, axisY); ctx.lineTo(ax1, axisY); ctx.stroke();
+  for (let m = t0; m <= t1; m += step) { ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.moveTo(X(m), axisY); ctx.lineTo(X(m), top + rows * rowH); ctx.stroke();
+    text(fmtT(m), X(m), axisY - px(10), font(px(20), 'normal', MONO), DIM, 'center'); } ctx.restore();
+  const bandA = (1 - pr) * pop(t, 0.8 + n * 0.15, 0.5);
+  if (bandA > 0.01) overlapBands(ivs).forEach(([s, e]) => { ctx.save(); ctx.globalAlpha = bandA * (0.4 + 0.1 * Math.sin(t * 6)); ctx.fillStyle = RED; ctx.fillRect(X(s), top - px(6), X(e) - X(s), n * rowH + px(12)); ctx.restore();
+    ctx.save(); ctx.globalAlpha = bandA; icon('warn', (X(s) + X(e)) / 2, top - px(22), px(24), YELLOW); ctx.restore(); });
+  if (pr > 0) for (let r = 0; r < rooms; r++) { ctx.save(); ctx.globalAlpha = pr; text(`${L.room} ${r + 1}`, box.x + px(10), top + r * rowH + rowH / 2 + px(8), font(px(24), 'bold'), MUTED); ctx.restore(); }
+  ivs.forEach((iv, i) => {
+    const e = pop(t, 0.2 + i * 0.15, 0.5), y = lerp(top + i * rowH, top + iv.room * rowH, pr) + (rowH - barH) / 2, x = X(iv.start), w = X(iv.end) - X(iv.start);
+    const col = pr > 0.5 ? GREEN : CYAN; ctx.save(); ctx.globalAlpha = e; ctx.translate(lerp(-px(30), 0, e), 0);
+    panel(x, y, w, barH, { r: 10, fill: pr > 0.5 ? 'rgba(57,255,20,0.2)' : 'rgba(0,240,255,0.2)', stroke: col, glow: px(10) });
+    const f = font(px(22), 'bold'); text(fitText(iv.label, w - px(20), f), x + px(12), y + barH * 0.46, f, '#f1f5f9');
+    const tf = font(px(17), 'normal', MONO), ts = fmtT(iv.start) + '-' + fmtT(iv.end); if (measure(ts, tf) < w - px(20)) text(ts, x + px(12), y + barH * 0.82, tf, MUTED); ctx.restore();
+  });
+  const done = pop(t, tsw + 0.9, 0.6);
+  if (done > 0) { const msg = L.rooms_needed.replace('{n}', rooms), f = font(px(30), 'bold'), w = measure(msg, f) + px(64), cx = box.x + box.w / 2, y = box.y + box.h - px(60);
+    withScale(cx, y + px(26), done, () => { panel(cx - w / 2, y, w, px(52), { rr: px(26), fill: 'rgba(57,255,20,0.12)', stroke: GREEN, glow: px(16) }); text(msg, cx, y + px(36), f, GREEN, 'center'); }); }
+};
+
+// --- stickman: vấn đề -> giải pháp từ bullets/narration ---
+TEMPLATES.stickman = function (t, box) {
+  const s = D.story; if (!s) return;
+  const tsw = DURATION > 5 ? clamp(DURATION * 0.55, 2.5, DURATION - 2.5) : DURATION * 0.55, resolved = t >= tsw && s.solution.length > 0;
+  const col = resolved ? GREEN : CYAN, sc = (IS_VERTICAL ? 1.5 : 1.9) * U;
+  let pxL, pyT, pw, ph, gy, fx;
+  if (IS_VERTICAL) { fx = box.x + box.w / 2; gy = box.y + px(300); pxL = box.x; pyT = gy + px(40); pw = box.w; ph = box.h - (pyT - box.y); }
+  else { fx = box.x + box.w * 0.13; gy = box.y + box.h * 0.8; pxL = box.x + box.w * 0.28; pyT = box.y; pw = box.w * 0.72; ph = box.h; }
+  drawStickman(fx, gy, sc, resolved ? 'idea' : 'confused', t, col);
+  const items = resolved ? s.solution : s.problem, th = resolved ? GREEN : RED, title = resolved ? L.solution : L.problem;
+  const flash = resolved ? 1 - progress(t, tsw, tsw + 0.5) : 0;
+  panel(pxL, pyT, pw, ph, { r: 20, fill: resolved ? 'rgba(10,30,20,0.94)' : 'rgba(24,12,18,0.92)', stroke: th, lw: 3, glow: px(20) + flash * px(30) });
+  const hh = px(62); roundRect(pxL, pyT, pw, hh, [px(20), px(20), 0, 0]); ctx.fillStyle = resolved ? 'rgba(16,50,28,0.95)' : 'rgba(50,14,20,0.95)'; ctx.fill();
+  icon(resolved ? 'bulb' : 'warn', pxL + px(40), pyT + hh / 2, px(30), th); text(title, pxL + px(76), pyT + hh / 2 + px(9), font(px(28), 'bold', MONO), th);
+  const gap = px(16), ih = Math.min(px(150), (ph - hh - px(36) - gap * 2) / Math.max(items.length, 1));
+  items.forEach((it, i) => {
+    const e = pop(t, (resolved ? tsw + 0.4 : 0.5) + i * 0.4, 0.5), y = pyT + hh + px(20) + i * (ih + gap); if (e <= 0) return;
+    ctx.save(); ctx.globalAlpha = e; ctx.translate(lerp(px(30), 0, e), 0);
+    panel(pxL + px(20), y, pw - px(40), ih, { r: 12, fill: resolved ? 'rgba(57,255,20,0.10)' : 'rgba(239,68,68,0.10)', stroke: th, lw: 1.5 });
+    icon(resolved ? 'check' : 'cross', pxL + px(58), y + ih / 2, px(28), th);
+    const fs = px(IS_VERTICAL ? 28 : 30), h2 = tbHeight(it, pw - px(150), fs, { weight: 'bold', maxLines: 3 });
+    tb(it, pxL + px(92), y + (ih - h2) / 2, pw - px(150), fs, '#f8fafc', { weight: 'bold', maxLines: 3 }); ctx.restore();
+  });
+};
+
+// --- cpu_scheduler: hàng đợi tác vụ -> CPU, chạy tuần tự theo thời lượng thật ---
+TEMPLATES.cpu_scheduler = function (t, box) {
+  const tasks = D.tasks || [], n = tasks.length; if (!n) return;
+  const known = tasks.every(k => k.dur != null && k.dur > 0), wsum = known ? tasks.reduce((a, k) => a + k.dur, 0) : n;
+  const s0 = 0.8, s1 = Math.max(s0 + 1, DURATION - 0.8); let acc = 0; const slots = tasks.map(k => { const w = known ? k.dur : 1, a = s0 + acc / (wsum || 1) * (s1 - s0); acc += w; return { s: a, e: s0 + acc / (wsum || 1) * (s1 - s0) }; });
+  const cur = slots.findIndex(sl => t >= sl.s && t < sl.e), doneN = slots.filter(sl => t >= sl.e).length;
+  const perRow = n <= 3 ? n : Math.ceil(n / 2), rowsN = Math.ceil(n / perRow), gap = px(18), cwd = Math.min(px(300), (box.w - gap * (perRow - 1)) / perRow), chh = px(100);
+  const qx0 = box.x + (box.w - (perRow * cwd + gap * (perRow - 1))) / 2, qy0 = box.y + px(36);
+  text(L.queue, qx0, qy0 - px(10), font(px(20), 'bold'), '#38bdf8');
+  const centers = [];
+  tasks.forEach((k, i) => {
+    const r = Math.floor(i / perRow), c = i % perRow, x = qx0 + c * (cwd + gap), y = qy0 + r * (chh + gap), e = pop(t, i * 0.12, 0.4);
+    const run = i === cur, done = t >= slots[i].e; centers.push([x + cwd / 2, y + chh]); ctx.save(); ctx.globalAlpha = e * (done ? 0.55 : 1);
+    panel(x, y, cwd, chh, { r: 12, stroke: run ? ORANGE : done ? GREEN : BORDER, glow: run ? px(18) : 0, lw: run ? 3 : 2 });
+    text(fitText(k.name, cwd - px(24), font(px(24), 'bold')), x + px(14), y + px(40), font(px(24), 'bold'), run ? ORANGE : '#f1f5f9');
+    text(k.dur != null ? fmtNum(k.dur) + ' ' + (k.unit || '') : `#${i + 1}`, x + px(14), y + px(76), font(px(20), 'normal', MONO), MUTED);
+    if (done) icon('check', x + cwd - px(28), y + px(30), px(22), GREEN);
+    if (run) { ctx.fillStyle = ORANGE; ctx.fillRect(x + px(10), y + chh - px(10), (cwd - px(20)) * progress(t, slots[i].s, slots[i].e), px(5)); } ctx.restore();
+  });
+  const size = px(IS_VERTICAL ? 260 : 230), cx = box.x + box.w / 2, cy = qy0 + rowsN * (chh + gap) + px(60), cpuY = Math.min(cy, box.y + box.h - size - px(70));
+  if (cur >= 0) { ctx.save(); glowStroke(ORANGE, px(10), px(3)); ctx.setLineDash([px(10), px(8)]); ctx.lineDashOffset = -t * px(40); ctx.beginPath(); ctx.moveTo(centers[cur][0], centers[cur][1]); ctx.lineTo(cx, cpuY); ctx.stroke(); ctx.restore(); }
+  const x = cx - size / 2; ctx.save(); ctx.strokeStyle = '#64748b'; ctx.lineWidth = px(3);
+  for (let i = 0; i < 8; i++) { const f = (i + 0.5) / 8, a = x + f * size, b = cpuY + f * size;
+    ctx.beginPath(); ctx.moveTo(a, cpuY - px(14)); ctx.lineTo(a, cpuY); ctx.moveTo(a, cpuY + size); ctx.lineTo(a, cpuY + size + px(14)); ctx.moveTo(x - px(14), b); ctx.lineTo(x, b); ctx.moveTo(x + size, b); ctx.lineTo(x + size + px(14), b); ctx.stroke(); } ctx.restore();
+  panel(x, cpuY, size, size, { fill: 'rgba(15,23,42,0.96)', stroke: ORANGE, lw: 3, glow: px(24 + Math.sin(t * 5) * 8) });
+  text('CPU', cx, cpuY + size * 0.34, font(px(34), 'bold', MONO), ORANGE, 'center');
+  const label = cur >= 0 ? `${L.running}: ${tasks[cur].name}` : (doneN >= n ? L.done : '');
+  text(fitText(label, size - px(24), font(px(20))), cx, cpuY + size * 0.56, font(px(20)), MUTED, 'center');
+  text(`${doneN}/${n}`, cx, cpuY + size * 0.8, font(px(38), 'bold', MONO), GREEN, 'center');
+  if (known) text(`${L.total}: ${fmtNum(wsum)} ${tasks[0].unit || ''}`, cx, cpuY + size + px(52), font(px(22), 'normal', MONO), DIM, 'center');
+};
+
+// --- git_flow ---
+TEMPLATES.git_flow = function (t, box) {
+  const cm = D.commits || []; const n = cm.length; if (n < 2) return;
+  const x0 = box.x + px(60), x1 = box.x + box.w - px(60), lineY = box.y + box.h * 0.6, brY = lineY - Math.min(px(200), box.h * 0.36);
+  const X = i => lerp(x0, x1, i / (n - 1)), lp = easeInOut(progress(t, 0.2, 1.2));
+  ctx.save(); glowStroke(GREEN, px(14), px(4)); ctx.beginPath(); ctx.moveTo(x0, lineY); ctx.lineTo(x0 + lp * (x1 - x0), lineY); ctx.stroke(); ctx.restore();
+  const bp = easeInOut(progress(t, 0.9, 2.0)), bx0 = X(0), bx1 = X(n - 1), k = Math.min(px(60), (bx1 - bx0) / 5);
+  ctx.save(); glowStroke(CYAN, px(10), px(3.5)); ctx.setLineDash([px(10), px(6)]); ctx.beginPath(); ctx.moveTo(bx0, lineY);
+  const seg = [[bx0 + k * 0.6, lineY, bx0 + k * 0.6, brY, bx0 + k, brY], [bx1 - k, brY, bx1 - k * 0.6, brY, bx1 - k * 0.6, lineY]];
+  if (bp > 0) { ctx.bezierCurveTo(...seg[0]); const mid = bx0 + k + (bx1 - k - bx0 - k) * clamp(bp * 1.4 - 0.2, 0, 1); ctx.lineTo(mid, brY); if (bp > 0.85) { ctx.lineTo(bx1 - k, brY); ctx.bezierCurveTo(seg[1][2], seg[1][3], seg[1][2], lineY, bx1, lineY); } }
+  ctx.stroke(); ctx.restore();
+  [0.33, 0.66].forEach((f, i) => { const bxm = lerp(bx0 + k, bx1 - k, f), e = pop(t, 1.2 + i * 0.3, 0.4); if (e > 0) { ctx.save(); ctx.globalAlpha = e; ctx.fillStyle = CYAN; ctx.shadowColor = CYAN; ctx.shadowBlur = px(14); ctx.beginPath(); ctx.arc(bxm, brY, px(11), 0, 7); ctx.fill(); ctx.restore(); } });
+  const bl = pop(t, 1.0, 0.5); if (bl > 0) { ctx.save(); ctx.globalAlpha = bl; const f = font(px(24), 'bold', MONO), w = measure(L.branch, f) + px(40); panel(bx0 + k, brY - px(64), w, px(40), { rr: px(10), fill: 'rgba(0,240,255,0.12)', stroke: CYAN, lw: 2 }); text(L.branch, bx0 + k + w / 2, brY - px(36), f, CYAN, 'center'); ctx.restore(); }
+  cm.forEach((c, i) => {
+    const e = pop(t, 0.2 + i / (n - 1) * 1.0, 0.4); if (e <= 0) return;
+    ctx.save(); ctx.globalAlpha = e; ctx.fillStyle = GREEN; ctx.shadowColor = GREEN; ctx.shadowBlur = px(18); ctx.beginPath(); ctx.arc(X(i), lineY, px(14), 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    text(String(i + 1), X(i), lineY + px(6), font(px(16), 'bold', MONO), BG, 'center');
+    const lw = Math.min(px(200), (x1 - x0) / (n - 1) - px(12)); tb(c, X(i), lineY + px(34), lw, px(24), '#cbd5e1', { align: 'center', maxLines: 3 }); ctx.restore();
+  });
+  const hp = easeInOut(progress(t, 0.8, Math.max(DURATION - 0.8, 1.8))), hx = lerp(X(0), X(n - 1), hp);
+  ctx.save(); ctx.globalAlpha = clamp(t - 0.3, 0, 1); ctx.shadowColor = YELLOW; ctx.shadowBlur = px(22); text('HEAD', hx, lineY - px(34), font(px(24), 'bold', MONO), YELLOW, 'center');
+  ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.moveTo(hx, lineY - px(22)); ctx.lineTo(hx - px(8), lineY - px(32)); ctx.lineTo(hx + px(8), lineY - px(32)); ctx.closePath(); ctx.fill(); ctx.restore();
+  const mf = font(px(24), 'bold', MONO); text('main', x0, lineY + px(IS_VERTICAL ? 150 : 140), mf, GREEN);
+};
+
+// --- attention_map (trọng số mô phỏng, softmax theo hàng) ---
+TEMPLATES.attention_map = function (t, box) {
+  const tok = D.tokens || [], n = tok.length; if (n < 2) return;
+  const rng = mulberry32(hashStr(tok.join('|'))), Wm = [];
+  for (let r = 0; r < n; r++) { const sc = []; for (let c = 0; c < n; c++) sc.push(-Math.abs(r - c) * 1.1 + (rng() - 0.5) * 1.6 + (r === c ? 1.2 : 0)); const m = Math.max(...sc), ex = sc.map(v => Math.exp(v - m)), z = ex.reduce((a, b) => a + b, 0); Wm.push(ex.map(v => v / z)); }
+  const lab = px(IS_VERTICAL ? 130 : 170), cell = Math.min(px(120), (box.w - lab) / n, (box.h - px(150)) / n), gw = cell * n;
+  const gx = box.x + (box.w - gw + lab) / 2, gy = box.y + px(100), reveal = progress(t, 0.2, 1.4);
+  const mx = Math.max(...Wm.flat());
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const idx = r * n + c, ct = clamp(progress(reveal, idx / (n * n) * 0.6, idx / (n * n) * 0.6 + 0.3), 0, 1), w = Wm[r][c] / mx;
+    ctx.fillStyle = `rgba(${Math.round(lerp(5, 0, w))},${Math.round(lerp(10, 240, w))},${Math.round(lerp(40, 255, w * 0.4))},${ct * 0.9})`; ctx.fillRect(gx + c * cell + 1, gy + r * cell + 1, cell - 2, cell - 2);
+    if (cell >= px(64) && ct > 0.5) text(Wm[r][c].toFixed(2), gx + c * cell + cell / 2, gy + r * cell + cell / 2 + px(7), font(px(20), 'bold', MONO), `rgba(255,255,255,${ct * (0.4 + w * 0.6)})`, 'center'); }
+  const lf = font(px(22), 'bold', MONO);
+  tok.forEach((tk, i) => { const s = fitText(tk, cell * 1.0, lf); text(s, gx + i * cell + cell / 2, gy - px(14), lf, MUTED, 'center'); text(fitText(tk, lab - px(20), lf), gx - px(14), gy + i * cell + cell / 2 + px(8), lf, MUTED, 'right'); });
+  text(`${L.key} \u2192`, gx + gw / 2, gy - px(52), font(px(22), 'bold'), CYAN, 'center');
+  ctx.save(); ctx.translate(gx - lab + px(14), gy + gw / 2); ctx.rotate(-Math.PI / 2); text(`${L.query} \u2192`, 0, 0, font(px(22), 'bold'), CYAN, 'center'); ctx.restore();
+  const fr = Math.floor(t / 1.6) % n; ctx.save(); glowStroke(CYAN, px(16), px(3)); ctx.setLineDash([px(6), px(4)]); ctx.strokeRect(gx, gy + fr * cell, gw, cell); ctx.restore();
+};
+
+// --- neural_flow ---
+TEMPLATES.neural_flow = function (t, box) {
+  const layers = D.layers || [], nL = layers.length; if (nL < 2) return;
+  const x0 = box.x + px(50), x1 = box.x + box.w - px(50), y0 = box.y + px(30), y1 = box.y + box.h - px(110), stepX = (x1 - x0) / (nL - 1);
+  const maxN = Math.max(...layers), nr = Math.min(px(26), (y1 - y0) / (maxN * 2.4)), wave = (t * 0.5) % (1.4) * (nL - 1) - 0.2;
+  const NY = (li, ni) => y0 + (ni + 0.5) * (y1 - y0) / layers[li];
+  for (let li = 0; li < nL - 1; li++) for (let a = 0; a < layers[li]; a++) for (let b = 0; b < layers[li + 1]; b++) {
+    const hot = clamp(1 - Math.abs(wave - li - 0.5) / 0.8, 0, 1); ctx.strokeStyle = `rgba(56,189,248,${0.07 + 0.05 * Math.abs(Math.sin(a * 3 + b)) + hot * 0.25})`; ctx.lineWidth = px(1.2);
+    ctx.beginPath(); ctx.moveTo(x0 + li * stepX, NY(li, a)); ctx.lineTo(x0 + (li + 1) * stepX, NY(li + 1, b)); ctx.stroke(); }
+  for (let li = 0; li < nL; li++) {
+    const lx = x0 + li * stepX, col = PALETTE[li % PALETTE.length], en = pop(t, li * 0.15, 0.4), act = clamp(1 - Math.abs(wave - li) / 0.7, 0, 1);
+    for (let ni = 0; ni < layers[li]; ni++) { const ny = NY(li, ni), r = nr * en; ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = px(8) + act * px(22);
+      ctx.fillStyle = `rgba(6,10,20,0.9)`; ctx.beginPath(); ctx.arc(lx, ny, r, 0, 7); ctx.fill(); ctx.globalAlpha = en; ctx.strokeStyle = col; ctx.lineWidth = px(2.5); ctx.stroke();
+      ctx.fillStyle = col; ctx.globalAlpha = en * (0.15 + act * 0.7); ctx.beginPath(); ctx.arc(lx, ny, r * 0.7, 0, 7); ctx.fill(); ctx.restore(); }
+    const lbl = li === 0 ? L.input : li === nL - 1 ? L.output : `${L.hidden} ${li}`;
+    ctx.save(); ctx.globalAlpha = pop(t, li * 0.15 + 0.2, 0.4); text(fitText(lbl, stepX - px(10), font(px(24), 'bold', MONO)), lx, y1 + px(44), font(px(24), 'bold', MONO), col, 'center'); text(`${layers[li]}`, lx, y1 + px(78), font(px(20), 'normal', MONO), DIM, 'center'); ctx.restore();
+  }
+};
+
+// --- algo_trace: mô phỏng sắp xếp thật ---
+function simulateSort(kind, input) {
+  const a = input.slice(), steps = []; let cmp = 0, swp = 0; const sorted = new Set();
+  const push = (hi, sw) => steps.push({ a: a.slice(), hi, sw, sorted: new Set(sorted), cmp, swp });
+  push([], false);
+  const swap = (i, j) => { [a[i], a[j]] = [a[j], a[i]]; swp++; };
+  if (kind === 'insertion') {
+    sorted.add(0);
+    for (let i = 1; i < a.length; i++) { let j = i; while (j > 0) { cmp++; if (a[j - 1] > a[j]) { swap(j - 1, j); push([j - 1, j], true); j--; } else { push([j - 1, j], false); break; } } for (let k = 0; k <= i; k++) sorted.add(k); push([], false); }
+  } else if (kind === 'selection') {
+    for (let i = 0; i < a.length; i++) { let m = i; for (let j = i + 1; j < a.length; j++) { cmp++; push([m, j], false); if (a[j] < a[m]) m = j; } if (m !== i) { swap(i, m); push([i, m], true); } sorted.add(i); push([], false); }
+  } else if (kind === 'quick') {
+    const qs = (lo, hi) => { if (lo >= hi) { if (lo === hi) sorted.add(lo); return; } const p = a[hi]; let i = lo;
+      for (let j = lo; j < hi; j++) { cmp++; push([j, hi], false); if (a[j] < p) { if (i !== j) { swap(i, j); push([i, j], true); } i++; } }
+      if (i !== hi) { swap(i, hi); push([i, hi], true); } sorted.add(i); push([], false); qs(lo, i - 1); qs(i + 1, hi); };
+    qs(0, a.length - 1);
+  } else {
+    for (let i = 0; i < a.length; i++) { for (let j = 0; j < a.length - i - 1; j++) { cmp++; if (a[j] > a[j + 1]) { swap(j, j + 1); push([j, j + 1], true); } else push([j, j + 1], false); } sorted.add(a.length - 1 - i); push([], false); }
+  }
+  for (let k = 0; k < a.length; k++) sorted.add(k); push([], false);
+  return steps;
+}
+const SORT_NAMES = { bubble: 'Bubble Sort', insertion: 'Insertion Sort', selection: 'Selection Sort', quick: 'Quick Sort (Lomuto)' };
+let SORT_STEPS = null;
+TEMPLATES.algo_trace = function (t, box) {
+  const arr = D.array || []; if (arr.length < 2) return;
+  if (!SORT_STEPS) SORT_STEPS = simulateSort(D.algo || 'bubble', arr);
+  const total = SORT_STEPS.length, avail = Math.max(DURATION - 1.6, 1), tps = clamp(avail / total, 0.1, 0.8);
+  const idx = clamp(Math.floor((t - 0.8) / tps), 0, total - 1), st = SORT_STEPS[idx], n = arr.length;
+  const maxV = Math.max(...arr.map(Math.abs), 1), minV = Math.min(0, ...arr), range = maxV - minV || 1;
+  const baseY = box.y + box.h - px(60), maxH = Math.max(px(120), box.h - px(230)), bw = Math.min(px(120), box.w / n * 0.78), gap = Math.min(px(20), bw * 0.25), totalW = n * bw + (n - 1) * gap, sx = box.x + (box.w - totalW) / 2;
+  text(SORT_NAMES[D.algo || 'bubble'], box.x, box.y + px(34), font(px(34), 'bold', MONO), PINK);
+  text(`${L.step} ${idx} / ${total - 1}   \u00B7   ${L.compared}: ${st.cmp}   \u00B7   ${L.swaps}: ${st.swp}`, box.x, box.y + px(80), font(px(26), 'bold', MONO), YELLOW);
+  st.a.forEach((v, i) => {
+    const bh = Math.max(px(8), (v - minV) / range * maxH), x = sx + i * (bw + gap), y = baseY - bh, hi = st.hi.includes(i), sw = hi && st.sw, ok = st.sorted.has(i);
+    const col = sw ? PINK : hi ? YELLOW : ok ? GREEN : CYAN;
+    ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = hi ? px(24) : px(6); const gr = ctx.createLinearGradient(0, y, 0, baseY); gr.addColorStop(0, col); gr.addColorStop(1, col + '44'); ctx.fillStyle = gr; roundRect(x, y, bw, bh, [px(8), px(8), 0, 0]); ctx.fill(); ctx.restore();
+    text(String(v), x + bw / 2, y - px(10), font(px(Math.min(30, bw / U * 0.34)), 'bold', MONO), '#e2e8f0', 'center');
+    text(String(i), x + bw / 2, baseY + px(34), font(px(20), 'normal', MONO), DIM, 'center');
+  });
+};
+
+// --- metaphor: ảnh minh hoạ + chú thích (hoặc ngăn kéo vẽ tay) ---
+TEMPLATES.metaphor = function (t, box) {
+  const caps = D.captions || [], cw = Math.min(box.w, px(1100)), ch = Math.min(box.h, px(IS_VERTICAL ? 1000 : 640)), x = box.x + (box.w - cw) / 2, y = box.y + (box.h - ch) / 2;
+  const e = pop(t, 0, 0.6), capH = caps.length ? px(86) * Math.min(caps.length, 3) / (IS_VERTICAL ? 1 : 1.6) : 0, imgY = y + px(16), imgH = ch - px(32) - (IS_VERTICAL ? capH : px(90));
+  withScale(x + cw / 2, y + ch / 2, e, () => {
+    ctx.globalAlpha = e; panel(x, y, cw, ch, { r: 20, fill: 'rgba(10,18,36,0.95)', stroke: YELLOW, glow: px(20) });
+    const ix = x + px(16), iw = cw - px(32);
+    if (stockImg && stockImg.complete && stockImg.naturalWidth > 0) {
+      ctx.save(); roundRect(ix, imgY, iw, imgH, px(14)); ctx.clip();
+      const zoom = 1 + 0.08 * progress(t, 0, DURATION), s = Math.max(iw / stockImg.naturalWidth, imgH / stockImg.naturalHeight) * zoom, dw = stockImg.naturalWidth * s, dh = stockImg.naturalHeight * s;
+      ctx.drawImage(stockImg, ix + (iw - dw) / 2, imgY + (imgH - dh) / 2, dw, dh); ctx.restore();
+    } else {
+      const n = 3, dh = (imgH - px(10) * (n - 1)) / n;
+      for (let i = 0; i < n; i++) { const slide = i === 0 ? Math.sin(t * 2) * px(14) + px(14) : 0, yy = imgY + i * (dh + px(10)), hl = i === 0;
+        panel(ix + slide, yy, iw - slide, dh, { r: 10, fill: hl ? 'rgba(255,230,0,0.16)' : 'rgba(30,41,59,0.8)', stroke: hl ? YELLOW : 'rgba(100,116,139,0.4)', lw: hl ? 2 : 1 });
+        ctx.fillStyle = hl ? YELLOW : '#64748b'; roundRect(ix + slide + (iw - slide) / 2 - px(30), yy + dh / 2 - px(4), px(60), px(8), px(4)); ctx.fill();
+        if (caps[i]) text(fitText(caps[i], iw - px(60), font(px(24), 'bold')), ix + slide + px(24), yy + px(34), font(px(24), 'bold'), hl ? YELLOW : '#cbd5e1'); }
+    }
+    if (caps.length && (stockImg && stockImg.complete && stockImg.naturalWidth > 0)) caps.slice(0, 3).forEach((c, i) => {
+      const ce = pop(t, 0.8 + i * 0.4, 0.5); ctx.save(); ctx.globalAlpha = e * ce;
+      if (IS_VERTICAL) { const yy = imgY + imgH + px(14) + i * px(80); panel(ix, yy, iw, px(68), { r: 12, stroke: PALETTE[i], lw: 1.5 }); text(fitText(c, iw - px(40), font(px(26), 'bold')), ix + px(20), yy + px(44), font(px(26), 'bold'), '#f1f5f9'); }
+      else { const cwid = (iw - px(16) * (Math.min(caps.length, 3) - 1)) / Math.min(caps.length, 3), xx = ix + i * (cwid + px(16)), yy = imgY + imgH + px(14); panel(xx, yy, cwid, px(64), { r: 12, stroke: PALETTE[i], lw: 1.5 }); text(fitText(c, cwid - px(28), font(px(24), 'bold')), xx + px(14), yy + px(41), font(px(24), 'bold'), '#f1f5f9'); }
+      ctx.restore(); });
+  });
+};
+
+// ---------- điều phối ----------
+function renderFrameAt(f) {
+  const t = Math.min(f / FPS, DURATION);
+  drawBackground(t);
+  const box = contentBox(drawHeader(t));
+  (TEMPLATES[TEMPLATE] || TEMPLATES.architecture)(t, box);
+  if (CFG.illustrative) drawBadge(box);
+}
+function report(kind, msg) { try { return fetch('/' + kind + '?msg=' + encodeURIComponent(String(msg).slice(0, 300)), { method: 'POST' }); } catch (e) { return null; } }
+async function prepare() {
+  try { if (document.fonts) { if (CFG.custom_font) { await document.fonts.load('20px MGFont'); await document.fonts.load('bold 20px MGFont'); } await document.fonts.ready; } } catch (e) {}
+  if (stockImg && stockImg.decode) { try { await stockImg.decode(); } catch (e) {} }
+  HL = null;
+  const probes = [0, Math.floor(TOTAL_FRAMES / 2), TOTAL_FRAMES - 1];
+  for (const f of probes) {
+    try { renderFrameAt(f); } catch (e) {
+      if (TEMPLATE === 'architecture') throw e;
+      await report('warn', 'template ' + TEMPLATE + ' lỗi: ' + e); TEMPLATE = 'architecture'; SORT_STEPS = null; HL = null; renderFrameAt(f); break;
+    }
+  }
+}
+async function postFrame(f, blob) {
+  for (let a = 0; a < 3; a++) {
+    try { const r = await fetch('/frame?idx=' + f, { method: 'POST', body: blob }); if (r.ok) return; } catch (e) {}
+    await new Promise(r => setTimeout(r, 100 * (a + 1)));
+  }
+  throw new Error('không gửi được frame ' + f);
+}
+async function runCapture() {
+  try {
+    await prepare();
+    const inflight = new Set();
+    for (let f = 0; f < TOTAL_FRAMES; f++) {
+      renderFrameAt(f);
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+      const p = postFrame(f, blob).finally(() => inflight.delete(p)); inflight.add(p);
+      if (inflight.size >= 6) await Promise.race(inflight);
+    }
+    await Promise.all(inflight);
+    await fetch('/done', { method: 'POST' });
+  } catch (e) { await report('error', e && e.message ? e.message : e); }
+}
+window.renderFrameAt = renderFrameAt; window.prepare = prepare;
+const PREVIEW = (String(location.hash).match(/preview=([\d.]+)/) || [])[1];
+if (!window.__NO_AUTOSTART__) {
+  if (PREVIEW !== undefined) {
+    prepare().then(() => {
+      renderFrameAt(Math.round(parseFloat(PREVIEW) * FPS));
+      document.title = 'ready';
+    });
+  } else {
+    runCapture();
+  }
+}
+"""
+
+
+def _font_face_css() -> tuple[str, bool]:
+    path = _mg_cfg().get("font_file")
+    if not path or not os.path.exists(str(path)):
+        return "", False
+    try:
+        data = base64.b64encode(Path(str(path)).read_bytes()).decode("ascii")
+        ext = Path(str(path)).suffix.lower().lstrip(".")
+        fmt = {"ttf": "truetype", "otf": "opentype", "woff": "woff", "woff2": "woff2"}.get(ext, "truetype")
+        css = (f"@font-face {{ font-family: 'MGFont'; font-weight: 100 900; "
+               f"src: url(data:font/{ext};base64,{data}) format('{fmt}'); }}")
+        return css, True
+    except OSError as e:
+        log.debug("Không đọc được font_file: %s", e)
+        return "", False
+
+
+def _read_image_data_url(image_path: Path | None) -> str:
+    if not image_path:
+        return ""
+    try:
+        if image_path.exists():
+            raw = image_path.read_bytes()
+            if len(raw) > 1000:
+                ext = "png" if image_path.suffix.lower() == ".png" else "jpeg"
+                return f"data:image/{ext};base64," + base64.b64encode(raw).decode("ascii")
+    except OSError as e:
+        log.debug("Không thể đọc ảnh minh hoạ: %s", e)
+    return ""
+
+
+def _json_for_script(obj: Any) -> str:
+    """JSON an toàn để nhúng trong <script>: không thể thoát khỏi thẻ script (kể cả </script>, <!--)."""
+    s = json.dumps(obj, ensure_ascii=False)
+    return s.replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+
 
 def _build_motion_html(
     scene: Scene,
@@ -226,2038 +1496,79 @@ def _build_motion_html(
     fps: int,
     image_path: Path | None = None,
 ) -> str:
-    """Tạo trang HTML chứa animation canvas tự động khớp với chủ đề và nội dung scene."""
-    title = _clean_title(scene.heading)
-    raw_sub = scene.narration or ""
-    clean_sub = re.sub(r"^(?:\[?\s*(?:hook|cảnh\s*\d+|scene\s*\d+|phần\s*\d+|mở\s*đầu|intro|bước\s*\d+|pha\s*\d+)\s*\]?[\s:\-–—|]*)+", "", raw_sub, flags=re.IGNORECASE).strip()
-    narration_snippet = clean_sub[:120].strip()
-    template_type = _detect_template(scene)
+    """Tạo trang HTML Canvas cho 1 scene (template + dữ liệu lấy từ chính scene)."""
+    lang = "vi" if str(CONFIG.get("language", "vi")).lower().startswith("vi") else "en"
+    img = _read_image_data_url(image_path)
+    plan = _plan_scene(scene, bool(img), lang)
+    subtitle_src = _sentences(scene.narration, 1, 140)
+    css, custom_font = _font_face_css()
 
-    raw_bullets = scene.bullets or []
-    clean_bullets = [str(b).strip() for b in raw_bullets if str(b).strip()]
-    bullets_json = json.dumps(clean_bullets, ensure_ascii=False)
-    is_vertical = height > width
+    cfg = {
+        "width": int(width), "height": int(height), "fps": int(fps), "duration": float(duration),
+        "template": plan["template"], "data": plan["data"], "illustrative": plan["illustrative"],
+        "title": _clean_title(scene.heading, lang),
+        "subtitle": subtitle_src[0] if subtitle_src else "",
+        "lang": lang, "labels": _LABELS[lang], "image": img, "custom_font": custom_font,
+    }
+    html = (_HTML.replace("__LANG__", lang)
+            .replace("__FONTFACE__", css)
+            .replace("__WIDTH__", str(int(width)))
+            .replace("__HEIGHT__", str(int(height)))
+            .replace("__JS__", _JS)
+            .replace("__CFG__", _json_for_script(cfg)))  # CFG thay SAU CÙNG: dữ liệu người dùng không bị quét lại
+    return html
 
-    # Đọc ảnh stock / minh họa nếu có để lồng vào canvas
-    img_b64 = ""
-    has_image = False
-    if image_path and image_path.exists():
+
+# ---------------------------------------------------------------------------
+# Runner
+# ---------------------------------------------------------------------------
+
+def _kill_tree(proc: subprocess.Popen | None) -> None:
+    if proc is None:
+        return
+    try:
+        if os.name == "nt":
+            kw = {"capture_output": True, "timeout": 10}
+            if hasattr(subprocess, "CREATE_NO_WINDOW"):
+                kw["creationflags"] = subprocess.CREATE_NO_WINDOW
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], **kw)
+        else:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                proc.kill()
+        proc.wait(timeout=5)
+    except Exception:  # noqa: BLE001
         try:
-            import base64
-            raw_bytes = image_path.read_bytes()
-            if len(raw_bytes) > 1000:
-                ext = "png" if image_path.suffix.lower() == ".png" else "jpeg"
-                img_b64 = f"data:image/{ext};base64," + base64.b64encode(raw_bytes).decode("ascii")
-                has_image = True
-        except Exception as e:
-            log.debug("Không thể đọc ảnh minh họa: %s", e)
+            proc.kill()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _browser_cmd(browser_bin: str, profile: str, width: int, height: int, url: str, extra: list[str] | None = None) -> list[str]:
+    cmd = [
+        browser_bin, "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage",
+        f"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check", "--disable-extensions",
+        "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+        "--disable-backgrounding-occluded-windows", "--force-device-scale-factor=1",
+        "--allow-file-access-from-files",
+        f"--window-size={width},{height}", "--hide-scrollbars",
+    ]
+    cmd += [str(a) for a in (_mg_cfg().get("extra_args") or [])]
+    cmd += extra or []
+    cmd.append(url)
+    return cmd
+
+
+def _popen_kwargs() -> dict:
+    kw: dict = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if os.name == "nt":
+        if hasattr(subprocess, "CREATE_NO_WINDOW"):
+            kw["creationflags"] = subprocess.CREATE_NO_WINDOW
+    else:
+        kw["start_new_session"] = True
+    return kw
 
-    # Lấy topic_hint từ visual_prompt để enriching animation
-    visual_prompt = (scene.visual_prompt or "").strip()[:300]
-
-    return f"""<!DOCTYPE html>
-<html lang="vi">
-<head>
-<meta charset="UTF-8">
-<style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{
-    width: {width}px;
-    height: {height}px;
-    background: #060a14;
-    overflow: hidden;
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  }}
-  #canvas {{
-    display: block;
-    width: {width}px;
-    height: {height}px;
-  }}
-</style>
-</head>
-<body>
-<canvas id="canvas" width="{width}" height="{height}"></canvas>
-<script>
-const W = {width};
-const H = {height};
-const FPS = {fps};
-const DURATION = {duration};
-const TOTAL_FRAMES = Math.max(1, Math.round(DURATION * FPS));
-const TEMPLATE = {json.dumps(template_type)};
-const TITLE = {json.dumps(title, ensure_ascii=False)};
-const SUBTITLE = {json.dumps(narration_snippet, ensure_ascii=False)};
-const BULLETS = {bullets_json};
-const IS_VERTICAL = {json.dumps(is_vertical)};
-const VISUAL_PROMPT = {json.dumps(visual_prompt, ensure_ascii=False)};
-const HAS_IMAGE = {json.dumps(has_image)};
-const IMG_DATA = {json.dumps(img_b64)};
-let stockImg = null;
-if (HAS_IMAGE) {{
-  stockImg = new Image();
-  stockImg.src = IMG_DATA;
-}}
-
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-
-// ── Bảng màu Premium Cyberpunk Studio ──
-const CYAN   = '#00f0ff';
-const PINK   = '#ff2bd6';
-const GREEN  = '#39ff14';
-const YELLOW = '#ffe600';
-const PURPLE = '#a855f7';
-const ORANGE = '#ff6b35';
-const BLUE   = '#3b82f6';
-const BG     = '#060a14';
-const BG2    = '#0a1020';
-const CARD   = 'rgba(12, 20, 40, 0.92)';
-const BORDER = 'rgba(56, 189, 248, 0.3)';
-const PALETTE = [CYAN, PINK, GREEN, YELLOW, PURPLE, ORANGE, BLUE];
-
-// ── Easing functions ──
-function easeOut(x) {{ return 1 - Math.pow(1 - x, 3); }}
-function easeInOut(x) {{ return x < 0.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2; }}
-function easeOutExpo(x) {{ return x === 1 ? 1 : 1 - Math.pow(2, -10*x); }}
-function lerp(a, b, t) {{ return a + (b-a)*t; }}
-function clamp(v, lo, hi) {{ return Math.max(lo, Math.min(hi, v)); }}
-function progress(t, start, end) {{ return clamp((t-start)/(end-start), 0, 1); }}
-
-// ── Tiện ích vẽ ──
-function roundRect(x, y, w, h, r) {{
-  ctx.beginPath();
-  ctx.moveTo(x+r, y);
-  ctx.arcTo(x+w, y, x+w, y+h, r);
-  ctx.arcTo(x+w, y+h, x, y+h, r);
-  ctx.arcTo(x, y+h, x, y, r);
-  ctx.arcTo(x, y, x+w, y, r);
-  ctx.closePath();
-}}
-
-function hexagon(cx, cy, r) {{
-  ctx.beginPath();
-  for (let i=0; i<6; i++) {{
-    const a = i*Math.PI/3 - Math.PI/6;
-    if (i===0) ctx.moveTo(cx+r*Math.cos(a), cy+r*Math.sin(a));
-    else ctx.lineTo(cx+r*Math.cos(a), cy+r*Math.sin(a));
-  }}
-  ctx.closePath();
-}}
-
-function glowText(text, x, y, color, size, blur=18) {{
-  ctx.save();
-  ctx.shadowColor = color;
-  ctx.shadowBlur = blur;
-  ctx.fillStyle = color;
-  ctx.font = `bold ${{size}}px monospace`;
-  ctx.fillText(text, x, y);
-  ctx.restore();
-}}
-
-function wrapText(text, maxW, fontSize) {{
-  const words = text.split(' ');
-  const lines = [];
-  let line = '';
-  ctx.font = `${{fontSize}}px sans-serif`;
-  for (const w of words) {{
-    const test = line ? line+' '+w : w;
-    if (ctx.measureText(test).width > maxW && line) {{
-      lines.push(line);
-      line = w;
-    }} else {{
-      line = test;
-    }}
-  }}
-  if (line) lines.push(line);
-  return lines;
-}}
-
-// ── Nền chung (shared background) ──
-function drawBackground(t) {{
-  // Nền tối với gradient động
-  const grad = ctx.createRadialGradient(W*0.3+Math.sin(t*0.5)*50, H*0.4, 80, W/2, H/2, W*0.85);
-  grad.addColorStop(0, 'rgba(14, 165, 233, 0.10)');
-  grad.addColorStop(0.5, 'rgba(168, 85, 247, 0.06)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Dot grid nền
-  ctx.fillStyle = 'rgba(56,189,248,0.07)';
-  const gs = IS_VERTICAL ? 50 : 65;
-  for (let x=gs/2; x<W; x+=gs)
-    for (let y=gs/2; y<H; y+=gs) {{
-      ctx.beginPath();
-      ctx.arc(x, y, 1.2, 0, Math.PI*2);
-      ctx.fill();
-    }}
-}}
-
-// ── Header chung ──
-function drawHeader(t) {{
-  const enter = easeOutExpo(clamp(t/0.7, 0, 1));
-  ctx.save();
-  ctx.translate(0, (1-enter)*-25);
-  ctx.globalAlpha = enter;
-
-  const hx = IS_VERTICAL ? 48 : 84;
-  const hy = IS_VERTICAL ? 120 : 44;
-
-  // Accent bar trái
-  ctx.fillStyle = CYAN;
-  ctx.shadowColor = CYAN;
-  ctx.shadowBlur = 16;
-  ctx.fillRect(hx, hy, 7, IS_VERTICAL ? 66 : 90);
-  ctx.shadowBlur = 0;
-
-  // Tiêu đề — tăng lên đáng kể
-  const titleSize = IS_VERTICAL ? 46 : 58;
-  ctx.fillStyle = '#f1f5f9';
-  ctx.font = `bold ${{titleSize}}px sans-serif`;
-  // Tự wrap nếu title dài
-  const lines = wrapText(TITLE, W - hx - 120, titleSize);
-  lines.slice(0, 2).forEach((line, li) => {{
-    ctx.fillText(line, hx+22, hy + titleSize + li*(titleSize+8));
-  }});
-  const titleBottom = hy + titleSize + (lines.length > 1 ? (titleSize+8) : 0);
-
-  // Subtitle
-  if (SUBTITLE) {{
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = `${{IS_VERTICAL ? 22 : 28}}px sans-serif`;
-    const maxSub = IS_VERTICAL ? 55 : 85;
-    const sub = SUBTITLE.length > maxSub ? SUBTITLE.slice(0,maxSub-1)+'…' : SUBTITLE;
-    ctx.fillText(sub, hx+22, titleBottom + (IS_VERTICAL ? 34 : 42));
-  }}
-
-  ctx.restore();
-}}
-
-// ── Helper: Người Que (Stickman) ──
-function drawStickmanFigure(x, y, scale, pose, t, color) {{
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scale, scale);
-
-  const headR = 24;
-  const spineLen = 65;
-  const bob = Math.sin(t * 5) * 3;
-
-  let headTilt = 0;
-  let leftArmA = 0.5, rightArmA = -0.5;
-  let leftForeA = 0.8, rightForeA = -0.8;
-  let leftLegA = 0.25, rightLegA = -0.25;
-  let jumpY = 0;
-
-  if (pose === 'confused') {{
-    headTilt = 0.22 + Math.sin(t * 3) * 0.08;
-    rightArmA = -2.2;
-    rightForeA = -1.4 + Math.sin(t * 8) * 0.28;
-    leftArmA = 0.6;
-    leftForeA = -1.1;
-    for (let q = 0; q < 3; q++) {{
-      const qProg = ((t * 0.5 + q * 0.33) % 1.0);
-      const qY = -headR - 22 - qProg * 55;
-      const qX = (q - 1) * 24 + Math.sin(t * 3 + q) * 12;
-      const qAlpha = Math.sin(qProg * Math.PI);
-      ctx.save();
-      ctx.fillStyle = `rgba(255, 230, 0, ${{qAlpha}})`;
-      ctx.font = 'bold 26px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = YELLOW;
-      ctx.shadowBlur = 14;
-      ctx.fillText('?', qX, qY);
-      ctx.restore();
-    }}
-  }} else if (pose === 'idea' || pose === 'eureka') {{
-    jumpY = -Math.abs(Math.sin(t * 6)) * 20;
-    headTilt = -0.05;
-    leftArmA = -2.3;
-    leftForeA = -0.3;
-    rightArmA = 2.3;
-    rightForeA = 0.3;
-    drawGlowingBulb(0, -headR - 50, t);
-  }} else if (pose === 'working') {{
-    leftArmA = 0.9;
-    leftForeA = -0.8 + Math.sin(t * 14) * 0.25;
-    rightArmA = 0.9;
-    rightForeA = -0.8 + Math.cos(t * 14) * 0.25;
-  }}
-
-  const curY = bob + jumpY;
-
-  // Bóng đổ dưới sàn
-  ctx.save();
-  ctx.fillStyle = 'rgba(0, 240, 255, 0.16)';
-  ctx.beginPath();
-  ctx.ellipse(0, spineLen + 65, 34 * (1 + jumpY * 0.01), 10 * (1 + jumpY * 0.01), 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  // Đầu
-  ctx.save();
-  ctx.translate(0, curY);
-  ctx.rotate(headTilt);
-  ctx.strokeStyle = color || CYAN;
-  ctx.lineWidth = 4;
-  ctx.fillStyle = '#060a14';
-  ctx.shadowColor = color || CYAN;
-  ctx.shadowBlur = 16;
-  ctx.beginPath();
-  ctx.arc(0, 0, headR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Kính visor mắt phát sáng
-  ctx.fillStyle = YELLOW;
-  ctx.shadowColor = YELLOW;
-  ctx.shadowBlur = 10;
-  ctx.fillRect(-12, -4, 24, 7);
-  ctx.restore();
-
-  // Thân mình
-  const neckY = curY + headR;
-  const hipY = neckY + spineLen;
-  ctx.save();
-  ctx.strokeStyle = color || CYAN;
-  ctx.lineWidth = 4.5;
-  ctx.lineCap = 'round';
-  ctx.shadowColor = color || CYAN;
-  ctx.shadowBlur = 14;
-  ctx.beginPath();
-  ctx.moveTo(0, neckY);
-  ctx.lineTo(0, hipY);
-  ctx.stroke();
-
-  // Tay
-  const shoulderY = neckY + 14;
-  const armLen = 30, forearmLen = 26;
-  const lElbowX = Math.sin(leftArmA) * armLen;
-  const lElbowY = shoulderY + Math.cos(leftArmA) * armLen;
-  const lHandX = lElbowX + Math.sin(leftArmA + leftForeA) * forearmLen;
-  const lHandY = lElbowY + Math.cos(leftArmA + leftForeA) * forearmLen;
-  ctx.beginPath();
-  ctx.moveTo(0, shoulderY);
-  ctx.lineTo(lElbowX, lElbowY);
-  ctx.lineTo(lHandX, lHandY);
-  ctx.stroke();
-
-  const rElbowX = Math.sin(rightArmA) * armLen;
-  const rElbowY = shoulderY + Math.cos(rightArmA) * armLen;
-  const rHandX = rElbowX + Math.sin(rightArmA + rightForeA) * forearmLen;
-  const rHandY = rElbowY + Math.cos(rightArmA + rightForeA) * forearmLen;
-  ctx.beginPath();
-  ctx.moveTo(0, shoulderY);
-  ctx.lineTo(rElbowX, rElbowY);
-  ctx.lineTo(rHandX, rHandY);
-  ctx.stroke();
-
-  // Chân
-  const legLen = 34, shinLen = 30;
-  const lKneeX = Math.sin(leftLegA) * legLen;
-  const lKneeY = hipY + Math.cos(leftLegA) * legLen;
-  ctx.beginPath();
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(lKneeX, lKneeY);
-  ctx.lineTo(lKneeX, lKneeY + shinLen);
-  ctx.stroke();
-
-  const rKneeX = Math.sin(rightLegA) * legLen;
-  const rKneeY = hipY + Math.cos(rightLegA) * legLen;
-  ctx.beginPath();
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(rKneeX, rKneeY);
-  ctx.lineTo(rKneeX, rKneeY + shinLen);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.restore();
-}}
-
-// ── Helper: Bóng đèn phát sáng ý tưởng ──
-function drawGlowingBulb(bx, by, t) {{
-  ctx.save();
-  ctx.translate(bx, by);
-  const numRays = 8;
-  const rayLen = 16 + Math.sin(t * 8) * 6;
-  ctx.strokeStyle = YELLOW;
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = YELLOW;
-  ctx.shadowBlur = 18;
-  for (let i = 0; i < numRays; i++) {{
-    const ang = (i * Math.PI * 2) / numRays + t * 0.6;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(ang) * 20, Math.sin(ang) * 20);
-    ctx.lineTo(Math.cos(ang) * (20 + rayLen), Math.sin(ang) * (20 + rayLen));
-    ctx.stroke();
-  }}
-  ctx.fillStyle = YELLOW;
-  ctx.beginPath();
-  ctx.arc(0, 0, 15, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(0, -2, 6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Scheduler & Meeting Conflicts (Lịch trình & Xung đột phòng) ──
-function drawScheduler(t) {{
-  const enter = easeOutExpo(clamp(t / 0.6, 0, 1));
-  const isResolved = t >= 2.4;
-  const resolveProg = clamp((t - 2.4) / 0.8, 0, 1);
-  const pose = isResolved ? 'idea' : 'confused';
-
-  const boardX = IS_VERTICAL ? 40 : W * 0.32;
-  const boardY = IS_VERTICAL ? H * 0.44 : H * 0.28;
-  const boardW = IS_VERTICAL ? W - 80 : W * 0.62;
-  const boardH = IS_VERTICAL ? H * 0.44 : H * 0.58;
-
-  const stickX = IS_VERTICAL ? W * 0.5 : W * 0.16;
-  const stickY = IS_VERTICAL ? H * 0.32 : H * 0.58;
-  const stickScale = IS_VERTICAL ? 0.95 : 1.15;
-
-  // Người que theo dõi lịch
-  drawStickmanFigure(stickX, stickY, stickScale, pose, t, CYAN);
-
-  // Bảng lịch trình
-  ctx.save();
-  ctx.translate(boardX, boardY);
-  ctx.scale(enter, enter);
-  roundRect(0, 0, boardW, boardH, 18);
-  ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
-  ctx.fill();
-  ctx.strokeStyle = isResolved ? GREEN : BORDER;
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = isResolved ? GREEN : CYAN;
-  ctx.shadowBlur = 18;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Header bảng lịch
-  roundRect(0, 0, boardW, 52, [18, 18, 0, 0]);
-  ctx.fillStyle = 'rgba(20, 30, 52, 0.85)';
-  ctx.fill();
-
-  ctx.fillStyle = isResolved ? GREEN : YELLOW;
-  ctx.font = 'bold 20px monospace';
-  ctx.fillText(isResolved ? '✓ LỊCH TỐI ƯU (GREEDY ALGORITHM)' : '⚡ HỖN LOẠN: TRÙNG LỊCH PHÒNG HỌP', 24, 33);
-
-  // Trục thời gian
-  const timeY = 82;
-  const timeLabels = ['09:00', '10:00', '11:00', '12:00'];
-  const tStart = 140, tEnd = boardW - 40;
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(tStart, timeY);
-  ctx.lineTo(tEnd, timeY);
-  ctx.stroke();
-
-  timeLabels.forEach((tl, ti) => {{
-    const tx = tStart + (ti / (timeLabels.length - 1)) * (tEnd - tStart);
-    ctx.fillStyle = '#64748b';
-    ctx.font = '15px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(tl, tx, timeY - 8);
-    ctx.beginPath();
-    ctx.moveTo(tx, timeY);
-    ctx.lineTo(tx, boardH - 24);
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }});
-  ctx.textAlign = 'left';
-
-  // Hàng phòng: Phòng 101 và Phòng 102
-  const lane1Y = 120, lane2Y = boardH * 0.62;
-  const laneH = boardH * 0.28;
-
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = 'bold 17px sans-serif';
-  ctx.fillText('Phòng 101', 18, lane1Y + laneH * 0.55);
-  ctx.fillText('Phòng 102', 18, lane2Y + laneH * 0.55);
-
-  // Cuộc họp 1: 09:00 -> 10:30 (Phòng 101)
-  const m1X = tStart + 10;
-  const m1W = (tEnd - tStart) * 0.48;
-  roundRect(m1X, lane1Y, m1W, laneH, 12);
-  ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
-  ctx.fill();
-  ctx.strokeStyle = CYAN;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = '#f1f5f9';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('Họp Dự Án Alpha', m1X + 16, lane1Y + laneH * 0.45);
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '13px monospace';
-  ctx.fillText('09:00 - 10:30', m1X + 16, lane1Y + laneH * 0.75);
-
-  // Cuộc họp 2: 10:00 -> 11:30
-  const m2X = tStart + (tEnd - tStart) * 0.33;
-  const m2W = (tEnd - tStart) * 0.48;
-  const curM2Y = lerp(lane1Y, lane2Y, resolveProg);
-
-  roundRect(m2X, curM2Y, m2W, laneH, 12);
-  if (!isResolved) {{
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
-    ctx.fill();
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 18;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    const overlapX = m2X;
-    const overlapW = (m1X + m1W) - m2X;
-    ctx.save();
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
-    roundRect(overlapX, lane1Y, overlapW, laneH, 10);
-    ctx.fill();
-    ctx.fillStyle = '#ffe600';
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('⚠️ TRÙNG LỊCH!', overlapX + overlapW / 2, lane1Y + laneH * 0.55);
-    ctx.restore();
-  }} else {{
-    ctx.fillStyle = 'rgba(57, 255, 20, 0.25)';
-    ctx.fill();
-    ctx.strokeStyle = GREEN;
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = GREEN;
-    ctx.shadowBlur = 16;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }}
-
-  ctx.fillStyle = '#f1f5f9';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('Hội Nghị Beta', m2X + 16, curM2Y + laneH * 0.45);
-  ctx.fillStyle = isResolved ? GREEN : '#fca5a5';
-  ctx.font = '13px monospace';
-  ctx.fillText('10:00 - 11:30', m2X + 16, curM2Y + laneH * 0.75);
-
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Stickman Story & Chaos Resolution (Người que kể chuyện) ──
-function drawStickmanStory(t) {{
-  const isResolved = t >= 2.5;
-  const pose = isResolved ? 'idea' : 'confused';
-
-  const stickX = IS_VERTICAL ? W * 0.5 : W * 0.24;
-  const stickY = IS_VERTICAL ? H * 0.36 : H * 0.55;
-  const stickScale = IS_VERTICAL ? 1.05 : 1.35;
-
-  drawStickmanFigure(stickX, stickY, stickScale, pose, t, isResolved ? GREEN : CYAN);
-
-  const panelX = IS_VERTICAL ? 40 : W * 0.48;
-  const panelY = IS_VERTICAL ? H * 0.52 : H * 0.28;
-  const panelW = IS_VERTICAL ? W - 80 : W * 0.46;
-  const panelH = IS_VERTICAL ? H * 0.38 : H * 0.58;
-
-  ctx.save();
-  ctx.translate(panelX, panelY);
-
-  if (!isResolved) {{
-    roundRect(0, 0, panelW, panelH, 20);
-    ctx.fillStyle = 'rgba(24, 12, 18, 0.92)';
-    ctx.fill();
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 20;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    roundRect(0, 0, panelW, 56, [20, 20, 0, 0]);
-    ctx.fillStyle = 'rgba(50, 14, 20, 0.95)';
-    ctx.fill();
-    ctx.fillStyle = '#ef4444';
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText('⚠️ TÌNH TRẠNG: HỖN LOẠN & BẾ TẮC', 24, 36);
-
-    const issues = [
-      '❌ 97% Người dùng chọn ngẫu nhiên',
-      '⚡ Xung đột lịch & tài nguyên tăng vọt',
-      '⏱️ Lãng phí 40% thời gian xử lý',
-    ];
-    issues.forEach((iss, ii) => {{
-      const iy = 90 + ii * (IS_VERTICAL ? 68 : 80);
-      roundRect(20, iy, panelW - 40, IS_VERTICAL ? 54 : 64, 12);
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
-      ctx.fillText(iss, 36, iy + (IS_VERTICAL ? 34 : 40));
-    }});
-  }} else {{
-    roundRect(0, 0, panelW, panelH, 20);
-    ctx.fillStyle = 'rgba(10, 30, 20, 0.94)';
-    ctx.fill();
-    ctx.strokeStyle = GREEN;
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = GREEN;
-    ctx.shadowBlur = 22;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    roundRect(0, 0, panelW, 56, [20, 20, 0, 0]);
-    ctx.fillStyle = 'rgba(16, 50, 28, 0.95)';
-    ctx.fill();
-    ctx.fillStyle = GREEN;
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText('💡 GIẢI PHÁP: CÚ HACK THUẬT TOÁN', 24, 36);
-
-    const solutions = [
-      '✓ Tự động sắp xếp không trùng lặp',
-      '⚡ Tối ưu O(N log N) - Nhanh tức thì',
-      '🎯 Tỷ lệ thành công đạt 100%',
-    ];
-    solutions.forEach((sol, si) => {{
-      const sy = 90 + si * (IS_VERTICAL ? 68 : 80);
-      roundRect(20, sy, panelW - 40, IS_VERTICAL ? 54 : 64, 12);
-      ctx.fillStyle = 'rgba(57, 255, 20, 0.12)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(57, 255, 20, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
-      ctx.fillText(sol, 36, sy + (IS_VERTICAL ? 34 : 40));
-    }});
-  }}
-
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Git Flow ──
-function drawGitFlow(t) {{
-  const branches = BULLETS.length >= 2 ? BULLETS.slice(0,3) : ['main', 'feature/attention', 'fix/gradient'];
-  const n = branches.length;
-  const colors = [GREEN, CYAN, YELLOW];
-
-  const baseY = IS_VERTICAL ? H*0.35 : H*0.42;
-  const endX = IS_VERTICAL ? W*0.85 : W*0.88;
-  const startX = IS_VERTICAL ? W*0.15 : W*0.10;
-
-  // Glyph particles (commits)
-  const commits = [0.15, 0.32, 0.52, 0.70, 0.88];
-  const branchCommits = [[0.25,0.48,0.65], [0.38,0.58]];
-
-  // Main trunk line
-  const trunLen = progress(t, 0.2, 1.0);
-  ctx.save();
-  ctx.strokeStyle = GREEN;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = GREEN;
-  ctx.shadowBlur = 14;
-  ctx.beginPath();
-  ctx.moveTo(startX, baseY);
-  ctx.lineTo(startX + trunLen*(endX-startX), baseY);
-  ctx.stroke();
-  ctx.restore();
-
-  // Branch lines
-  if (n >= 2) {{
-    const brY = IS_VERTICAL ? baseY - 140 : baseY - 120;
-    const brStart = startX + (endX-startX)*0.22;
-    const brEnd = startX + (endX-startX)*0.72;
-    const brLen = progress(t, 0.5, 1.1);
-    ctx.save();
-    ctx.strokeStyle = CYAN;
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = CYAN;
-    ctx.shadowBlur = 10;
-    ctx.setLineDash([8,4]);
-    ctx.beginPath();
-    ctx.moveTo(brStart, baseY);
-    ctx.bezierCurveTo(brStart+40, baseY, brStart+40, brY, brStart+60, brY);
-    ctx.lineTo(brStart + 60 + brLen*(brEnd-brStart-60), brY);
-    ctx.stroke();
-
-    if (brLen >= 1.0) {{
-      const mLen = progress(t, 1.1, 1.5);
-      ctx.beginPath();
-      ctx.moveTo(brEnd, brY);
-      ctx.bezierCurveTo(brEnd+30, brY, brEnd+30, baseY, brEnd+50*mLen, baseY);
-      ctx.stroke();
-    }}
-    ctx.setLineDash([]);
-    ctx.restore();
-
-    // Branch label
-    const labelA = easeOutExpo(clamp(progress(t,0.6,1.0),0,1));
-    ctx.save();
-    ctx.globalAlpha = labelA;
-    roundRect(brStart+60, brY-26, 220, 48, 10);
-    ctx.fillStyle = 'rgba(0,240,255,0.12)';
-    ctx.fill();
-    ctx.strokeStyle = CYAN;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = CYAN;
-    ctx.font = IS_VERTICAL ? 'bold 18px monospace' : 'bold 22px monospace';
-    ctx.fillText('⎇ ' + (branches[1] || 'feature/new'), brStart+74, brY+8);
-    ctx.restore();
-  }}
-
-  // Commit dots on main
-  commits.forEach((pos, ci) => {{
-    const cx = startX + pos*(endX-startX);
-    const appear = easeOutExpo(clamp(progress(t, pos*0.9, pos*0.9+0.3), 0, 1));
-    if (appear <= 0) return;
-    ctx.save();
-    ctx.globalAlpha = appear;
-    ctx.shadowColor = GREEN;
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = GREEN;
-    ctx.beginPath();
-    ctx.arc(cx, baseY, 10, 0, Math.PI*2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#0a1020';
-    ctx.font = 'bold 10px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText((ci+1).toString(), cx, baseY+4);
-    ctx.textAlign = 'left';
-
-    // Hash label
-    if (appear > 0.5) {{
-      ctx.fillStyle = '#475569';
-      ctx.font = IS_VERTICAL ? '16px monospace' : '18px monospace';
-      ctx.fillText(`a${{(ci*7+3).toString(16).padStart(5,'0')}}`, cx-20, baseY+40);
-    }}
-    ctx.restore();
-  }});
-
-  // Branch labels (main)
-  ctx.save();
-  const la = easeOutExpo(clamp(progress(t,0.1,0.6),0,1));
-  ctx.globalAlpha = la;
-  roundRect(startX-16, baseY+26, 100, 40, 14);
-  ctx.fillStyle = 'rgba(57,255,20,0.15)';
-  ctx.fill();
-  ctx.strokeStyle = GREEN;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = GREEN;
-  ctx.font = IS_VERTICAL ? 'bold 18px monospace' : 'bold 22px monospace';
-  ctx.fillText('main', startX-6, baseY+52);
-  ctx.restore();
-
-  // HEAD pointer (moving)
-  const headPos = startX + Math.min(t*0.7, 0.88)*(endX-startX);
-  ctx.save();
-  ctx.globalAlpha = clamp(t-0.3, 0, 1);
-  ctx.fillStyle = YELLOW;
-  ctx.shadowColor = YELLOW;
-  ctx.shadowBlur = 24;
-  ctx.font = IS_VERTICAL ? 'bold 18px monospace' : 'bold 22px monospace';
-  ctx.fillText('▶ HEAD', headPos-24, baseY-32);
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Attention Map ──
-function drawAttentionMap(t) {{
-  const tokens = BULLETS.length >= 4
-    ? BULLETS.slice(0, 6)
-    : ['The', 'cat', 'sat', 'on', 'mat', '.'];
-  const n = tokens.length;
-
-  const marginX = IS_VERTICAL ? 60 : 140;
-  const gridTop = IS_VERTICAL ? H*0.30 : H*0.26;
-  const cellSz = IS_VERTICAL ? Math.min(70, (W-marginX*2)/n) : Math.min(90, (W-marginX*2)/n);
-  const gridW = n * cellSz;
-  const gridH = n * cellSz;
-  const gx0 = (W - gridW) / 2;
-  const gy0 = gridTop;
-
-  // Sinh attention weights (mô phỏng: cao trên diagonal + một số off-diagonal)
-  const weights = [];
-  for (let r=0; r<n; r++) {{
-    weights[r] = [];
-    for (let c=0; c<n; c++) {{
-      // causal + locality pattern
-      const d = Math.abs(r-c);
-      const v = d===0 ? 0.85 + (r%3)*0.05 : (d===1 ? 0.35+r*0.04 : 0.05+Math.sin(r+c)*0.08);
-      weights[r][c] = clamp(v, 0, 1);
-    }}
-  }}
-
-  const revealT = clamp(progress(t, 0.2, 1.2), 0, 1);
-
-  // Grid cells
-  for (let r=0; r<n; r++) {{
-    for (let c=0; c<n; c++) {{
-      const cellT = clamp(progress(revealT, (r*n+c)/(n*n)*0.6, (r*n+c)/(n*n)*0.6+0.3), 0, 1);
-      const w = weights[r][c];
-      const x = gx0 + c*cellSz;
-      const y = gy0 + r*cellSz;
-
-      // Color: low=dark blue, high=bright cyan/green
-      const rr = Math.round(lerp(5, 0, w));
-      const gg = Math.round(lerp(10, 240, w));
-      const bb = Math.round(lerp(40, 255, w*0.4));
-      ctx.fillStyle = `rgba(${{rr}},${{gg}},${{bb}},${{cellT*0.9}})`;
-      ctx.fillRect(x+1, y+1, cellSz-2, cellSz-2);
-
-      if (w > 0.5 && cellT > 0.5) {{
-        ctx.fillStyle = `rgba(255,255,255,${{cellT*(w-0.4)}})`;
-        ctx.font = `bold ${{Math.max(10, cellSz*0.28)}}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText(w.toFixed(2), x+cellSz/2, y+cellSz/2+5);
-        ctx.textAlign = 'left';
-      }}
-    }}
-  }}
-
-  // Token labels (row = query, col = key)
-  const labelA = easeOutExpo(clamp(progress(t,0.1,0.5),0,1));
-  ctx.globalAlpha = labelA;
-  tokens.forEach((tok, i) => {{
-    const fz = Math.max(14, cellSz*0.26);
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = `bold ${{fz}}px monospace`;
-    // Column headers (Key)
-    ctx.textAlign = 'center';
-    ctx.fillText(tok, gx0 + i*cellSz + cellSz/2, gy0-14);
-    // Row labels (Query)
-    ctx.textAlign = 'right';
-    ctx.fillText(tok, gx0-10, gy0 + i*cellSz + cellSz/2+5);
-  }});
-  ctx.textAlign = 'left';
-  ctx.globalAlpha = 1;
-
-  // Scan line highlight (moving row focus)
-  const focusRow = Math.floor(t % n);
-  ctx.save();
-  ctx.strokeStyle = CYAN;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = CYAN;
-  ctx.shadowBlur = 18;
-  ctx.setLineDash([5,3]);
-  ctx.strokeRect(gx0, gy0 + focusRow*cellSz, gridW, cellSz);
-  ctx.restore();
-
-  // Labels
-  const lbA = easeOutExpo(clamp(progress(t,0.0,0.4),0,1));
-  ctx.save();
-  ctx.globalAlpha = lbA*0.9;
-  ctx.fillStyle = CYAN;
-  ctx.font = `bold ${{IS_VERTICAL?18:22}}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('← KEY tokens →', gx0+gridW/2, gy0-38);
-  ctx.save();
-  ctx.translate(gx0-44, gy0+gridH/2);
-  ctx.rotate(-Math.PI/2);
-  ctx.fillText('← QUERY tokens →', 0, 0);
-  ctx.restore();
-  ctx.textAlign = 'left';
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Algorithm Trace ──
-function drawAlgoTrace(t) {{
-  const rawData = BULLETS.length >= 4
-    ? BULLETS.slice(0,8).map(b => {{ const n=parseInt(b); return isNaN(n)?Math.floor(Math.random()*90+10):n; }})
-    : [64, 25, 12, 22, 11, 90, 37, 55];
-  const n = rawData.length;
-  const barW = IS_VERTICAL ? (W-120)/n : (W-200)/n;
-  const maxVal = Math.max(...rawData);
-  const maxH = IS_VERTICAL ? H*0.35 : H*0.38;
-  const baseY = IS_VERTICAL ? H*0.72 : H*0.78;
-  const startX = IS_VERTICAL ? 60 : 100;
-
-  // Bubble sort simulation steps
-  const sortSteps = [];
-  let arr = [...rawData];
-  sortSteps.push([...arr]);
-  for (let i=0; i<n; i++) {{
-    for (let j=0; j<n-i-1; j++) {{
-      if (arr[j] > arr[j+1]) {{
-        [arr[j], arr[j+1]] = [arr[j+1], arr[j]];
-        sortSteps.push([...arr]);
-      }}
-    }}
-  }}
-
-  const totalSteps = sortSteps.length;
-  const stepIdx = Math.min(Math.floor(t*(totalSteps-1)*0.8), totalSteps-1);
-  const currentArr = sortSteps[stepIdx];
-  const prevArr = stepIdx > 0 ? sortSteps[stepIdx-1] : currentArr;
-  const swapPairs = new Set();
-  for (let k=0; k<n; k++) {{
-    if (currentArr[k] !== prevArr[k]) swapPairs.add(k);
-  }}
-
-  // Draw bars
-  currentArr.forEach((val, i) => {{
-    const bh = (val/maxVal)*maxH;
-    const bx = startX + i*(barW+4);
-    const by = baseY - bh;
-    const isSwap = swapPairs.has(i);
-    const isSorted = stepIdx >= totalSteps*0.8 && i >= n - Math.floor(stepIdx/(n+1)) - 1;
-
-    ctx.save();
-    ctx.shadowBlur = isSwap ? 24 : 6;
-
-    if (isSwap) {{
-      ctx.shadowColor = PINK;
-      ctx.fillStyle = PINK;
-    }} else if (isSorted) {{
-      ctx.shadowColor = GREEN;
-      ctx.fillStyle = GREEN;
-    }} else {{
-      ctx.shadowColor = CYAN;
-      const grad = ctx.createLinearGradient(bx, by, bx, baseY);
-      grad.addColorStop(0, CYAN);
-      grad.addColorStop(1, 'rgba(0,240,255,0.3)');
-      ctx.fillStyle = grad;
-    }}
-
-    ctx.fillRect(bx, by, barW-2, bh);
-    ctx.restore();
-
-    // Value label
-    const valA = easeOutExpo(clamp(t*3, 0, 1));
-    ctx.save();
-    ctx.globalAlpha = valA;
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = `${{Math.max(10, barW*0.55)}}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(val.toString(), bx+barW/2, by-6);
-    ctx.textAlign = 'left';
-    ctx.restore();
-  }});
-
-  // Step counter
-  ctx.save();
-  ctx.fillStyle = YELLOW;
-  ctx.shadowColor = YELLOW;
-  ctx.shadowBlur = 10;
-  ctx.font = `bold ${{IS_VERTICAL?24:30}}px monospace`;
-  ctx.fillText(`Step ${{stepIdx+1}} / ${{totalSteps}}`, startX, IS_VERTICAL ? H*0.24 : H*0.22);
-  ctx.shadowBlur = 0;
-  ctx.restore();
-
-  // Complexity label
-  const compA = easeOutExpo(clamp(progress(t,0.1,0.6),0,1));
-  ctx.save();
-  ctx.globalAlpha = compA;
-  roundRect(IS_VERTICAL?W-190:W-260, IS_VERTICAL?H*0.24-36:H*0.22-36, IS_VERTICAL?172:230, 48, 12);
-  ctx.fillStyle = 'rgba(255,43,214,0.12)';
-  ctx.fill();
-  ctx.strokeStyle = PINK;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = PINK;
-  ctx.font = `bold ${{IS_VERTICAL?18:22}}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('O(N²) Bubble Sort', IS_VERTICAL?W-104:W-145, IS_VERTICAL?H*0.24-4:H*0.22-4);
-  ctx.textAlign = 'left';
-  ctx.restore();
-}}
-
-// ── TEMPLATE: GitHub Stats ──
-function drawGithubStats(t) {{
-  // Star growth chart + contributor hexagons
-  const starData = [120, 340, 890, 2100, 4500, 8900, 15000, 28000, 45000, 67000];
-  const n = starData.length;
-  const maxStars = starData[n-1];
-
-  const chartX = IS_VERTICAL ? 60 : 100;
-  const chartY = IS_VERTICAL ? H*0.60 : H*0.68;
-  const chartW = IS_VERTICAL ? W-120 : W*0.55;
-  const chartH = IS_VERTICAL ? 180 : 200;
-
-  // Axes
-  ctx.save();
-  ctx.strokeStyle = 'rgba(100,116,139,0.4)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(chartX, chartY-chartH);
-  ctx.lineTo(chartX, chartY);
-  ctx.lineTo(chartX+chartW, chartY);
-  ctx.stroke();
-  ctx.restore();
-
-  // Star growth line (animated draw)
-  const drawLen = clamp(progress(t, 0.3, 1.3), 0, 1);
-  ctx.save();
-  ctx.strokeStyle = YELLOW;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = YELLOW;
-  ctx.shadowBlur = 14;
-  ctx.beginPath();
-  let started = false;
-  for (let i=0; i<n; i++) {{
-    const frac = i/(n-1);
-    if (frac > drawLen) break;
-    const px = chartX + frac*chartW;
-    const py = chartY - (starData[i]/maxStars)*chartH;
-    if (!started) {{ ctx.moveTo(px, py); started=true; }}
-    else ctx.lineTo(px, py);
-  }}
-  ctx.stroke();
-
-  // Fill under line
-  const grad = ctx.createLinearGradient(chartX, chartY-chartH, chartX, chartY);
-  grad.addColorStop(0, 'rgba(255,230,0,0.25)');
-  grad.addColorStop(1, 'rgba(255,230,0,0)');
-  ctx.beginPath();
-  ctx.moveTo(chartX, chartY);
-  for (let i=0; i<n; i++) {{
-    const frac = i/(n-1);
-    if (frac > drawLen) break;
-    const px = chartX + frac*chartW;
-    const py = chartY - (starData[i]/maxStars)*chartH;
-    ctx.lineTo(px, py);
-  }}
-  ctx.lineTo(chartX + Math.min(drawLen,1)*chartW, chartY);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.restore();
-
-  // Star count badge
-  const starCount = Math.round(drawLen * maxStars);
-  ctx.save();
-  ctx.fillStyle = YELLOW;
-  ctx.shadowColor = YELLOW;
-  ctx.shadowBlur = 28;
-  ctx.font = `bold ${{IS_VERTICAL?54:72}}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('⭐ ' + (starCount >= 1000 ? (starCount/1000).toFixed(1)+'k' : starCount), W/2, IS_VERTICAL?H*0.27:H*0.26);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = `bold ${{IS_VERTICAL?22:28}}px sans-serif`;
-  ctx.fillText('GitHub Stars', W/2, IS_VERTICAL?H*0.27+40:H*0.26+46);
-  ctx.textAlign = 'left';
-  ctx.restore();
-
-  // Contributor hexagons
-  if (!IS_VERTICAL) {{
-    const hexColors = [CYAN, GREEN, PINK, YELLOW, PURPLE];
-    const hx0 = W*0.65;
-    const hy0 = H*0.35;
-    for (let i=0; i<5; i++) {{
-      const hcx = hx0 + (i%3)*75;
-      const hcy = hy0 + Math.floor(i/3)*80;
-      const ha = easeOutExpo(clamp(progress(t, 0.2+i*0.1, 0.5+i*0.1), 0, 1));
-      ctx.save();
-      ctx.globalAlpha = ha;
-      ctx.strokeStyle = hexColors[i];
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = hexColors[i];
-      ctx.shadowBlur = 16;
-      hexagon(hcx, hcy, 30);
-      ctx.fillStyle = `rgba(0,0,0,0.4)`;
-      ctx.fill();
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = hexColors[i];
-      ctx.font = 'bold 12px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('DEV', hcx, hcy+5);
-      ctx.textAlign = 'left';
-      ctx.restore();
-    }}
-  }}
-}}
-
-// ── TEMPLATE: Neural Flow ──
-function drawNeuralFlow(t) {{
-  const rawLayers = BULLETS.length >= 3
-    ? BULLETS.slice(0,5).map(b => {{ const n=parseInt(b); return isNaN(n)||n<1?4:Math.min(n,8); }})
-    : [4, 6, 6, 4, 2];
-  const layers = rawLayers;
-  const nL = layers.length;
-
-  const x0 = IS_VERTICAL ? W*0.10 : W*0.08;
-  const x1 = IS_VERTICAL ? W*0.90 : W*0.92;
-  const y0 = IS_VERTICAL ? H*0.28 : H*0.22;
-  const y1 = IS_VERTICAL ? H*0.78 : H*0.84;
-  const stepX = (x1-x0)/(nL-1);
-
-  const maxNodes = Math.max(...layers);
-  const maxNodeR = Math.min(18, (y1-y0)/(maxNodes*2.5));
-
-  // Draw edges (connections) with activation flow
-  const flowT = (t*0.6) % 1.0;
-  for (let li=0; li<nL-1; li++) {{
-    const lx = x0 + li*stepX;
-    const rx = x0 + (li+1)*stepX;
-    const ln = layers[li], rn = layers[li+1];
-    for (let ni=0; ni<ln; ni++) {{
-      const ly = y0 + (ni+0.5)*(y1-y0)/ln;
-      for (let rni=0; rni<rn; rni++) {{
-        const ry = y0 + (rni+0.5)*(y1-y0)/rn;
-        const alpha = 0.06 + 0.04*Math.abs(Math.sin(ni*rni));
-        ctx.save();
-        ctx.strokeStyle = `rgba(56,189,248,${{alpha}})`;
-        ctx.lineWidth = 0.8;
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(rx, ry);
-        ctx.stroke();
-
-        // Animated signal pulse
-        if (Math.abs((flowT - (li+ni*0.1)/nL)) < 0.12) {{
-          const pf = clamp((flowT - (li+ni*0.1)/nL + 0.06)/0.12, 0, 1);
-          const px = lerp(lx, rx, pf);
-          const py = lerp(ly, ry, pf);
-          ctx.fillStyle = `rgba(57,255,20,0.7)`;
-          ctx.beginPath();
-          ctx.arc(px, py, 3, 0, Math.PI*2);
-          ctx.fill();
-        }}
-        ctx.restore();
-      }}
-    }}
-  }}
-
-  // Draw nodes
-  for (let li=0; li<nL; li++) {{
-    const lx = x0 + li*stepX;
-    const n = layers[li];
-    const layerColor = PALETTE[li % PALETTE.length];
-    const layerEnter = easeOutExpo(clamp(progress(t, li*0.15, li*0.15+0.4), 0, 1));
-
-    for (let ni=0; ni<n; ni++) {{
-      const ny = y0 + (ni+0.5)*(y1-y0)/n;
-      const r = maxNodeR * layerEnter;
-      const activation = clamp(Math.sin(t*1.5+li+ni)*0.5+0.5, 0, 1);
-
-      ctx.save();
-      ctx.shadowColor = layerColor;
-      ctx.shadowBlur = 12 * activation;
-
-      // Activation glow
-      const nodeGrad = ctx.createRadialGradient(lx, ny, 0, lx, ny, r);
-      nodeGrad.addColorStop(0, layerColor);
-      nodeGrad.addColorStop(0.6, `rgba(56,189,248,${{activation*0.6}})`);
-      nodeGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = nodeGrad;
-      ctx.beginPath();
-      ctx.arc(lx, ny, r, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.strokeStyle = layerColor;
-      ctx.lineWidth = 1.5;
-      ctx.globalAlpha = layerEnter;
-      ctx.beginPath();
-      ctx.arc(lx, ny, r, 0, Math.PI*2);
-      ctx.stroke();
-      ctx.restore();
-    }}
-
-    // Layer label
-    const lblA = easeOutExpo(clamp(progress(t, li*0.15+0.2, li*0.15+0.5), 0, 1));
-    ctx.save();
-    ctx.globalAlpha = lblA;
-    ctx.fillStyle = layerColor;
-    ctx.font = `bold ${{IS_VERTICAL?18:22}}px monospace`;
-    ctx.textAlign = 'center';
-    const lbl = li===0 ? 'Input' : li===nL-1 ? 'Output' : `L${{li}}`;
-    ctx.fillText(lbl, lx, y1 + (IS_VERTICAL?34:40));
-    ctx.fillStyle = '#475569';
-    ctx.font = `${{IS_VERTICAL?15:18}}px monospace`;
-    ctx.fillText(`${{n}} nodes`, lx, y1 + (IS_VERTICAL?56:64));
-    ctx.textAlign = 'left';
-    ctx.restore();
-  }}
-}}
-
-// ── TEMPLATE: Code Diff View ──
-function drawDiffView(t) {{
-  const oldLines = BULLETS.length >= 2
-    ? BULLETS.slice(0, Math.ceil(BULLETS.length/2))
-    : ['def attention(Q, K, V):', '    scores = Q @ K.T', '    weights = scores / d_k', '    return weights @ V'];
-  const newLines = BULLETS.length >= 4
-    ? BULLETS.slice(Math.ceil(BULLETS.length/2))
-    : ['def attention(Q, K, V, mask=None):', '    scores = Q @ K.T / sqrt(d_k)', '    if mask: scores += mask', '    weights = softmax(scores)', '    return weights @ V'];
-
-  const panelW = IS_VERTICAL ? W-80 : (W-100)/2 - 10;
-  const panelX1 = IS_VERTICAL ? 40 : 50;
-  const panelX2 = IS_VERTICAL ? 40 : 50 + panelW + 20;
-  const panelY = IS_VERTICAL ? H*0.24 : H*0.24;
-  const panelH = IS_VERTICAL ? H*0.27 : H*0.56;
-  const lineH = IS_VERTICAL ? 42 : 50;
-  const fontSize = IS_VERTICAL ? 20 : 24;
-
-  const drawPanel = (px, py, pw, ph, lines, isNew) => {{
-    const color = isNew ? GREEN : '#ef4444';
-    ctx.save();
-    roundRect(px, py, pw, ph, 14);
-    ctx.fillStyle = isNew ? 'rgba(16,50,25,0.9)' : 'rgba(50,10,10,0.9)';
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Header bar
-    roundRect(px, py, pw, 50, [14,14,0,0]);
-    ctx.fillStyle = isNew ? 'rgba(57,255,20,0.15)' : 'rgba(239,68,68,0.15)';
-    ctx.fill();
-
-    const dots = ['#ff5f56','#ffbd2e', isNew?'#27c93f':'#ff5f56'];
-    dots.forEach((dc,di) => {{
-      ctx.fillStyle = dc;
-      ctx.beginPath();
-      ctx.arc(px+22+di*26, py+25, 8, 0, Math.PI*2);
-      ctx.fill();
-    }});
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = `bold ${{IS_VERTICAL?16:19}}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(isNew ? '+ new version' : '- old version', px+pw/2, py+31);
-    ctx.textAlign = 'left';
-
-    const revealCount = Math.min(lines.length, Math.floor(progress(t, 0.2, 1.2) * lines.length * 1.5 + 1));
-    lines.slice(0, revealCount).forEach((line, li) => {{
-      const ly = py + 60 + li*lineH;
-      const sym = isNew ? '+ ' : '- ';
-      ctx.fillStyle = isNew ? 'rgba(57,255,20,0.08)' : 'rgba(239,68,68,0.06)';
-      ctx.fillRect(px+4, ly-2, pw-8, lineH-2);
-      ctx.fillStyle = isNew ? GREEN : '#ef4444';
-      ctx.font = `bold ${{fontSize}}px monospace`;
-      ctx.fillText(sym, px+14, ly+fontSize*0.75);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText(line, px+32, ly+fontSize*0.75);
-    }});
-
-    ctx.restore();
-  }};
-
-  if (IS_VERTICAL) {{
-    // Stack vertically
-    drawPanel(panelX1, panelY, panelW, panelH, oldLines, false);
-    drawPanel(panelX1, panelY + panelH + 20, panelW, panelH, newLines, true);
-  }} else {{
-    drawPanel(panelX1, panelY, panelW, panelH, oldLines, false);
-    drawPanel(panelX2, panelY, panelW, panelH, newLines, true);
-  }}
-}}
-
-// ── TEMPLATE: Architecture Flow ──
-function drawArchitecture(t) {{
-  const topicHint = (TITLE + ' ' + SUBTITLE).toLowerCase();
-  let defaultNodes = ['1. Thu thập dữ liệu', '2. Phân tích logic', '3. Tối ưu thuật toán', '4. Kết quả'];
-  if (topicHint.includes('lịch') || topicHint.includes('phòng') || topicHint.includes('hội nghị') || topicHint.includes('thời gian')) {{
-    defaultNodes = ['1. Đặt phòng', '2. Quét xung đột', '3. Thuật toán phân bổ', '4. Chốt lịch'];
-  }} else if (topicHint.includes('mạng') || topicHint.includes('server') || topicHint.includes('api') || topicHint.includes('web')) {{
-    defaultNodes = ['Client Request', 'Load Balancer', 'API Gateway', 'Microservice'];
-  }} else if (topicHint.includes('ai') || topicHint.includes('mô hình') || topicHint.includes('model') || topicHint.includes('học')) {{
-    defaultNodes = ['1. Dataset', '2. Huấn luyện model', '3. Đánh giá loss', '4. Inference'];
-  }}
-  const rawNodes = (BULLETS && BULLETS.length >= 3)
-    ? BULLETS.slice(0, 4)
-    : defaultNodes;
-  const nodes = rawNodes.map(n => n.length > 22 ? n.slice(0,20)+'..' : n);
-  const n = nodes.length;
-
-  if (IS_VERTICAL) {{
-    const startY = H*0.30, endY = H*0.82;
-    const stepY = (endY-startY)/(n-1);
-    const cx = W/2;
-    const cW = W-120, cH = 105;
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(0,240,255,0.25)';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(cx, startY); ctx.lineTo(cx, endY); ctx.stroke();
-    ctx.strokeStyle = CYAN; ctx.lineWidth = 2;
-    ctx.shadowColor = CYAN; ctx.shadowBlur = 18;
-    ctx.beginPath(); ctx.moveTo(cx, startY); ctx.lineTo(cx, endY); ctx.stroke();
-    ctx.restore();
-
-    nodes.forEach((nd, i) => {{
-      const ny = startY + i*stepY;
-      const enter = easeOutExpo(clamp(progress(t, i*0.2, i*0.2+0.5), 0, 1));
-      ctx.save();
-      ctx.translate(cx, ny);
-      ctx.scale(enter, enter);
-      ctx.globalAlpha = enter;
-      roundRect(-cW/2, -cH/2, cW, cH, 18);
-      ctx.fillStyle = CARD;
-      ctx.fill();
-      ctx.strokeStyle = i===1 ? PINK : (i===2 ? CYAN : BORDER);
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = i===1 ? PINK : CYAN;
-      ctx.shadowBlur = 16;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = i===1 ? PINK : CYAN;
-      ctx.font = 'bold 17px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('0'+(i+1), 0, -cH/2+28);
-      ctx.fillStyle = '#f1f5f9';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.fillText(nd, 0, 12);
-      ctx.textAlign = 'left';
-      ctx.restore();
-    }});
-
-    // Animated packet
-    const pp = (t*0.7) % 1.0;
-    const py = startY + pp*(endY-startY);
-    ctx.save();
-    ctx.fillStyle = GREEN; ctx.shadowColor = GREEN; ctx.shadowBlur = 22;
-    ctx.beginPath(); ctx.arc(cx, py, 9, 0, Math.PI*2); ctx.fill();
-    ctx.restore();
-    return;
-  }}
-
-  // Horizontal layout
-  const startX = W*0.10, endX = W*0.90;
-  const stepX = (endX-startX)/(n-1);
-  const cy = H*0.52;
-  const cW = Math.min(280, (endX-startX)/(n-0.3)); // auto-size theo số node
-  const cH = 130;
-
-  ctx.save();
-  ctx.strokeStyle = 'rgba(0,240,255,0.25)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(startX, cy); ctx.lineTo(endX, cy); ctx.stroke();
-  ctx.strokeStyle = CYAN; ctx.lineWidth = 2;
-  ctx.shadowColor = CYAN; ctx.shadowBlur = 18;
-  ctx.beginPath(); ctx.moveTo(startX, cy); ctx.lineTo(endX, cy); ctx.stroke();
-  ctx.restore();
-
-  nodes.forEach((nd, i) => {{
-    const nx = startX + i*stepX;
-    const enter = easeOutExpo(clamp(progress(t, i*0.2, i*0.2+0.5), 0, 1));
-    ctx.save();
-    ctx.translate(nx, cy);
-    ctx.scale(enter, enter);
-    ctx.globalAlpha = enter;
-    roundRect(-cW/2, -cH/2, cW, cH, 18);
-    ctx.fillStyle = CARD; ctx.fill();
-    ctx.strokeStyle = i===1 ? PINK : (i===2 ? CYAN : BORDER);
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = i===1 ? PINK : CYAN; ctx.shadowBlur = 16;
-    ctx.stroke(); ctx.shadowBlur = 0;
-    ctx.fillStyle = i===1 ? PINK : CYAN;
-    ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center';
-    ctx.fillText('0'+(i+1), 0, -20);
-    ctx.fillStyle = '#f1f5f9';
-    ctx.font = `bold ${{Math.max(18, Math.min(26, Math.floor(cW/nd.length*1.2)))}}px sans-serif`;
-    ctx.fillText(nd, 0, 26);
-    ctx.textAlign = 'left';
-    ctx.restore();
-  }});
-
-  const pp = (t*0.7) % 1.0;
-  const px = startX + pp*(endX-startX);
-  ctx.save();
-  ctx.fillStyle = GREEN; ctx.shadowColor = GREEN; ctx.shadowBlur = 22;
-  ctx.beginPath(); ctx.arc(px, cy, 9, 0, Math.PI*2); ctx.fill();
-  for (let tr=1; tr<=3; tr++) {{
-    ctx.fillStyle = `rgba(57,255,20,${{0.5/tr}})`;
-    ctx.beginPath();
-    ctx.arc(px-tr*12, cy, Math.max(2, 9-tr*2), 0, Math.PI*2);
-    ctx.fill();
-  }}
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Terminal / Code ──
-function drawTerminal(t) {{
-  const termW = IS_VERTICAL ? W-80 : W-200;
-  const termH = IS_VERTICAL ? Math.round(H*0.52) : H-240;
-  const termX = IS_VERTICAL ? 40 : 100;
-  const termY = IS_VERTICAL ? Math.round(H*0.25) : Math.round(H*0.20);
-
-  const enter = easeOutExpo(clamp(t/0.6, 0, 1));
-  ctx.save();
-  ctx.translate(termX, termY);
-  ctx.scale(enter, enter);
-
-  // Terminal frame
-  roundRect(0, 0, termW, termH, 18);
-  ctx.fillStyle = 'rgba(6, 10, 22, 0.97)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,240,255,0.40)';
-  ctx.lineWidth = 2;
-  ctx.shadowColor = 'rgba(0,240,255,0.18)'; ctx.shadowBlur = 24;
-  ctx.stroke(); ctx.shadowBlur = 0;
-
-  // Header bar
-  roundRect(0, 0, termW, 54, [18,18,0,0]);
-  ctx.fillStyle = 'rgba(20,30,50,0.85)'; ctx.fill();
-
-  ['#ff5f56','#ffbd2e','#27c93f'].forEach((c,idx) => {{
-    ctx.fillStyle = c;
-    ctx.beginPath();
-    ctx.arc(26+idx*28, 27, 9, 0, Math.PI*2);
-    ctx.fill();
-  }});
-  ctx.fillStyle = '#64748b';
-  ctx.font = IS_VERTICAL ? 'bold 16px monospace' : 'bold 19px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('algorithm-trace.py  ●', termW/2, 34);
-  ctx.textAlign = 'left';
-
-  const rawLines = (BULLETS && BULLETS.length >= 2) ? BULLETS : [
-    '# Pseudocode: Attention Mechanism',
-    'def attention(Q, K, V):',
-    '    d_k = Q.shape[-1]',
-    '    score = Q @ K.T / sqrt(d_k)',
-    '    weights = softmax(score)',
-    '    return weights @ V',
-  ];
-  const maxC = IS_VERTICAL ? 38 : 58;
-  const lines = rawLines.map(l => l.length > maxC ? l.slice(0,maxC-2)+'..' : l);
-  const revealed = Math.min(lines.length, Math.floor(clamp(t-0.4,0,10)*3.2)+1);
-  const lhStep = IS_VERTICAL ? 44 : 52;
-
-  ctx.font = IS_VERTICAL ? 'bold 22px monospace' : 'bold 27px monospace';
-  for (let i=0; i<revealed; i++) {{
-    const ly = 96 + i*lhStep;
-    ctx.fillStyle = '#374151';
-    ctx.fillText((i+1).toString().padStart(2,' '), 26, ly);
-    const line = lines[i];
-    if (line.startsWith('def ') || line.startsWith('class ')) ctx.fillStyle = PINK;
-    else if (line.trim().startsWith('#')) ctx.fillStyle = '#4b5563';
-    else if (line.includes('return')) ctx.fillStyle = YELLOW;
-    else if (line.includes('=') || line.includes(':')) ctx.fillStyle = CYAN;
-    else ctx.fillStyle = '#94a3b8';
-    ctx.fillText(line, 80, ly);
-  }}
-  // Blinking cursor
-  if (Math.floor(t*2)%2===0) {{
-    const cy2 = 96 + Math.max(0, revealed-1)*lhStep;
-    ctx.fillStyle = CYAN;
-    ctx.fillRect(termW-60, cy2-20, 13, 28);
-  }}
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Comparison ──
-function drawComparison(t) {{
-  const enter = easeOutExpo(clamp(t/0.7, 0, 1));
-  const items = [
-    {{ label: BULLETS[0] || 'Cách truyền thống', items: ['Độ phức tạp O(N²)', 'Tắc nghẽn pipeline', 'Tốn 12 chu kỳ'], color: '#ef4444', ok: false }},
-    {{ label: BULLETS[1] || 'Kiến trúc tối ưu',  items: ['Tối ưu O(N log N)', 'Forwarding path',  'Chỉ 3 chu kỳ'], color: GREEN, ok: true  }},
-  ];
-
-  const pW = IS_VERTICAL ? W-100 : (W-180)/2;
-  const pH = IS_VERTICAL ? H*0.28 : H*0.48;
-  const pY = IS_VERTICAL ? H*0.29 : H*0.26;
-  const pGap = IS_VERTICAL ? H*0.30 : 80;
-  const positions = IS_VERTICAL
-    ? [[50, pY], [50, pY+pGap]]
-    : [[90, pY], [90+pW+80, pY]];
-
-  items.forEach((item, pi) => {{
-    const label = item.label;
-    const rows = item.items;
-    const color = item.color;
-    const ok = item.ok;
-    const [px, py] = positions[pi];
-    ctx.save();
-    ctx.translate(px, py); ctx.scale(enter, enter); ctx.globalAlpha = enter;
-    roundRect(0, 0, pW, pH, 20);
-    ctx.fillStyle = ok ? 'rgba(16,50,25,0.9)' : 'rgba(50,10,10,0.9)';
-    ctx.fill();
-    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
-    ctx.shadowColor = color; ctx.shadowBlur = ok ? 20 : 0;
-    ctx.stroke(); ctx.shadowBlur = 0;
-
-    ctx.fillStyle = color;
-    ctx.font = `bold ${{IS_VERTICAL?26:32}}px sans-serif`;
-    ctx.fillText((ok?'✓ ':'✗ ') + label, 28, 56);
-
-    rows.forEach((row, ri) => {{
-      ctx.fillStyle = ok ? '#6ee7b7' : '#fca5a5';
-      ctx.font = `${{IS_VERTICAL?21:26}}px sans-serif`;
-      ctx.fillText((ok?'→ ':'× ') + row, 28, 108 + ri*(IS_VERTICAL?44:54));
-    }});
-
-    if (ok) {{
-      const ba = easeOutExpo(clamp(progress(t,1.0,1.5),0,1));
-      ctx.save();
-      ctx.translate(pW/2, pH-46); ctx.scale(ba, ba);
-      roundRect(-110,-24,220,48,24);
-      ctx.fillStyle = YELLOW; ctx.shadowColor = YELLOW; ctx.shadowBlur = 22;
-      ctx.fill(); ctx.shadowBlur = 0;
-      ctx.fillStyle = '#000'; ctx.font = 'bold 26px sans-serif'; ctx.textAlign='center';
-      ctx.fillText('TỐC ĐỘ GẤP 4X', 0, 10);
-      ctx.textAlign='left'; ctx.restore();
-    }}
-    ctx.restore();
-  }});
-}}
-
-// ── TEMPLATE: HUD Metrics ──
-function drawHUD(t) {{
-  const cx = W/2;
-  const cy = IS_VERTICAL ? H*0.5 : H*0.54;
-  const r  = IS_VERTICAL ? 140 : 180;
-
-  // Rotating outer ring
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(t*1.1);
-  ctx.strokeStyle = 'rgba(0,240,255,0.15)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.stroke();
-  [CYAN, PINK].forEach((c, ci) => {{
-    ctx.strokeStyle = c; ctx.lineWidth = 4;
-    ctx.shadowColor = c; ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(0, 0, r+22, ci*Math.PI, ci*Math.PI+Math.PI*0.65);
-    ctx.stroke();
-  }});
-  ctx.restore();
-
-  // Counter
-  const p = Math.min(t/(DURATION*0.75), 1.0);
-  const val = Math.round(p * 1000000);
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = IS_VERTICAL ? 'bold 68px monospace' : 'bold 88px monospace';
-  ctx.shadowColor = CYAN; ctx.shadowBlur = 28;
-  ctx.fillText(val.toLocaleString()+'+', cx, cy+22);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = IS_VERTICAL ? 'bold 22px sans-serif' : 'bold 28px sans-serif';
-  ctx.fillText('OPS / SECOND', cx, cy + (IS_VERTICAL?72:88));
-
-  // Side metrics
-  const metrics = [
-    {{ label: 'Latency', val: (1.2-t*0.008).toFixed(2)+'ms', c: GREEN }},
-    {{ label: 'Cache HIT', val: Math.round(95+t*2)+'%', c: YELLOW }},
-    {{ label: 'Nodes', val: Math.round(t*15+4).toString(), c: CYAN }},
-  ];
-  const mA = easeOutExpo(clamp(progress(t,0.3,0.9),0,1));
-  ctx.globalAlpha = mA;
-  metrics.forEach((m, mi) => {{
-    const mx = IS_VERTICAL ? cx + (mi-1)*145 : cx + (mi-1)*230;
-    const my = IS_VERTICAL ? cy + 140 : cy + 165;
-    roundRect(mx-68, my-30, 136, 66, 14);
-    ctx.fillStyle = 'rgba(12,20,40,0.9)'; ctx.fill();
-    ctx.strokeStyle = m.c; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = m.c; ctx.font = `bold ${{IS_VERTICAL?20:26}}px monospace`;
-    ctx.fillText(m.val, mx, my+8);
-    ctx.fillStyle = '#64748b'; ctx.font = `bold ${{IS_VERTICAL?15:18}}px sans-serif`;
-    ctx.fillText(m.label, mx-60+8, my+36);
-  }});
-  ctx.textAlign = 'left';
-  ctx.restore();
-}}
-
-// ── TEMPLATE: CPU Scheduler ──
-function drawCpuScheduler(t) {{
-  const cx = W / 2;
-  const cy = H / 2 + (IS_VERTICAL ? 40 : 30);
-
-  // 1. Central CPU Core Chip (ORANGE neon)
-  const cpuSize = IS_VERTICAL ? 180 : 220;
-  const cpuX = cx - cpuSize / 2;
-  const cpuY = cy - cpuSize / 2 + (IS_VERTICAL ? 60 : 30);
-
-  ctx.save();
-  // Chip pins
-  const pinCount = 8;
-  ctx.strokeStyle = '#64748b';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < pinCount; i++) {{
-    const frac = (i + 0.5) / pinCount;
-    const px = cpuX + frac * cpuSize;
-    ctx.beginPath();
-    ctx.moveTo(px, cpuY - 14); ctx.lineTo(px, cpuY);
-    ctx.moveTo(px, cpuY + cpuSize); ctx.lineTo(px, cpuY + cpuSize + 14);
-    ctx.stroke();
-    const py = cpuY + frac * cpuSize;
-    ctx.beginPath();
-    ctx.moveTo(cpuX - 14, py); ctx.lineTo(cpuX, py);
-    ctx.moveTo(cpuX + cpuSize, py); ctx.lineTo(cpuX + cpuSize + 14, py);
-    ctx.stroke();
-  }}
-
-  // CPU Body
-  roundRect(cpuX, cpuY, cpuSize, cpuSize, 18);
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
-  ctx.fill();
-  ctx.strokeStyle = ORANGE;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = ORANGE;
-  ctx.shadowBlur = 24 + Math.sin(t * 5) * 8;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // CPU Core Inner
-  roundRect(cpuX + 20, cpuY + 20, cpuSize - 40, cpuSize - 40, 10);
-  ctx.fillStyle = 'rgba(255, 107, 53, 0.12)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 107, 53, 0.5)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  ctx.fillStyle = ORANGE;
-  ctx.font = `bold ${{IS_VERTICAL ? 20 : 24}}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('CPU CORE', cx, cpuY + cpuSize / 2 - 8);
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = `bold ${{IS_VERTICAL ? 14 : 16}}px monospace`;
-  ctx.fillText('3.8 GHz ⚡', cx, cpuY + cpuSize / 2 + 20);
-
-  // 2. Ready Queue of Processes (Tasks sliding in)
-  const queueY = IS_VERTICAL ? cpuY - 130 : cpuY - 140;
-  const qW = IS_VERTICAL ? W - 100 : 700;
-  const qX = cx - qW / 2;
-
-  roundRect(qX, queueY, qW, 64, 14);
-  ctx.fillStyle = 'rgba(12, 20, 40, 0.85)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  ctx.fillStyle = '#38bdf8';
-  ctx.font = `bold ${{IS_VERTICAL ? 14 : 16}}px sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.fillText('TASK QUEUE (HÀNG ĐỢI TIẾN TRÌNH)', qX + 16, queueY - 10);
-
-  // Processes in queue
-  const pList = [
-    {{ name: 'P1: Audio', dur: '4ms', color: GREEN }},
-    {{ name: 'P2: UI Render', dur: '8ms', color: CYAN }},
-    {{ name: 'P3: Network', dur: '12ms', color: YELLOW }},
-    {{ name: 'P4: Disk IO', dur: '20ms', color: PURPLE }},
-  ];
-  const pw = (qW - 50) / 4;
-  pList.forEach((p, idx) => {{
-    const shift = (t * 60) % (pw + 10);
-    const px = qX + 12 + idx * (pw + 8) - (idx === 0 ? shift * 0.4 : 0);
-    roundRect(px, queueY + 8, pw - 4, 48, 8);
-    ctx.fillStyle = 'rgba(15, 30, 60, 0.9)';
-    ctx.fill();
-    ctx.strokeStyle = p.color;
-    ctx.lineWidth = idx === 0 ? 2.5 : 1.5;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = idx === 0 ? 12 : 0;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = p.color;
-    ctx.font = `bold ${{IS_VERTICAL ? 13 : 15}}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(p.name, px + pw / 2 - 2, queueY + 28);
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '12px monospace';
-    ctx.fillText(p.dur, px + pw / 2 - 2, queueY + 46);
-  }});
-
-  // 3. Status Badge: "Thuật toán Shortest Job First / Greedy"
-  const badgeY = IS_VERTICAL ? cpuY + cpuSize + 30 : cpuY + cpuSize + 30;
-  roundRect(cx - 210, badgeY, 420, 48, 24);
-  ctx.fillStyle = 'rgba(57, 255, 20, 0.15)';
-  ctx.fill();
-  ctx.strokeStyle = GREEN;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = GREEN;
-  ctx.font = `bold ${{IS_VERTICAL ? 16 : 19}}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.fillText('✓ GIẢM 75% THỜI GIAN CHỜ TRUNG BÌNH', cx, badgeY + 30);
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Bar Benchmark ──
-function drawBarBenchmark(t) {{
-  const cx = W / 2;
-  const cy = H / 2 + 20;
-  const chartW = IS_VERTICAL ? W - 100 : Math.min(800, W * 0.65);
-  const chartH = IS_VERTICAL ? 280 : 320;
-  const chartX = cx - chartW / 2;
-  const chartY = cy + chartH / 2 - 20;
-
-  ctx.save();
-  // Coordinate frame
-  ctx.strokeStyle = 'rgba(100, 116, 139, 0.35)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(chartX, chartY - chartH);
-  ctx.lineTo(chartX, chartY);
-  ctx.lineTo(chartX + chartW, chartY);
-  ctx.stroke();
-
-  // Grid lines
-  for (let g = 1; g <= 3; g++) {{
-    const gy = chartY - (g / 3) * chartH;
-    ctx.strokeStyle = 'rgba(100, 116, 139, 0.15)';
-    ctx.beginPath();
-    ctx.moveTo(chartX, gy); ctx.lineTo(chartX + chartW, gy);
-    ctx.stroke();
-  }}
-
-  // Bar 1: Brute Force (Vét cạn / Không tối ưu) - RED, very tall
-  const barW = IS_VERTICAL ? 100 : 140;
-  const b1X = chartX + chartW * 0.25 - barW / 2;
-  const maxH1 = chartH * 0.88;
-  const animH1 = maxH1 * easeOutExpo(clamp(t * 1.5, 0, 1));
-  const b1Y = chartY - animH1;
-
-  roundRect(b1X, b1Y, barW, animH1, [12, 12, 0, 0]);
-  const grad1 = ctx.createLinearGradient(b1X, b1Y, b1X, chartY);
-  grad1.addColorStop(0, '#ef4444');
-  grad1.addColorStop(1, 'rgba(239, 68, 68, 0.2)');
-  ctx.fillStyle = grad1; ctx.fill();
-  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
-  ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 14;
-  ctx.stroke(); ctx.shadowBlur = 0;
-
-  ctx.fillStyle = '#ef4444';
-  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('12,500 ms', b1X + barW / 2, b1Y - 12);
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = `bold ${{IS_VERTICAL ? 14 : 17}}px sans-serif`;
-  ctx.fillText('Liệt kê toàn bộ', b1X + barW / 2, chartY + 30);
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '13px monospace';
-  ctx.fillText('O(2ⁿ) Chậm', b1X + barW / 2, chartY + 50);
-
-  // Bar 2: Greedy Algorithm (Tối ưu) - GREEN, low microsecond
-  const b2X = chartX + chartW * 0.72 - barW / 2;
-  const maxH2 = chartH * 0.16;
-  const animH2 = maxH2 * easeOutExpo(clamp((t - 0.3) * 1.5, 0, 1));
-  const b2Y = chartY - animH2;
-
-  roundRect(b2X, b2Y, barW, animH2, [12, 12, 0, 0]);
-  const grad2 = ctx.createLinearGradient(b2X, b2Y, b2X, chartY);
-  grad2.addColorStop(0, GREEN);
-  grad2.addColorStop(1, 'rgba(57, 255, 20, 0.2)');
-  ctx.fillStyle = grad2; ctx.fill();
-  ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
-  ctx.shadowColor = GREEN; ctx.shadowBlur = 18;
-  ctx.stroke(); ctx.shadowBlur = 0;
-
-  ctx.fillStyle = GREEN;
-  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText('0.15 ms ⚡', b2X + barW / 2, b2Y - 12);
-  ctx.fillStyle = '#39ff14';
-  ctx.font = `bold ${{IS_VERTICAL ? 14 : 17}}px sans-serif`;
-  ctx.fillText('Thuật toán Tham lam', b2X + barW / 2, chartY + 30);
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '13px monospace';
-  ctx.fillText('O(N log N) Siêu tốc', b2X + barW / 2, chartY + 50);
-
-  // Highlight Box: "TỐC ĐỘ GẤP 83,000 LẦN"
-  const pulse = Math.sin(t * 4) * 0.1 + 0.9;
-  const hlY = chartY - chartH - 40;
-  roundRect(cx - 180, hlY, 360, 48, 24);
-  ctx.fillStyle = 'rgba(57, 255, 20, 0.15)'; ctx.fill();
-  ctx.strokeStyle = GREEN; ctx.lineWidth = 2;
-  ctx.shadowColor = GREEN; ctx.shadowBlur = 16 * pulse;
-  ctx.stroke(); ctx.shadowBlur = 0;
-
-  ctx.fillStyle = GREEN;
-  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
-  ctx.fillText('⚡ TĂNG TỐC 83,000 LẦN', cx, hlY + 31);
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Quote Card ──
-function drawQuoteCard(t) {{
-  const cx = W / 2;
-  const cy = H / 2 + 30;
-  const qW = IS_VERTICAL ? W - 80 : Math.min(880, W * 0.70);
-  const qH = IS_VERTICAL ? Math.round(H * 0.40) : 340;
-  const qX = cx - qW / 2;
-  const qY = cy - qH / 2;
-
-  const enter = easeOutExpo(clamp(t / 0.7, 0, 1));
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(enter, enter);
-  ctx.translate(-cx, -cy);
-
-  // Purple glowing card
-  roundRect(qX, qY, qW, qH, 22);
-  ctx.fillStyle = 'rgba(18, 12, 38, 0.95)';
-  ctx.fill();
-  ctx.strokeStyle = PURPLE;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = PURPLE;
-  ctx.shadowBlur = 28 + Math.sin(t * 3) * 8;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Header tag
-  roundRect(cx - 140, qY - 20, 280, 40, 20);
-  ctx.fillStyle = 'rgba(168, 85, 247, 0.25)'; ctx.fill();
-  ctx.strokeStyle = PURPLE; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = '#e9d5ff';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('💎 BẢN CHẤT CỐT LÕI', cx, qY + 6);
-
-  // Large quotation mark
-  ctx.fillStyle = 'rgba(168, 85, 247, 0.35)';
-  ctx.font = 'bold 120px Georgia, serif';
-  ctx.fillText('“', qX + 60, qY + 110);
-
-  // Quote text
-  const quoteText = (BULLETS && BULLETS.length > 0)
-    ? BULLETS[0]
-    : 'Lựa chọn tốt nhất ở hiện tại sẽ dẫn đến giải pháp tối ưu cho toàn bộ bài toán.';
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = `italic bold ${{IS_VERTICAL ? 22 : 28}}px "Segoe UI", sans-serif`;
-  ctx.textAlign = 'center';
-
-  // Word wrap
-  const maxW = qW - 100;
-  const words = quoteText.split(' ');
-  let line = '';
-  let lineY = qY + qH * 0.42;
-  words.forEach(w => {{
-    const testLine = line + w + ' ';
-    if (ctx.measureText(testLine).width > maxW) {{
-      ctx.fillText(line.trim(), cx, lineY);
-      line = w + ' ';
-      lineY += IS_VERTICAL ? 36 : 44;
-    }} else {{
-      line = testLine;
-    }}
-  }});
-  if (line) ctx.fillText(line.trim(), cx, lineY);
-
-  // Sub-tag
-  ctx.fillStyle = PURPLE;
-  ctx.font = `bold ${{IS_VERTICAL ? 15 : 18}}px monospace`;
-  ctx.fillText('— GREEDY CHOICE PROPERTY —', cx, qY + qH - 30);
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Conclusion Summary Cards ──
-function drawSummaryCards(t) {{
-  const cx = W / 2;
-  const cy = H / 2 + (IS_VERTICAL ? 30 : 25);
-  const cardW = IS_VERTICAL ? W - 80 : Math.min(860, W * 0.72);
-  const cardH = IS_VERTICAL ? 110 : 120;
-  const startY = cy - (cardH * 3 + 40) / 2;
-
-  const takeaways = [
-    {{
-      num: '01',
-      title: 'BẢN CHẤT CỐT LÕI',
-      desc: 'Luôn chọn phương án tốt nhất tại bước hiện tại, không cần quay lui hay xét lại quá khứ.',
-      color: GREEN,
-      icon: '✓'
-    }},
-    {{
-      num: '02',
-      title: 'ĐIỀU KIỆN ÁP DỤNG THÀNH CÔNG',
-      desc: 'Bài toán phải thoả mãn Tính chất lựa chọn tham lam & Cấu trúc con tối ưu (Optimal Substructure).',
-      color: ORANGE,
-      icon: '⚡'
-    }},
-    {{
-      num: '03',
-      title: 'CẠM BẪY CẦN TRÁNH',
-      desc: 'Nếu bài toán yêu cầu nghiệm toàn cục phụ thuộc vào tổng thể (như Cái Túi 0/1) -> chuyển sang Quy hoạch động (DP).',
-      color: CYAN,
-      icon: '💡'
-    }}
-  ];
-
-  ctx.save();
-  takeaways.forEach((item, idx) => {{
-    const enterDelay = idx * 0.25;
-    const enter = easeOutExpo(clamp((t - enterDelay) / 0.6, 0, 1));
-    const itemY = startY + idx * (cardH + 20);
-
-    ctx.save();
-    ctx.translate(cx, itemY + cardH / 2);
-    ctx.scale(enter, enter);
-    ctx.translate(-cx, -(itemY + cardH / 2));
-
-    roundRect(cx - cardW / 2, itemY, cardW, cardH, 16);
-    ctx.fillStyle = 'rgba(10, 18, 36, 0.94)';
-    ctx.fill();
-    ctx.strokeStyle = item.color;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = item.color;
-    ctx.shadowBlur = 14;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Number tag box
-    roundRect(cx - cardW / 2 + 16, itemY + 16, 56, cardH - 32, 10);
-    ctx.fillStyle = item.color;
-    ctx.fill();
-    ctx.fillStyle = '#060a14';
-    ctx.font = 'bold 22px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(item.num, cx - cardW / 2 + 44, itemY + cardH / 2 + 8);
-
-    // Title & Description
-    ctx.textAlign = 'left';
-    ctx.fillStyle = item.color;
-    ctx.font = `bold ${{IS_VERTICAL ? 16 : 20}}px sans-serif`;
-    ctx.fillText(`${{item.icon}} ${{item.title}}`, cx - cardW / 2 + 90, itemY + 36);
-
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = `${{IS_VERTICAL ? 13 : 16}}px sans-serif`;
-    const maxDescW = cardW - 110;
-    const words = item.desc.split(' ');
-    let line1 = '', line2 = '';
-    words.forEach(w => {{
-      if (ctx.measureText(line1 + w + ' ').width < maxDescW && !line2) {{
-        line1 += w + ' ';
-      }} else {{
-        line2 += w + ' ';
-      }}
-    }});
-    ctx.fillText(line1.trim(), cx - cardW / 2 + 90, itemY + 64);
-    if (line2) ctx.fillText(line2.trim(), cx - cardW / 2 + 90, itemY + 86);
-    ctx.restore();
-  }});
-  ctx.restore();
-}}
-
-// ── TEMPLATE: Real-world Metaphor with Stock Image ──
-function drawMetaphor(t) {{
-  const cx = W / 2;
-  const cy = H / 2 + (IS_VERTICAL ? 20 : 30);
-  const cardW = IS_VERTICAL ? W - 80 : Math.min(840, W * 0.54);
-  const cardH = IS_VERTICAL ? Math.round(H * 0.44) : Math.round(H * 0.56);
-  const cardX = IS_VERTICAL ? 40 : (W - cardW) / 2;
-  const cardY = cy - cardH / 2;
-
-  const enter = easeOutExpo(clamp(t / 0.6, 0, 1));
-  ctx.save();
-  ctx.translate(cardX + cardW/2, cardY + cardH/2);
-  ctx.scale(enter, enter);
-  ctx.translate(-(cardX + cardW/2), -(cardY + cardH/2));
-
-  // Outer glow frame
-  roundRect(cardX, cardY, cardW, cardH, 20);
-  ctx.fillStyle = 'rgba(10, 18, 36, 0.95)';
-  ctx.fill();
-  ctx.strokeStyle = YELLOW;
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = YELLOW;
-  ctx.shadowBlur = 20;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  if (HAS_IMAGE && stockImg && stockImg.complete && stockImg.naturalWidth > 0) {{
-    // Draw loaded stock photo with slight Ken Burns slow zoom
-    ctx.save();
-    roundRect(cardX + 10, cardY + 54, cardW - 20, cardH - 64, 14);
-    ctx.clip();
-    const zoom = 1.0 + Math.sin(t * 0.2) * 0.05;
-    const iw = (cardW - 20) * zoom;
-    const ih = (cardH - 64) * zoom;
-    const ix = cardX + 10 - (iw - (cardW - 20)) / 2;
-    const iy = cardY + 54 - (ih - (cardH - 64)) / 2;
-    ctx.drawImage(stockImg, ix, iy, iw, ih);
-
-    // Subtle dark gradient overlay at bottom for readability
-    const grad = ctx.createLinearGradient(0, cardY + cardH - 120, 0, cardY + cardH);
-    grad.addColorStop(0, 'rgba(6,10,20,0)');
-    grad.addColorStop(1, 'rgba(6,10,20,0.85)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(cardX + 10, cardY + cardH - 120, cardW - 20, cardH - 64);
-    ctx.restore();
-  }} else {{
-    // Procedural drawers illustration: 3 drawers sliding
-    const drW = cardW - 60;
-    const drH = (cardH - 120) / 3;
-    const drX = cardX + 30;
-    for (let di = 0; di < 3; di++) {{
-      const drY = cardY + 70 + di * (drH + 10);
-      const isYellow = di === 0;
-      const slide = isYellow ? Math.sin(t * 2) * 15 + 15 : 0;
-      roundRect(drX + slide, drY, drW - slide, drH - 10, 10);
-      ctx.fillStyle = isYellow ? 'rgba(255, 230, 0, 0.18)' : 'rgba(30, 41, 59, 0.8)';
-      ctx.fill();
-      ctx.strokeStyle = isYellow ? YELLOW : 'rgba(100, 116, 139, 0.4)';
-      ctx.lineWidth = isYellow ? 2 : 1;
-      ctx.stroke();
-
-      // Drawer handle
-      roundRect(drX + slide + (drW - slide)/2 - 30, drY + (drH - 10)/2 - 4, 60, 8, 4);
-      ctx.fillStyle = isYellow ? YELLOW : '#64748b';
-      ctx.fill();
-
-      ctx.fillStyle = isYellow ? YELLOW : '#cbd5e1';
-      ctx.font = `bold ${{IS_VERTICAL ? 14 : 17}}px sans-serif`;
-      ctx.fillText(di === 0 ? 'Ngăn 1 (Ưu tiên cao nhất)' : (di === 1 ? 'Ngăn 2' : 'Ngăn 3'), drX + slide + 20, drY + 28);
-    }}
-  }}
-
-  // Header badge on card
-  roundRect(cardX, cardY, cardW, 50, [20, 20, 0, 0]);
-  ctx.fillStyle = 'rgba(255, 230, 0, 0.15)';
-  ctx.fill();
-  ctx.fillStyle = YELLOW;
-  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
-  ctx.fillText('📦 MÔ HÌNH ẨN DỤ ĐỜI THƯỜNG', cardX + 24, cardY + 33);
-  ctx.restore();
-}}
-
-// ── Master Render ──
-function renderFrameAt(f) {{
-  const t = f / FPS;
-  drawBackground(t);
-  drawHeader(t);
-  switch (TEMPLATE) {{
-    case 'conclusion':    drawSummaryCards(t); break;
-    case 'quote_card':    drawQuoteCard(t); break;
-    case 'cpu_scheduler': drawCpuScheduler(t); break;
-    case 'bar_benchmark': drawBarBenchmark(t); break;
-    case 'metaphor':      drawMetaphor(t); break;
-    case 'scheduler':     drawScheduler(t); break;
-    case 'stickman':      drawStickmanStory(t); break;
-    case 'git_flow':      drawGitFlow(t); break;
-    case 'attention_map': drawAttentionMap(t); break;
-    case 'algo_trace':    drawAlgoTrace(t); break;
-    case 'github_stats':  drawGithubStats(t); break;
-    case 'neural_flow':   drawNeuralFlow(t); break;
-    case 'diff_view':     drawDiffView(t); break;
-    case 'terminal':      drawTerminal(t); break;
-    case 'comparison':    drawComparison(t); break;
-    case 'hud':           drawHUD(t); break;
-    default:              drawArchitecture(t); break;
-  }}
-}}
-
-// ── Frame Extraction Loop ──
-async function runCapture() {{
-  for (let f = 0; f < TOTAL_FRAMES; f++) {{
-    renderFrameAt(f);
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-    const buf = await blob.arrayBuffer();
-    await fetch('/frame?idx=' + f, {{ method: 'POST', body: buf }});
-  }}
-  await fetch('/done', {{ method: 'POST' }});
-}}
-
-runCapture();
-</script>
-</body>
-</html>
-"""
-
-
-# ---------------------------------------------------------------------------
-# Runner Engine
-# ---------------------------------------------------------------------------
 
 def render_motion_graphic_scene(
     scene: Scene,
@@ -2269,156 +1580,202 @@ def render_motion_graphic_scene(
     timeout: int = 120,
     image_path: Path | None = None,
 ) -> Path | None:
-    """Render 1 scene thành video Motion Graphic bằng Edge/Chrome Headless + HTML5 Canvas.
+    """Render 1 scene thành MP4 bằng headless Edge/Chrome + Canvas + FFmpeg.
 
-    Trả về Path tới file out.mp4 nếu thành công, None nếu thất bại.
+    Trả về Path tới out.mp4 nếu ĐỦ 100% frame và FFmpeg thành công, ngược lại None.
     """
     browser_bin = get_browser_path()
     if not browser_bin:
-        log.warning("Không tìm thấy Microsoft Edge hoặc Google Chrome để render Motion Graphics.")
+        log.warning("Không tìm thấy Microsoft Edge/Google Chrome để render Motion Graphics.")
         return None
 
+    out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     frames_dir = out_dir / "frames"
+    shutil.rmtree(frames_dir, ignore_errors=True)  # tránh ghép lẫn frame cũ của lần chạy trước
     frames_dir.mkdir(parents=True, exist_ok=True)
 
-    # Log detected template for debugging
-    template = _detect_template(scene)
-    log.info("Motion Graphics template: '%s' cho scene: %s", template, (scene.heading or "")[:40])
-
-    # 1. Khởi tạo server HTTP local nhận frame (cổng ngẫu nhiên do OS cấp)
-    captured_frames: list[int] = []
-    is_done = threading.Event()
     total_expected = max(1, round(duration * fps))
+    html_bytes = _build_motion_html(scene, duration, width, height, fps, image_path=image_path).encode("utf-8")
+    template = re.search(r'"template": "([a-z_]+)"', html_bytes.decode("utf-8", "ignore"))
+    log.info("Motion Graphics template '%s' cho scene: %s", template.group(1) if template else "?", (scene.heading or "")[:40])
 
-    html_content = _build_motion_html(scene, duration, width, height, fps, image_path=image_path)
+    captured: set[int] = set()
+    lock = threading.Lock()
+    done, failed = threading.Event(), threading.Event()
+    state = {"last": time.time(), "error": ""}
 
-    class FrameHandler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            if "/done" in self.path:
-                is_done.set()
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(b"ok")
-                return
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
+    class Handler(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def handle(self):
+            try:
+                super().handle()
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                pass
+
+        def _reply(self, code: int = 200, body: bytes = b"ok", ctype: str = "text/plain") -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(html_content.encode("utf-8"))
+            self.wfile.write(body)
 
-        def do_POST(self):
-            length = int(self.headers.get("Content-Length", 0))
-            data = self.rfile.read(length)
+        def do_GET(self):  # noqa: N802
+            if urlparse(self.path).path in ("/", "/index.html"):
+                self._reply(200, html_bytes, "text/html; charset=utf-8")
+            else:
+                self._reply(204, b"")
 
-            if "/frame" in self.path:
-                idx = len(captured_frames)
-                m = re.search(r"idx=(\d+)", self.path)
-                if m:
-                    idx = int(m.group(1))
-                frame_file = frames_dir / f"frame_{idx:05d}.jpg"
-                frame_file.write_bytes(data)
-                captured_frames.append(idx)
-                if len(captured_frames) >= total_expected:
-                    is_done.set()
+        def do_POST(self):  # noqa: N802
+            u = urlparse(self.path)
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            data = self.rfile.read(length) if length else b""
+            q = parse_qs(u.query)
+            if u.path == "/frame":
+                try:
+                    idx = int(q.get("idx", ["-1"])[0])
+                except ValueError:
+                    idx = -1
+                if 0 <= idx < total_expected and data:
+                    (frames_dir / f"frame_{idx:05d}.jpg").write_bytes(data)
+                    with lock:
+                        captured.add(idx)
+                        state["last"] = time.time()
+                        if len(captured) >= total_expected:
+                            done.set()
+            elif u.path == "/done":
+                done.set()
+            elif u.path == "/error":
+                state["error"] = q.get("msg", [""])[0]
+                failed.set()
+            elif u.path == "/warn":
+                log.warning("Motion Graphics (trình duyệt): %s", q.get("msg", [""])[0])
+            self._reply()
 
-            elif "/done" in self.path:
-                is_done.set()
-
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"ok")
-
-        def log_message(self, format, *args):
+        def log_message(self, *a, **k):  # noqa: D401
             pass
 
-    class ReusableTCPServer(socketserver.TCPServer):
+    class Server(http.server.ThreadingHTTPServer):
+        daemon_threads = True
         allow_reuse_address = True
 
-    server = ReusableTCPServer(("127.0.0.1", 0), FrameHandler)
+    server = Server(("127.0.0.1", 0), Handler)
     port = server.server_address[1]
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.start()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
 
-    # 2. Khởi chạy Edge/Chrome Headless mở trang render
-    cmd = [
-        browser_bin,
-        "--headless",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        f"--window-size={width},{height}",
-        "--hide-scrollbars",
-        f"http://127.0.0.1:{port}",
-    ]
-
+    profile = tempfile.mkdtemp(prefix="mg_profile_")
+    cmd = _browser_cmd(browser_bin, profile, width, height, f"http://127.0.0.1:{port}/")
+    # Thời gian cho phép tỉ lệ với số frame (render phần mềm ~0.1s/frame ở 1080p), tối thiểu theo tham số
+    budget = max(int(timeout), int(_mg_cfg().get("min_timeout", 0) or 0), 30 + int(total_expected * 0.12))
     t0 = time.time()
-    proc = None
+    proc: subprocess.Popen | None = None
+    reason = ""
     try:
-        proc = subprocess.Popen(cmd)
-        # Chờ trình duyệt render xong và gửi tín hiệu /done
-        done = is_done.wait(timeout=timeout)
-        if not done:
-            log.warning("Motion Graphics render vượt timeout %ds.", timeout)
-    except Exception as e:
-        log.warning("Khởi chạy trình duyệt headless lỗi: %s", e)
+        proc = subprocess.Popen(cmd, **_popen_kwargs())
+        while True:
+            if done.wait(0.5):
+                break
+            if failed.is_set():
+                reason = f"lỗi từ trang: {state['error']}"
+                break
+            if proc.poll() is not None and not done.is_set():
+                time.sleep(0.5)  # có thể /done vừa tới
+                if not done.is_set():
+                    reason = f"trình duyệt thoát sớm (code {proc.returncode})"
+                break
+            now = time.time()
+            if now - t0 > budget:
+                reason = f"vượt timeout {budget}s"
+                break
+            if now - state["last"] > max(30, budget * 0.5) and now - t0 > 30:
+                reason = "không còn frame mới (treo)"
+                break
+    except Exception as e:  # noqa: BLE001
+        reason = f"khởi chạy trình duyệt lỗi: {e}"
     finally:
-        if proc:
-            try:
-                proc.kill()
-            except Exception:
-                pass
+        _kill_tree(proc)
         try:
             server.shutdown()
             server.server_close()
-            server_thread.join(timeout=1.0)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
+        shutil.rmtree(profile, ignore_errors=True)
 
-    dt = time.time() - t0
-    total_expected = max(1, round(duration * fps))
-    log.info(
-        "Motion Graphics [%s]: Đã thu được %d/%d frames trong %.2fs",
-        template, len(captured_frames), total_expected, dt,
-    )
-
-    if not captured_frames or len(captured_frames) < max(3, total_expected * 0.6):
-        log.warning("Số lượng frame thu được quá ít, Motion Graphics thất bại.")
+    with lock:
+        n_cap = len(captured)
+        complete = all(i in captured for i in range(total_expected))
+    log.info("Motion Graphics: thu %d/%d frame trong %.1fs", n_cap, total_expected, time.time() - t0)
+    keep = bool(_mg_cfg().get("keep_frames"))
+    if not complete:
+        log.warning("Motion Graphics thất bại: thiếu frame (%d/%d)%s", n_cap, total_expected, f" - {reason}" if reason else "")
+        if not keep:
+            shutil.rmtree(frames_dir, ignore_errors=True)
         return None
 
-    # 3. Dùng FFmpeg ghép frame thành video MP4 chuẩn
+    # --- FFmpeg ---
     out_mp4 = out_dir / "out.mp4"
-    try:
-        import imageio_ffmpeg
-        ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception:
-        ffmpeg_bin = "ffmpeg"
+    ffmpeg_bin = get_ffmpeg_path()
+    if not ffmpeg_bin:
+        log.warning("Không tìm thấy FFmpeg thực thi trên hệ thống để ghép video.")
+        if not keep:
+            shutil.rmtree(frames_dir, ignore_errors=True)
+        return None
 
     ff_cmd = [
-        ffmpeg_bin,
-        "-y",
-        "-framerate", str(fps),
-        "-i", str(frames_dir / "frame_%05d.jpg"),
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        str(out_mp4),
+        ffmpeg_bin, "-y", "-framerate", str(fps), "-i", str(frames_dir / "frame_%05d.jpg"),
+        "-frames:v", str(total_expected), "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-an",
+        "-movflags", "+faststart", str(out_mp4),
     ]
-
     try:
-        res = subprocess.run(ff_cmd, capture_output=True, text=True, timeout=60)
-        if res.returncode == 0 and out_mp4.exists() and out_mp4.stat().st_size > 1024:
-            log.info("Motion Graphics render thành công: %s (%.1fMB)", out_mp4.name, out_mp4.stat().st_size / 1e6)
-            # Dọn dẹp frames
-            try:
-                for f in frames_dir.glob("*.jpg"):
-                    f.unlink()
-                frames_dir.rmdir()
-            except Exception:
-                pass
+        kw = {"capture_output": True, "text": True, "timeout": max(60, int(duration * 4))}
+        if os.name == "nt" and hasattr(subprocess, "CREATE_NO_WINDOW"):
+            kw["creationflags"] = subprocess.CREATE_NO_WINDOW
+        res = subprocess.run(ff_cmd, **kw)
+        ok = res.returncode == 0 and out_mp4.exists() and out_mp4.stat().st_size > 1024
+        if ok:
+            log.info("Motion Graphics render OK: %s (%.1fMB)", out_mp4.name, out_mp4.stat().st_size / 1e6)
+            if not keep:
+                shutil.rmtree(frames_dir, ignore_errors=True)
             return out_mp4
-        else:
-            log.warning("FFmpeg ghép MP4 lỗi: %s", res.stderr[-400:])
-    except Exception as e:
-        log.warning("Lỗi khi chạy FFmpeg ghép video: %s", e)
-
+        log.warning("FFmpeg ghép MP4 lỗi: %s", (res.stderr or "")[-400:])
+    except Exception as e:  # noqa: BLE001
+        log.warning("Lỗi khi chạy FFmpeg: %s", e)
+    if not keep:
+        shutil.rmtree(frames_dir, ignore_errors=True)
     return None
+
+
+def render_preview_png(
+    scene: Scene,
+    out_png: Path,
+    t: float = 3.0,
+    duration: float = 8.0,
+    width: int = 1920,
+    height: int = 1080,
+    fps: int = 30,
+    image_path: Path | None = None,
+    timeout: int = 60,
+) -> Path | None:
+    """Chụp 1 khung hình (giây thứ t) của scene ra PNG để kiểm tra template bằng mắt / test hồi quy."""
+    browser_bin = get_browser_path()
+    if not browser_bin:
+        return None
+    out_png = Path(out_png).resolve()
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    profile = tempfile.mkdtemp(prefix="mg_profile_")
+    page = Path(profile) / "preview.html"
+    page.write_text(_build_motion_html(scene, duration, width, height, fps, image_path=image_path), encoding="utf-8")
+    cmd = _browser_cmd(browser_bin, profile, width, height, f"{page.as_uri()}#preview={t}",
+                       extra=[f"--screenshot={out_png}", "--virtual-time-budget=4000"])
+    proc = None
+    try:
+        proc = subprocess.Popen(cmd, **_popen_kwargs())
+        proc.wait(timeout=timeout)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Chụp preview lỗi: %s", e)
+    finally:
+        _kill_tree(proc)
+        shutil.rmtree(profile, ignore_errors=True)
+    return out_png if out_png.exists() and out_png.stat().st_size > 1024 else None
