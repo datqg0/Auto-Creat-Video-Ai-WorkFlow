@@ -152,6 +152,7 @@ _LABELS = {
         "key": "KEY", "query": "QUERY", "input": "Đầu vào", "output": "Đầu ra", "hidden": "Ẩn",
         "commits": ["Khởi tạo", "Tính năng", "Sửa lỗi", "Hợp nhất", "Phát hành"],
         "default_title": "PHÂN TÍCH KỸ THUẬT", "branch": "nhánh",
+        "calc_step": "Phép tính", "result_cell": "Kết quả", "scalar_mult": "Nhân vô hướng",
     },
     "en": {
         "illustrative": "ILLUSTRATIVE",
@@ -164,6 +165,7 @@ _LABELS = {
         "key": "KEY", "query": "QUERY", "input": "Input", "output": "Output", "hidden": "Hidden",
         "commits": ["Init", "Feature", "Bugfix", "Merge", "Release"],
         "default_title": "TECHNICAL BREAKDOWN", "branch": "branch",
+        "calc_step": "Calculation", "result_cell": "Result", "scalar_mult": "Scalar Multiplication",
     },
 }
 
@@ -527,10 +529,143 @@ def _d_metaphor(scene: Scene, lang: str, has_image: bool) -> dict | None:
     return {"captions": caps}
 
 
-def _d_story(scene: Scene, lang: str) -> dict | None:
-    items = _bullets(scene, 6) or _sentences(scene.narration, 4, 120)
-    if len(items) < 2:
+def _d_matrix_op(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("matrix_op", "matrix")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_matrix_kw = any(w in corpus for w in ("ma trận", "matrix", "scalar", "vô hướng", "linear algebra", "đại số tuyến tính", "tensor"))
+
+    matrix_a = a.get("matrix") or a.get("matrix_a")
+    scalar = a.get("scalar")
+    op = a.get("op", "×")
+
+    # Try parsing matrix from bullets if not in animation
+    if not matrix_a:
+        found_rows = []
+        for b in _bullets(scene):
+            m = re.findall(r"-?\d+", b)
+            if len(m) >= 2:
+                found_rows.append([int(x) for x in m[:4]])
+        if len(found_rows) >= 2:
+            matrix_a = found_rows[:3]
+
+    if scalar is None:
+        for b in _bullets(scene):
+            m = re.search(r"(?:scalar|c|k|hệ số|vô hướng)\s*[:=]?\s*(-?\d+)", b, re.IGNORECASE)
+            if m:
+                scalar = int(m.group(1))
+                break
+
+    illustrative = False
+    if not matrix_a and not has_matrix_kw and not is_explicit:
         return None
+
+    if not matrix_a:
+        matrix_a = [[2, 5, 1], [4, 0, 3]]
+        scalar = 3 if scalar is None else scalar
+        illustrative = True
+
+    if scalar is None:
+        scalar = 3
+
+    rows = len(matrix_a)
+    cols = max(len(r) for r in matrix_a)
+    matrix_a = [[r[c] if c < len(r) else 0 for c in range(cols)] for r in matrix_a]
+
+    result_matrix = []
+    steps = []
+    for r in range(rows):
+        res_row = []
+        for c in range(cols):
+            val_a = matrix_a[r][c]
+            res = val_a * scalar
+            res_row.append(res)
+            steps.append({
+                "row": r,
+                "col": c,
+                "expr": f"{val_a} × {scalar} = {res}",
+                "val": res,
+            })
+        result_matrix.append(res_row)
+
+    bc = a.get("breadcrumb") or f"DEEP-ML / PROBLEM 05 / WORKED EXAMPLE"
+    diff = a.get("difficulty") or "Easy"
+    cat = a.get("category") or "Linear Algebra"
+
+    return {
+        "matrix_op": {
+            "scalar": scalar,
+            "op": op,
+            "matrix_a": matrix_a,
+            "result_matrix": result_matrix,
+            "rows": rows,
+            "cols": cols,
+            "steps": steps,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+            "formula_label": f"Scalar Multiplication: C[i, j] = {scalar} · A[i, j]",
+        },
+        "_illustrative": illustrative,
+    }
+
+
+def _d_visual_algo(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("visual_algo", "algo_table", "table_step")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_algo_kw = any(w in corpus for w in ("covariance", "hiệp phương sai", "thống kê", "deep-ml", "worked example", "bảng tính", "step by step", "do they move together"))
+
+    table = a.get("table")
+    formula = a.get("formula")
+
+    illustrative = False
+    if not table and not has_algo_kw and not is_explicit:
+        return None
+
+    if not table:
+        table = {
+            "headers": ["Day", "X (Sunshine)", "Y (Ice Cream)", "X - X̄", "Y - Ȳ", "Product"],
+            "rows": [
+                ["1", "2", "4", "-2", "-2", "4"],
+                ["2", "4", "6", " 0", " 0", "0"],
+                ["3", "6", "8", "+2", "+2", "4"],
+            ],
+        }
+        formula = formula or "Cov(X, Y) = Σ [(X - X̄)(Y - Ȳ)] / (N - 1) = 8 / 2 = 4"
+        illustrative = True
+
+    bc = a.get("breadcrumb") or f"DEEP-ML / PROBLEM 10 / STEP BY STEP"
+    diff = a.get("difficulty") or "Easy"
+    cat = a.get("category") or "Statistics"
+
+    return {
+        "visual_algo": {
+            "table": table,
+            "formula": formula or "",
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": illustrative,
+    }
+
+
+def _d_story(scene: Scene, lang: str) -> dict | None:
+    vt = str(_g(scene, "visual_type", "")).lower()
+    items = _bullets(scene, 6) or _sentences(scene.narration, 4, 120)
+    if not items:
+        h = scene.heading or ""
+        if h:
+            items = [h]
+    if not items and vt != "challenge":
+        return None
+    if len(items) <= 1:
+        prob = [items[0]] if items else ["Vấn đề kỹ thuật gặp phải"]
+        sol = [_sentences(scene.narration, 1, 100)[0]] if _sentences(scene.narration, 1) else [_LABELS[lang]["solution"]]
+        return {"story": {"problem": prob, "solution": sol}}
     k = math.ceil(len(items) / 2)
     return {"story": {"problem": [_truncate(x, 100) for x in items[:k][:3]],
                       "solution": [_truncate(x, 100) for x in items[k:][:3]]}}
@@ -547,6 +682,12 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "quote_card": ("trích dẫn", "trich dan", "châm ngôn", "cham ngon", "bản chất cốt lõi", "ban chat cot loi",
                    "câu nói", "cau noi", "quote", "insight"),
     "terminal": ("terminal", "bash", "câu lệnh", "cau lenh", "pseudocode", "mã giả", "ma gia", "console", "command"),
+    "matrix_op": ("ma trận", "ma tran", "matrix", "scalar", "vô hướng", "vo huong",
+                  "nhân ma trận", "nhan ma tran", "đại số tuyến tính", "dai so tuyen tinh",
+                  "linear algebra", "tensor", "vector", "tích vô hướng", "dot product"),
+    "visual_algo": ("covariance", "hiệp phương sai", "hiep phuong sai", "thống kê", "thong ke",
+                    "step by step", "từng bước", "tung buoc", "deep-ml", "worked example",
+                    "bảng tính", "bang tinh", "công thức", "cong thuc", "formula"),
     "bar_benchmark": ("benchmark", "biểu đồ cột", "bieu do cot", "biểu đồ thanh", "bieu do thanh",
                       "so sánh hiệu năng", "so sanh hieu nang", "bar chart", "đo lường", "do luong"),
     "github_stats": ("github", "star", "tăng trưởng", "tang truong", "growth", "trend", "xu hướng", "xu huong"),
@@ -567,9 +708,10 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "stickman": ("nghịch lý", "nghich ly", "hỗn loạn", "hon loan", "bế tắc", "be tac",
                  "sai lầm", "sai lam", "bối rối", "boi roi", "paradox", "chaos", "mistake"),
 }
-_PRIORITY = ["conclusion", "quote_card", "terminal", "scheduler", "bar_benchmark", "github_stats", "algo_trace",
-             "neural_flow", "hud", "diff_view", "cpu_scheduler", "git_flow", "attention_map", "comparison",
-             "metaphor", "stickman", "architecture"]
+_PRIORITY = ["conclusion", "quote_card", "terminal", "matrix_op", "visual_algo", "scheduler",
+             "bar_benchmark", "github_stats", "algo_trace", "neural_flow", "hud", "diff_view",
+             "cpu_scheduler", "git_flow", "attention_map", "comparison", "metaphor", "stickman",
+             "architecture"]
 
 
 def _kw_hits(text: str, kws: tuple[str, ...]) -> int:
@@ -592,6 +734,10 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("quote_card", 20)
     elif vt in ("code", "terminal", "cmd"):
         add("terminal", 20)
+    elif vt in ("matrix_op", "matrix"):
+        add("matrix_op", 25)
+    elif vt in ("visual_algo", "deep_ml"):
+        add("visual_algo", 25)
     elif vt == "chart" and chart:
         add("github_stats" if chart["kind"] == "line" else "bar_benchmark", 20)
     elif vt in ("git", "git_flow"):
@@ -600,16 +746,24 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("diff_view", 20)
     elif vt in ("comparison", "compare"):
         add("comparison", 20)
+    elif vt == "algorithm" and algo in ("matrix_mult", "linear_algebra"):
+        add("matrix_op", 22)
+    elif vt == "algorithm" and algo in ("covariance", "stats"):
+        add("visual_algo", 22)
     elif vt == "algorithm" and algo == "sorting":
         add("algo_trace", 20)
     elif vt == "algorithm" and algo == "neural_network":
         add("neural_flow", 20)
     elif vt == "challenge":
-        add("stickman", 18)
+        add("stickman", 25)
     elif vt == "diagram":
         add("architecture", 18)
 
-    if preset == "bar_chart":
+    if preset == "matrix_op":
+        add("matrix_op", 25)
+    elif preset == "visual_algo":
+        add("visual_algo", 25)
+    elif preset == "bar_chart":
         add("bar_benchmark", 15)
     elif preset == "counter":
         add("hud", 18)
@@ -633,6 +787,8 @@ def _plan_scene(scene: Scene, has_image: bool, lang: str) -> dict:
         "conclusion": lambda: _d_takeaways(scene, lang),
         "quote_card": lambda: _d_quote(scene, lang),
         "terminal": lambda: _d_code(scene, lang),
+        "matrix_op": lambda: _d_matrix_op(scene, lang),
+        "visual_algo": lambda: _d_visual_algo(scene, lang),
         "bar_benchmark": lambda: _d_bars(scene, lang),
         "github_stats": lambda: _d_series(scene, lang),
         "algo_trace": lambda: _d_array(scene, lang),
@@ -855,21 +1011,60 @@ function drawBackground(t) {
 let HL = null;
 function headerLayout() {
   if (HL) return HL;
-  const mx = px(72), top = px(IS_VERTICAL ? 96 : 48), tSize = px(IS_VERTICAL ? 52 : 58);
+  const meta = (D.matrix_op || D.visual_algo || {});
+  const hasMeta = !!(meta.breadcrumb || D.breadcrumb || meta.category || D.category);
+  const mx = px(72);
+  const top = px(IS_VERTICAL ? (hasMeta ? 130 : 96) : (hasMeta ? 78 : 48));
+  const tSize = px(IS_VERTICAL ? 48 : 52);
   const maxW = W - mx * 2 - px(26);
   const tLines = wrapLines(CFG.title, maxW, font(tSize, 'bold'), 2);
   const lh = tSize * 1.2;
-  const sSize = px(IS_VERTICAL ? 26 : 28);
+  const sSize = px(IS_VERTICAL ? 24 : 26);
   const sLines = CFG.subtitle ? wrapLines(CFG.subtitle, maxW, font(sSize), 2) : [];
   const sLh = sSize * 1.35;
   const bottom = top + tLines.length * lh + (sLines.length ? px(10) + sLines.length * sLh : 0);
-  HL = { mx, top, tSize, tLines, lh, sSize, sLines, sLh, bottom };
+  HL = { mx, top, tSize, tLines, lh, sSize, sLines, sLh, bottom, hasMeta, meta };
   return HL;
 }
 function drawHeader(t) {
   const h = headerLayout();
   const enter = easeOutExpo(clamp(t / 0.7, 0, 1));
   ctx.save(); ctx.globalAlpha = enter; ctx.translate(0, (1 - enter) * -px(24));
+
+  // Breadcrumb bar & pills for Deep-ML style
+  const meta = h.meta;
+  const bc = meta.breadcrumb || D.breadcrumb;
+  const diff = meta.difficulty || D.difficulty;
+  const cat = meta.category || D.category;
+
+  if (h.hasMeta) {
+    const topBarY = h.top - px(22);
+    if (bc) {
+      text(String(bc), h.mx, topBarY, font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO), '#94a3b8');
+    }
+    // Draw pills on right
+    let pillRight = W - h.mx;
+    if (cat) {
+      const catText = String(cat);
+      const catF = font(px(14), 'bold', MONO);
+      ctx.font = catF;
+      const catW = ctx.measureText(catText).width + px(22);
+      pillRight -= catW;
+      panel(pillRight, topBarY - px(17), catW, px(24), { r: 12, fill: 'rgba(168,85,247,0.18)', stroke: PURPLE, lw: 1.5 });
+      text(catText, pillRight + catW / 2, topBarY - px(2), catF, PURPLE, 'center');
+      pillRight -= px(10);
+    }
+    if (diff) {
+      const diffText = '● ' + String(diff);
+      const diffF = font(px(14), 'bold', MONO);
+      ctx.font = diffF;
+      const diffW = ctx.measureText(diffText).width + px(22);
+      pillRight -= diffW;
+      panel(pillRight, topBarY - px(17), diffW, px(24), { r: 12, fill: 'rgba(57,255,20,0.18)', stroke: GREEN, lw: 1.5 });
+      text(diffText, pillRight + diffW / 2, topBarY - px(2), diffF, GREEN, 'center');
+    }
+  }
+
   ctx.save(); ctx.fillStyle = CYAN; ctx.shadowColor = CYAN; ctx.shadowBlur = px(16);
   ctx.fillRect(h.mx, h.top + px(4), px(8), h.tLines.length * h.lh - px(8)); ctx.restore();
   h.tLines.forEach((ln, i) => text(ln, h.mx + px(26), h.top + h.tSize * 0.95 + i * h.lh, font(h.tSize, 'bold'), '#f1f5f9'));
@@ -886,6 +1081,17 @@ function drawBadge(box) {
   const f = font(px(20), 'bold', MONO), tw = measure(L.illustrative, f) + px(28);
   panel(box.x + box.w - tw, box.y - px(34), tw, px(30), { r: 15, fill: 'rgba(255,230,0,0.10)', stroke: YELLOW, lw: 1.5 });
   text(L.illustrative, box.x + box.w - tw / 2, box.y - px(13), f, YELLOW, 'center');
+}
+function drawBrackets(x, y, w, h, col) {
+  const arm = px(12), lw = px(3);
+  ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + arm, y); ctx.lineTo(x, y); ctx.lineTo(x, y + h); ctx.lineTo(x + arm, y + h);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + w - arm, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - arm, y + h);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // ---------- Người que ----------
@@ -1417,6 +1623,229 @@ TEMPLATES.metaphor = function (t, box) {
       else { const cwid = (iw - px(16) * (Math.min(caps.length, 3) - 1)) / Math.min(caps.length, 3), xx = ix + i * (cwid + px(16)), yy = imgY + imgH + px(14); panel(xx, yy, cwid, px(64), { r: 12, stroke: PALETTE[i], lw: 1.5 }); text(fitText(c, cwid - px(28), font(px(24), 'bold')), xx + px(14), yy + px(41), font(px(24), 'bold'), '#f1f5f9'); }
       ctx.restore(); });
   });
+};
+
+// --- matrix_op: đại số tuyến tính / phép nhân ma trận từng ô kiểu Deep-ML ---
+TEMPLATES.matrix_op = function (t, box) {
+  const m = D.matrix_op; if (!m) return;
+  const rows = m.rows || 2, cols = m.cols || 3;
+  const steps = m.steps || [];
+  const nSteps = steps.length || 1;
+  const availT = Math.max(DURATION - 1.2, 1.0);
+  const tps = availT / nSteps;
+  const curStepIdx = clamp(Math.floor((t - 0.6) / tps), 0, nSteps - 1);
+  const curStep = steps[curStepIdx] || { row: 0, col: 0, expr: '', val: 0 };
+  const stepProg = clamp((t - 0.6 - curStepIdx * tps) / tps, 0, 1);
+
+  const calcH = px(IS_VERTICAL ? 120 : 96);
+  const calcY = box.y + box.h - calcH;
+  const matAreaH = box.h - calcH - px(24);
+
+  if (!IS_VERTICAL) {
+    const gap = px(12);
+    const maxCellW = px(110);
+    const maxCellH = px(84);
+    const cellW = Math.min(maxCellW, (box.w * 0.36 - (cols - 1) * gap) / cols);
+    const cellH = Math.min(maxCellH, (matAreaH - (rows - 1) * gap - px(40)) / rows);
+
+    const matW = cols * cellW + (cols - 1) * gap;
+    const matH = rows * cellH + (rows - 1) * gap;
+    const scBoxW = Math.max(cellW, px(90));
+    const scBoxH = Math.max(cellH, px(90));
+
+    const totalOpW = scBoxW + px(50) + matW + px(50) + matW;
+    const startX = box.x + Math.max(0, (box.w - totalOpW) / 2);
+    const midY = box.y + matAreaH / 2;
+
+    // 1. Scalar Box
+    const scX = startX;
+    const scY = midY - scBoxH / 2;
+    panel(scX, scY, scBoxW, scBoxH, { r: 16, fill: 'rgba(245, 158, 11, 0.12)', stroke: '#f59e0b', lw: 2.5, glow: px(18) });
+    text('Scalar c', scX + scBoxW / 2, scY - px(10), font(px(16), 'bold', MONO), '#f59e0b', 'center');
+    text(String(m.scalar), scX + scBoxW / 2, scY + scBoxH / 2 + px(12), font(px(38), 'bold', MONO), '#ffffff', 'center');
+
+    // Multiply Symbol
+    text('×', scX + scBoxW + px(25), midY + px(10), font(px(34), 'bold', MONO), '#f59e0b', 'center');
+
+    // 2. Matrix A
+    const matAX = scX + scBoxW + px(50);
+    const matAY = midY - matH / 2;
+    text('Matrix A', matAX + matW / 2, matAY - px(10), font(px(18), 'bold', MONO), CYAN, 'center');
+    drawBrackets(matAX - px(12), matAY, matW + px(24), matH, CYAN);
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = matAX + c * (cellW + gap);
+        const cy = matAY + r * (cellH + gap);
+        const isActive = (r === curStep.row && c === curStep.col);
+        const val = m.matrix_a[r] ? m.matrix_a[r][c] : 0;
+
+        if (isActive) {
+          panel(cx, cy, cellW, cellH, { r: 12, fill: 'rgba(255, 230, 0, 0.20)', stroke: YELLOW, lw: 3, glow: px(24) });
+          text(String(val), cx + cellW / 2, cy + cellH / 2 + px(10), font(px(30), 'bold', MONO), YELLOW, 'center');
+        } else {
+          panel(cx, cy, cellW, cellH, { r: 12, fill: 'rgba(15, 23, 42, 0.90)', stroke: 'rgba(100, 116, 139, 0.4)', lw: 1.5 });
+          text(String(val), cx + cellW / 2, cy + cellH / 2 + px(9), font(px(26), 'bold', MONO), '#cbd5e1', 'center');
+        }
+      }
+    }
+
+    // Equals Symbol
+    text('=', matAX + matW + px(25), midY + px(10), font(px(34), 'bold', MONO), '#94a3b8', 'center');
+
+    // 3. Result Matrix C
+    const matCX = matAX + matW + px(50);
+    const matCY = matAY;
+    text('Result C', matCX + matW / 2, matCY - px(10), font(px(18), 'bold', MONO), GREEN, 'center');
+    drawBrackets(matCX - px(12), matCY, matW + px(24), matH, GREEN);
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = matCX + c * (cellW + gap);
+        const cy = matCY + r * (cellH + gap);
+        const cellStepIdx = steps.findIndex(s => s.row === r && s.col === c);
+        const isComputed = (t >= 0.6 + (cellStepIdx + 1) * tps);
+        const isCurrent = (r === curStep.row && c === curStep.col);
+        const resVal = m.result_matrix[r] ? m.result_matrix[r][c] : 0;
+
+        if (isCurrent) {
+          const popScale = 1.0 + Math.sin(stepProg * Math.PI) * 0.15;
+          withScale(cx + cellW / 2, cy + cellH / 2, popScale, () => {
+            panel(cx, cy, cellW, cellH, { r: 12, fill: 'rgba(57, 255, 20, 0.22)', stroke: GREEN, lw: 3, glow: px(28) });
+            text(String(resVal), cx + cellW / 2, cy + cellH / 2 + px(10), font(px(30), 'bold', MONO), GREEN, 'center');
+          });
+        } else if (isComputed) {
+          panel(cx, cy, cellW, cellH, { r: 12, fill: 'rgba(20, 60, 35, 0.60)', stroke: 'rgba(57, 255, 20, 0.7)', lw: 2 });
+          text(String(resVal), cx + cellW / 2, cy + cellH / 2 + px(9), font(px(28), 'bold', MONO), '#f1f5f9', 'center');
+        } else {
+          panel(cx, cy, cellW, cellH, { r: 12, fill: 'rgba(10, 15, 30, 0.5)', stroke: 'rgba(51, 65, 85, 0.4)', lw: 1, dash: [4, 4] });
+          text('·', cx + cellW / 2, cy + cellH / 2 + px(5), font(px(24), 'bold', MONO), DIM, 'center');
+        }
+      }
+    }
+  } else {
+    // Vertical layout (Shorts 9:16)
+    const gap = px(10);
+    const cellW = Math.min(px(90), (box.w - px(80) - (cols - 1) * gap) / cols);
+    const cellH = px(64);
+    const matW = cols * cellW + (cols - 1) * gap;
+    const matH = rows * cellH + (rows - 1) * gap;
+    const matX = box.x + (box.w - matW) / 2;
+
+    const topY = box.y + px(10);
+    text(`Scalar c = ${m.scalar}  ×  Matrix A:`, box.x + box.w / 2, topY, font(px(22), 'bold', MONO), '#f59e0b', 'center');
+    drawBrackets(matX - px(10), topY + px(16), matW + px(20), matH, CYAN);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = matX + c * (cellW + gap), cy = topY + px(16) + r * (cellH + gap);
+        const isActive = (r === curStep.row && c === curStep.col);
+        const val = m.matrix_a[r] ? m.matrix_a[r][c] : 0;
+        panel(cx, cy, cellW, cellH, { r: 10, fill: isActive ? 'rgba(255,230,0,0.2)' : 'rgba(15,23,42,0.9)', stroke: isActive ? YELLOW : 'rgba(100,116,139,0.4)', lw: isActive ? 2.5 : 1 });
+        text(String(val), cx + cellW / 2, cy + cellH / 2 + px(8), font(px(24), 'bold', MONO), isActive ? YELLOW : '#cbd5e1', 'center');
+      }
+    }
+
+    const arrowY = topY + px(24) + matH + px(20);
+    text('↓  Multiply each element by scalar  ↓', box.x + box.w / 2, arrowY, font(px(20), 'bold', MONO), MUTED, 'center');
+
+    const botY = arrowY + px(20);
+    text('Result Matrix C:', box.x + box.w / 2, botY, font(px(22), 'bold', MONO), GREEN, 'center');
+    drawBrackets(matX - px(10), botY + px(16), matW + px(20), matH, GREEN);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = matX + c * (cellW + gap), cy = botY + px(16) + r * (cellH + gap);
+        const cellStepIdx = steps.findIndex(s => s.row === r && s.col === c);
+        const isComputed = (t >= 0.6 + (cellStepIdx + 1) * tps);
+        const isCurrent = (r === curStep.row && c === curStep.col);
+        const resVal = m.result_matrix[r] ? m.result_matrix[r][c] : 0;
+        panel(cx, cy, cellW, cellH, { r: 10, fill: isCurrent ? 'rgba(57,255,20,0.2)' : isComputed ? 'rgba(20,60,35,0.6)' : 'rgba(10,15,30,0.5)', stroke: isCurrent ? GREEN : isComputed ? GREEN : 'rgba(51,65,85,0.4)', lw: isCurrent ? 2.5 : 1 });
+        text(isComputed || isCurrent ? String(resVal) : '·', cx + cellW / 2, cy + cellH / 2 + px(8), font(px(24), 'bold', MONO), isCurrent ? GREEN : isComputed ? '#f1f5f9' : DIM, 'center');
+      }
+    }
+  }
+
+  // Bottom Calculation Panel
+  panel(box.x, calcY, box.w, calcH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const stepBadge = `STEP ${curStepIdx + 1} / ${nSteps}`;
+  const sbf = font(px(IS_VERTICAL ? 18 : 20), 'bold', MONO);
+  const sbw = measure(stepBadge, sbf) + px(28);
+  panel(box.x + px(20), calcY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(stepBadge, box.x + px(20) + sbw / 2, calcY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const exprStr = curStep.expr || `${m.matrix_a[curStep.row][curStep.col]} × ${m.scalar} = ${curStep.val}`;
+  const formulaLabel = `A[${curStep.row}, ${curStep.col}] × ${m.scalar}  =  ${exprStr}`;
+  const ef = font(px(IS_VERTICAL ? 22 : 30), 'bold', MONO);
+  text(formulaLabel, box.x + px(35) + sbw, calcY + px(IS_VERTICAL ? 36 : 46), ef, '#ffffff');
+
+  const targetText = `→ C[${curStep.row}, ${curStep.col}] = ${curStep.val}`;
+  const tf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  const tw = measure(targetText, tf) + px(30);
+  panel(box.x + box.w - tw - px(20), calcY + px(IS_VERTICAL ? 14 : 24), tw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
+  text(targetText, box.x + box.w - tw / 2 - px(20), calcY + px(IS_VERTICAL ? 35 : 45), tf, GREEN, 'center');
+};
+
+// --- visual_algo: bảng dữ liệu & tính toán công thức từng bước kiểu Deep-ML ---
+TEMPLATES.visual_algo = function (t, box) {
+  if (D.matrix_op && !D.visual_algo) {
+    return TEMPLATES.matrix_op(t, box);
+  }
+  const v = D.visual_algo; if (!v || !v.table) return;
+  const tbl = v.table;
+  const headers = tbl.headers || [];
+  const rows = tbl.rows || [];
+  const nRows = rows.length;
+  if (!headers.length || !nRows) return;
+
+  const availT = Math.max(DURATION - 1.2, 1.0);
+  const tps = availT / nRows;
+  const activeRowIdx = clamp(Math.floor((t - 0.6) / tps), 0, nRows - 1);
+
+  const fCardH = px(IS_VERTICAL ? 120 : 96);
+  const fCardY = box.y + box.h - fCardH;
+  const tblH = box.h - fCardH - px(24);
+
+  const nCols = headers.length;
+  const colGap = px(8);
+  const rowGap = px(8);
+  const rowH = Math.min(px(IS_VERTICAL ? 54 : 64), (tblH - px(40) - nRows * rowGap) / (nRows + 1));
+  const colW = (box.w - (nCols - 1) * colGap) / nCols;
+
+  const hdrY = box.y + px(10);
+  for (let c = 0; c < nCols; c++) {
+    const cx = box.x + c * (colW + colGap);
+    panel(cx, hdrY, colW, rowH, { r: 8, fill: 'rgba(30, 41, 59, 0.9)', stroke: CYAN, lw: 1.5 });
+    text(fitText(headers[c], colW - px(12), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO)), cx + colW / 2, hdrY + rowH / 2 + px(6), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO), CYAN, 'center');
+  }
+
+  for (let r = 0; r < nRows; r++) {
+    const ry = hdrY + (r + 1) * (rowH + rowGap);
+    const isActive = (r === activeRowIdx);
+    const isPast = (r < activeRowIdx);
+    const rowData = rows[r] || [];
+
+    const bgCol = isActive ? 'rgba(255, 230, 0, 0.15)' : isPast ? 'rgba(20, 40, 30, 0.7)' : 'rgba(15, 23, 42, 0.8)';
+    const strokeCol = isActive ? YELLOW : isPast ? GREEN : 'rgba(71, 85, 105, 0.4)';
+    const textCol = isActive ? YELLOW : isPast ? '#f1f5f9' : MUTED;
+    const lw = isActive ? 2.5 : 1;
+
+    for (let c = 0; c < nCols; c++) {
+      const cx = box.x + c * (colW + colGap);
+      const cellVal = String(rowData[c] != null ? rowData[c] : '');
+      panel(cx, ry, colW, rowH, { r: 8, fill: bgCol, stroke: strokeCol, lw: lw, glow: isActive ? px(14) : 0 });
+      text(fitText(cellVal, colW - px(10), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO)), cx + colW / 2, ry + rowH / 2 + px(6), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO), textCol, 'center');
+    }
+  }
+
+  panel(box.x, fCardY, box.w, fCardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: GREEN, lw: 2, glow: px(16) });
+  const rowTag = `ROW ${activeRowIdx + 1} / ${nRows}`;
+  const rtf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const rtw = measure(rowTag, rtf) + px(24);
+  panel(box.x + px(20), fCardY + px(IS_VERTICAL ? 14 : 24), rtw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
+  text(rowTag, box.x + px(20) + rtw / 2, fCardY + px(IS_VERTICAL ? 35 : 45), rtf, GREEN, 'center');
+
+  const formulaText = v.formula || 'Step-by-step Evaluation';
+  const ff = font(px(IS_VERTICAL ? 20 : 28), 'bold', MONO);
+  text(formulaText, box.x + px(35) + rtw, fCardY + px(IS_VERTICAL ? 36 : 46), ff, '#ffffff');
 };
 
 // ---------- điều phối ----------

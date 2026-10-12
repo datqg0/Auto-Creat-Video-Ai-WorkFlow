@@ -41,11 +41,12 @@ SHORT_MAX_SECONDS = 180
 _DEFAULT_WPM = 150
 _TITLE_HARD_MAX = 100  # giới hạn tiêu đề của YouTube
 
-_VISUAL_TYPES = {"title", "bullets", "chart", "code", "algorithm", "diagram", "quote", "animation"}
-_ALGO_KINDS = {"sorting", "search", "graph", "neural_network"}
+_VISUAL_TYPES = {"title", "bullets", "chart", "code", "algorithm", "diagram", "quote", "animation", "challenge"}
+_ALGO_KINDS = {"sorting", "search", "graph", "neural_network", "matrix_mult", "covariance"}
 _CHART_KINDS = {"bar", "line", "pie"}
 _BASE_PRESETS = {
     "function", "neural_net", "bar_chart", "sorting", "counter", "steps", "custom", "pycode", "manim",
+    "matrix_op", "visual_algo",
 }
 
 _BAD_TITLE_PREFIXES = (
@@ -142,15 +143,21 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
     score = dot(Q, K) / sqrt(d_k)   # Độ tương đồng
     weights = softmax(score)        # Chuẩn hoá thành xác suất
     output = weights @ V            # Tổng hợp có trọng số
-- "algorithm": đặt "algorithm" là 1 trong: sorting | search | graph | neural_network.
+- "algorithm": đặt "algorithm" là 1 trong: sorting | search | graph | neural_network | matrix_mult | covariance.
 - "diagram": 3-5 bước ngắn trong "bullets" (mỗi bullet 1 bước).
 - "quote": câu chốt ấn tượng đặt vào bullets[0].
-- "animation": clip động tự vẽ (kiểu 3Blue1Brown). "animation" là object có "preset" thuộc:
-  function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
+- "challenge": cảnh ĐẶT BÀI TOÁN / NGHỊCH LÝ / BẾ TẮC / SAI LẦM THƯỜNG GẶP -> GIẢI PHÁP ĐỘT PHÁ. Hiển thị Animation Người Que (Stickman) bối rối trước rắc rối ('?') rồi bừng sáng ý tưởng giải cứu (bóng đèn phát sáng, dấu tích xanh) cực kỳ sinh động! "bullets" gồm 2-4 dòng (nửa đầu: vấn đề / rắc rối; nửa sau: giải pháp).
+- "animation": clip động visual thuật toán / toán học (kiểu Deep-ML / 3Blue1Brown). "animation" là object có "preset" thuộc:
+  matrix_op | visual_algo | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
 _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION:
+  * matrix_op (KIỂU DEEP-ML / BÀI TOÁN MA TRẬN & ĐẠI SỐ TUYẾN TÍNH - GIỐNG LESSON.MP4):
+    {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×", "difficulty": "Easy", "category": "Linear Algebra"}
+    (Minh hoạ phép nhân vô hướng với ma trận, hoặc phép toán ma trận từng ô: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
+  * visual_algo (BẢNG TÍNH / THUẬT TOÁN TỪNG BƯỚC / THỐNG KÊ - GIỐNG LESSON (1).MP4):
+    {"preset": "visual_algo", "table": {"headers": ["Ngày", "Nắng (X)", "Kem (Y)", "dx", "dy", "Tích dx*dy"], "rows": [[1, 2, 4, -2, -2, 4], [2, 4, 6, 0, 0, 0], [3, 6, 8, 2, 2, 4]]}, "formula": "Cov(X, Y) = Σ(dx · dy) / (N - 1) = 8 / 2 = 4", "difficulty": "Easy", "category": "Statistics"}
   * function : {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
     (expr chỉ dùng x và các hàm sin,cos,tan,exp,log,sqrt,abs,tanh, toán tử + - * / ^, hằng pi,e)
   * neural_net: {"preset": "neural_net", "layers": [3, 5, 4, 2]}
@@ -181,10 +188,12 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION:
       vmorph ({"anim":"vmorph","target":"pg","from":"c","to":"b","run_time":1.5}; target phải là polygon)."""
 
 _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
-- BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" do code AI vẽ (preset "pycode" hoặc "manim").
-- Scene 1 (HOOK) BẮT BUỘC là "animation", vẽ ngay từ giây đầu tiên.
+- BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" hoặc "challenge" do AI vẽ.
+- BẮT BUỘC có ÍT NHẤT 1 scene "challenge" (Người Que - Stickman) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
+- Với bài toán ma trận, đại số tuyến tính, mảng, thống kê, bảng tính: ƯU TIÊN preset "matrix_op" hoặc "visual_algo" (kiểu Deep-ML) để hiển thị chi tiết từng bước tính toán.
+- Scene 1 (HOOK) BẮT BUỘC là "animation" hoặc "challenge", vẽ chuyển động ngay từ giây đầu tiên.
 - "visual_prompt" của scene animation PHẢI mô tả 3 yếu tố, đồng bộ với deictic narration:
-  1. DỮ LIỆU CỤ THỂ (3 lệnh CPU, mảng 4 số, 3 node mạng...).
+  1. DỮ LIỆU CỤ THỂ (3 lệnh CPU, mảng 4 số, ma trận 2x3, 3 node mạng...).
   2. CHUYỂN ĐỘNG TỪNG BƯỚC & MÀU SẮC (ô nào sáng vàng, đường nào đổi xanh neon, con trỏ dừng ở đâu).
   3. NHỊP ĐIỆU: dừng 0.6-0.8s ở mỗi bước để người xem kịp ngấm.
 - MỌI scene (trừ code) PHẢI có "image_query" (2-5 từ khoá TIẾNG ANH). Scene hợp cảnh quay thực tế (data center, vi mạch...) thêm "video_query" (2-4 từ khoá TIẾNG ANH)."""
@@ -621,6 +630,15 @@ def _normalize_scene_dict(raw: dict, topic: str, s: _Settings) -> dict | None:
     if vt == "chart":
         out["chart"] = chart
 
+    if vt == "challenge":
+        if len(bullets) < 2:
+            prob = bullets[0] if bullets else (heading or "Vấn đề / Rắc rối")
+            sol = _sentences(narration, 1, 80)[0] if _sentences(narration, 1) else "Giải pháp tháo gỡ"
+            bullets = [prob, sol]
+            out["bullets"] = bullets
+        if not visual_prompt:
+            out["visual_prompt"] = f"Animation Người Que (Stickman): bối rối trước '{bullets[0]}', sau đó bừng sáng ý tưởng giải cứu '{bullets[-1]}'."
+
     if vt == "animation":
         anim = d.get("animation")
         if isinstance(anim, str):
@@ -836,7 +854,8 @@ YÊU CẦU ĐỘ DÀI & PHÂN BỔ (BẮT BUỘC):
 CẤU TRÚC 5 PHA (tỉ lệ thời lượng cộng lại = 100%):
 
 PHA 1: MỞ MÀN & NGHỊCH LÝ BẾ TẮC (~10%, 1-2 scene)
-- Scene 1 BẮT BUỘC visual_type "animation" do AI code vẽ ngay từ giây 0.
+- Scene 1 BẮT BUỘC visual_type "animation" hoặc "challenge" (Người Que - Stickman bối rối trước rắc rối).
+- ƯU TIÊN có 1 scene "challenge" (Người Que - Stickman) khi đặt vấn đề/nghịch lý/bế tắc để tạo cảm xúc cuốn hút cho người xem.
 - Câu đầu là một cú sốc/nghịch lý phản trực giác: tại sao cách làm tự nhiên lại chậm, tắc nghẽn hoặc thất bại?
 - Không ghi "Hook:", "Cảnh 1:" vào heading hay title.
 
@@ -845,7 +864,8 @@ PHA 2: MENTAL MODEL & ẨN DỤ ĐỜI THƯỜNG (~15%, 1-2 scene)
 
 PHA 3: MỔ XẺ VI MÔ CƠ CHẾ & TRACE TỪNG BƯỚC (~50%, 4-6 scene liên tiếp)
 - Dùng toàn bộ để TRACE CA CỤ THỂ đã chọn: bình thường -> xung đột (Hazard/Stall/Drop) -> cú hack tháo gỡ (Bypass/Sliding Window/Rebalance) -> kết quả định lượng (vd: giảm từ 12 xuống 5 chu kỳ).
-- Gần như 100% scene Pha 3 là animation ("pycode" hoặc "manim"), áp dụng triệt để DEICTIC NARRATION.
+- Gần như 100% scene Pha 3 là animation ("matrix_op", "visual_algo", "pycode" hoặc "manim"), áp dụng triệt để DEICTIC NARRATION.
+- Với bài toán ma trận/đại số tuyến tính/thống kê: dùng preset "matrix_op" hoặc "visual_algo" kiểu Deep-ML để hiển thị ô số sáng vi mô và công thức tính toán từng bước.
 
 PHA 4: ỨNG DỤNG THỰC CHIẾN & ĐÁNH ĐỔI (~15%, 1-2 scene)
 - Cái giá phải trả (bóng bán dẫn, bộ nhớ, độ phức tạp, rủi ro bảo mật như Spectre...) và cách hệ thống lớn (Linux kernel, Intel, Apple Silicon, V8...) xử lý đánh đổi.
@@ -900,9 +920,9 @@ TRIẾT LÝ SHORT (CHIỀU SÂU & 1 AHA MOMENT):
 - DEICTIC NARRATION: lời thoại chỉ thẳng vào hình ("Nhìn vào con số màu đỏ này...", "Chính đường dây màu xanh này...").
 
 CẤU TRÚC SHORT 4 PHA:
-1. MỞ MÀN (Scene 1, 0-5s): nghịch lý phản trực giác/câu hỏi gây sốc khiến người xem dừng lướt. BẮT BUỘC visual_type "animation".
+1. MỞ MÀN (Scene 1, 0-5s): nghịch lý phản trực giác/câu hỏi gây sốc khiến người xem dừng lướt. BẮT BUỘC visual_type "animation" hoặc "challenge" (Người Que - Stickman).
 2. ẨN DỤ TỨC THÌ (Scene 2): 1 so sánh đời thực cực nhanh.
-3. TRACE VI MÔ & CÚ HACK (Scene 3-4, ~60% thời lượng): mổ xẻ 1 ví dụ có xung đột và cách giải bằng animation code.
+3. TRACE VI MÔ & CÚ HACK (Scene 3-4, ~60% thời lượng): mổ xẻ 1 ví dụ có xung đột và cách giải bằng animation ("matrix_op", "visual_algo", hoặc code AI).
 4. TỔNG KẾT & KÊU GỌI (scene cuối, visual_type "bullets"): heading "{_T[s.lang]['conclusion_heading']}", 1 câu bản chất + 3 takeaway + câu hỏi kích thích bình luận + kêu gọi đăng ký kênh.
 
 QUY TẮC HEADING: không ghi "Hook:", "Cảnh 1:", "Scene 1:" vào heading/title (ghi "Lịch hội nghị hỗn loạn", không ghi "Hook: Lịch hội nghị hỗn loạn").
