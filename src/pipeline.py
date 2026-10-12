@@ -143,8 +143,16 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             visual_desc = scene.visual_prompt or scene.heading or scene.narration[:120]
 
             # Tầng 1: Manim (Ưu tiên cho thuật toán chuyên sâu, toán học, hoặc yêu cầu rõ Manim)
-            is_math_or_algo = any(k in visual_desc.lower() for k in ("toán", "công thức", "hàm số", "graph", "tree", "sorting", "binary", "matrix"))
-            should_try_manim = anim_cfg.get("manim_enabled", True) and (preset == "manim" or "manim" in visual_desc.lower() or is_math_or_algo)
+            is_math_or_algo = any(k in visual_desc.lower() for k in (
+                "toán", "công thức", "hàm số", "graph", "tree", "sorting", "binary",
+                "matrix", "vector", "thuật toán", "algorithm", "pointer", "dp",
+                "stack", "queue", "deep-ml", "covariance"
+            ))
+            algo_presets = {
+                "manim", "matrix_op", "visual_algo", "tree_graph", "two_pointers",
+                "dp_grid", "stack_queue", "sorting", "neural_net"
+            }
+            should_try_manim = anim_cfg.get("manim_enabled", True) and (preset in algo_presets or "manim" in visual_desc.lower() or is_math_or_algo)
             if should_try_manim:
                 manim_code = acfg.get("code") if preset == "manim" else None
                 if not manim_code and visual_desc:

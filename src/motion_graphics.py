@@ -653,6 +653,155 @@ def _d_visual_algo(scene: Scene, lang: str) -> dict | None:
     }
 
 
+def _d_tree_graph(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("tree_graph", "tree", "bst", "graph")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("cây nhị phân", "bst", "binary search tree", "binary tree", "cây", "tree", "đồ thị", "graph", "dfs", "bfs", "duyệt cây"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    target = a.get("target") or 12
+    nodes = a.get("nodes") or [
+        {"id": 1, "val": 10, "level": 0, "pos": 0},
+        {"id": 2, "val": 5, "level": 1, "pos": -1, "parent": 1},
+        {"id": 3, "val": 15, "level": 1, "pos": 1, "parent": 1},
+        {"id": 4, "val": 2, "level": 2, "pos": -2, "parent": 2},
+        {"id": 5, "val": 7, "level": 2, "pos": -1, "parent": 2},
+        {"id": 6, "val": 12, "level": 2, "pos": 1, "parent": 3},
+        {"id": 7, "val": 20, "level": 2, "pos": 2, "parent": 3},
+    ]
+    path = a.get("path") or [10, 15, 12]
+
+    bc = a.get("breadcrumb") or "DEEP-ML / PROBLEM 08 / BINARY SEARCH TREE"
+    diff = a.get("difficulty") or "Medium"
+    cat = a.get("category") or "Data Structures"
+
+    return {
+        "tree_graph": {
+            "target": target,
+            "nodes": nodes,
+            "path": path,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("nodes")),
+    }
+
+
+def _d_two_pointers(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("two_pointers", "sliding_window", "two_pointer")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("hai con trỏ", "two pointer", "two pointers", "sliding window", "cửa sổ trượt", "con trỏ", "left pointer", "right pointer"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    data = a.get("data")
+    if not isinstance(data, list):
+        data = [2, 3, 5, 7, 11, 15]
+        illustrative = True
+    else:
+        illustrative = False
+
+    target = a.get("target") or 16
+    steps = a.get("steps") or [
+        {"left": 0, "right": 5, "sum": 17, "action": "17 > 16 -> Move R Left (R--)"},
+        {"left": 0, "right": 4, "sum": 13, "action": "13 < 16 -> Move L Right (L++)"},
+        {"left": 1, "right": 4, "sum": 14, "action": "14 < 16 -> Move L Right (L++)"},
+        {"left": 2, "right": 4, "sum": 16, "action": "5 + 11 = 16 == TARGET (MATCH FOUND!)", "matched": True},
+    ]
+
+    bc = a.get("breadcrumb") or "DEEP-ML / PROBLEM 03 / TWO POINTERS"
+    diff = a.get("difficulty") or "Easy"
+    cat = a.get("category") or "Algorithms"
+
+    return {
+        "two_pointers": {
+            "data": data,
+            "target": target,
+            "steps": steps,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": illustrative,
+    }
+
+
+def _d_stack_queue(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("stack_queue", "stack", "queue")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("ngăn xếp", "stack", "hàng đợi", "queue", "lifo", "fifo", "push", "pop"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    kind = a.get("kind") or ("queue" if "queue" in corpus or "hàng đợi" in corpus else "stack")
+    ops = a.get("ops") or [
+        {"op": "PUSH", "val": 42},
+        {"op": "PUSH", "val": 17},
+        {"op": "PUSH", "val": 99},
+        {"op": "POP", "val": 99},
+        {"op": "PUSH", "val": 55},
+    ]
+
+    bc = a.get("breadcrumb") or (f"DEEP-ML / PROBLEM 04 / {kind.upper()} ({'LIFO' if kind == 'stack' else 'FIFO'})")
+    diff = a.get("difficulty") or "Easy"
+    cat = a.get("category") or "Data Structures"
+
+    return {
+        "stack_queue": {
+            "kind": kind,
+            "ops": ops,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("ops")),
+    }
+
+
+def _d_dp_grid(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("dp_grid", "dp", "dynamic_programming")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("quy hoạch động", "dynamic programming", "dp table", "bảng dp", "lcs", "knapsack", "subproblem"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    rows = a.get("rows") or 3
+    cols = a.get("cols") or 4
+    formula = a.get("formula") or "dp[i][j] = dp[i-1][j] + dp[i][j-1]"
+
+    bc = a.get("breadcrumb") or "DEEP-ML / PROBLEM 12 / DYNAMIC PROGRAMMING"
+    diff = a.get("difficulty") or "Medium"
+    cat = a.get("category") or "Algorithms"
+
+    return {
+        "dp_grid": {
+            "rows": rows,
+            "cols": cols,
+            "formula": formula,
+            "row_headers": a.get("row_headers") or [f"i={r}" for r in range(rows)],
+            "col_headers": a.get("col_headers") or [f"j={c}" for c in range(cols)],
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("grid")),
+    }
+
+
 def _d_story(scene: Scene, lang: str) -> dict | None:
     vt = str(_g(scene, "visual_type", "")).lower()
     items = _bullets(scene, 6) or _sentences(scene.narration, 4, 120)
@@ -688,6 +837,15 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "visual_algo": ("covariance", "hiệp phương sai", "hiep phuong sai", "thống kê", "thong ke",
                     "step by step", "từng bước", "tung buoc", "deep-ml", "worked example",
                     "bảng tính", "bang tinh", "công thức", "cong thuc", "formula"),
+    "tree_graph": ("cây nhị phân", "cay nhi phan", "bst", "binary search tree", "binary tree",
+                   "cây", "tree", "đồ thị", "graph", "dfs", "bfs", "traversal", "duyệt cây"),
+    "two_pointers": ("hai con trỏ", "hai con tro", "two pointer", "two pointers",
+                     "sliding window", "cửa sổ trượt", "cua so truot", "con trỏ", "con tro",
+                     "trỏ trái", "trỏ phải", "left pointer", "right pointer"),
+    "stack_queue": ("ngăn xếp", "ngan xep", "stack", "hàng đợi", "hang doi", "queue",
+                    "lifo", "fifo", "push", "pop", "enqueue", "dequeue"),
+    "dp_grid": ("quy hoạch động", "quy hoach dong", "dynamic programming", "dp table",
+                "bảng dp", "bang dp", "lcs", "knapsack", "subproblem", "bài toán con"),
     "bar_benchmark": ("benchmark", "biểu đồ cột", "bieu do cot", "biểu đồ thanh", "bieu do thanh",
                       "so sánh hiệu năng", "so sanh hieu nang", "bar chart", "đo lường", "do luong"),
     "github_stats": ("github", "star", "tăng trưởng", "tang truong", "growth", "trend", "xu hướng", "xu huong"),
@@ -708,10 +866,10 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "stickman": ("nghịch lý", "nghich ly", "hỗn loạn", "hon loan", "bế tắc", "be tac",
                  "sai lầm", "sai lam", "bối rối", "boi roi", "paradox", "chaos", "mistake"),
 }
-_PRIORITY = ["conclusion", "quote_card", "terminal", "matrix_op", "visual_algo", "scheduler",
-             "bar_benchmark", "github_stats", "algo_trace", "neural_flow", "hud", "diff_view",
-             "cpu_scheduler", "git_flow", "attention_map", "comparison", "metaphor", "stickman",
-             "architecture"]
+_PRIORITY = ["conclusion", "quote_card", "terminal", "matrix_op", "visual_algo", "tree_graph",
+             "two_pointers", "stack_queue", "dp_grid", "scheduler", "bar_benchmark", "github_stats",
+             "algo_trace", "neural_flow", "hud", "diff_view", "cpu_scheduler", "git_flow",
+             "attention_map", "comparison", "metaphor", "stickman", "architecture"]
 
 
 def _kw_hits(text: str, kws: tuple[str, ...]) -> int:
@@ -738,6 +896,14 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("matrix_op", 25)
     elif vt in ("visual_algo", "deep_ml"):
         add("visual_algo", 25)
+    elif vt in ("tree_graph", "tree", "bst"):
+        add("tree_graph", 25)
+    elif vt in ("two_pointers", "sliding_window"):
+        add("two_pointers", 25)
+    elif vt in ("stack_queue", "stack", "queue"):
+        add("stack_queue", 25)
+    elif vt in ("dp_grid", "dp"):
+        add("dp_grid", 25)
     elif vt == "chart" and chart:
         add("github_stats" if chart["kind"] == "line" else "bar_benchmark", 20)
     elif vt in ("git", "git_flow"):
@@ -750,6 +916,14 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("matrix_op", 22)
     elif vt == "algorithm" and algo in ("covariance", "stats"):
         add("visual_algo", 22)
+    elif vt == "algorithm" and algo in ("tree", "graph"):
+        add("tree_graph", 22)
+    elif vt == "algorithm" and algo in ("two_pointers", "linked_list"):
+        add("two_pointers", 22)
+    elif vt == "algorithm" and algo in ("stack_queue", "stack", "queue"):
+        add("stack_queue", 22)
+    elif vt == "algorithm" and algo in ("dp", "dynamic_programming"):
+        add("dp_grid", 22)
     elif vt == "algorithm" and algo == "sorting":
         add("algo_trace", 20)
     elif vt == "algorithm" and algo == "neural_network":
@@ -763,6 +937,14 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("matrix_op", 25)
     elif preset == "visual_algo":
         add("visual_algo", 25)
+    elif preset == "tree_graph":
+        add("tree_graph", 25)
+    elif preset == "two_pointers":
+        add("two_pointers", 25)
+    elif preset == "stack_queue":
+        add("stack_queue", 25)
+    elif preset == "dp_grid":
+        add("dp_grid", 25)
     elif preset == "bar_chart":
         add("bar_benchmark", 15)
     elif preset == "counter":
@@ -789,6 +971,10 @@ def _plan_scene(scene: Scene, has_image: bool, lang: str) -> dict:
         "terminal": lambda: _d_code(scene, lang),
         "matrix_op": lambda: _d_matrix_op(scene, lang),
         "visual_algo": lambda: _d_visual_algo(scene, lang),
+        "tree_graph": lambda: _d_tree_graph(scene, lang),
+        "two_pointers": lambda: _d_two_pointers(scene, lang),
+        "stack_queue": lambda: _d_stack_queue(scene, lang),
+        "dp_grid": lambda: _d_dp_grid(scene, lang),
         "bar_benchmark": lambda: _d_bars(scene, lang),
         "github_stats": lambda: _d_series(scene, lang),
         "algo_trace": lambda: _d_array(scene, lang),
@@ -1011,7 +1197,7 @@ function drawBackground(t) {
 let HL = null;
 function headerLayout() {
   if (HL) return HL;
-  const meta = (D.matrix_op || D.visual_algo || {});
+  const meta = (D.matrix_op || D.visual_algo || D.tree_graph || D.two_pointers || D.stack_queue || D.dp_grid || {});
   const hasMeta = !!(meta.breadcrumb || D.breadcrumb || meta.category || D.category);
   const mx = px(72);
   const top = px(IS_VERTICAL ? (hasMeta ? 130 : 96) : (hasMeta ? 78 : 48));
@@ -1846,6 +2032,433 @@ TEMPLATES.visual_algo = function (t, box) {
   const formulaText = v.formula || 'Step-by-step Evaluation';
   const ff = font(px(IS_VERTICAL ? 20 : 28), 'bold', MONO);
   text(formulaText, box.x + px(35) + rtw, fCardY + px(IS_VERTICAL ? 36 : 46), ff, '#ffffff');
+};
+
+// --- tree_graph: Cây nhị phân tìm kiếm BST / Cấu trúc dữ liệu cây đồ thị kiểu Deep-ML ---
+TEMPLATES.tree_graph = function (t, box) {
+  const tg = D.tree_graph; if (!tg) return TEMPLATES.architecture(t, box);
+  const nodes = tg.nodes || [
+    { id: 0, val: 8 },
+    { id: 1, val: 3 }, { id: 2, val: 10 },
+    { id: 3, val: 1 }, { id: 4, val: 6 }, { id: 5, val: 9 }, { id: 6, val: 14 }
+  ];
+  const edges = tg.edges || [
+    [0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]
+  ];
+  const steps = tg.steps || [
+    { node: 0, status: 'visiting', label: 'Root = 8. So sánh với target: 7 < 8 → Nhánh TRÁI' },
+    { node: 1, status: 'visiting', label: 'Node = 3. So sánh với target: 7 > 3 → Nhánh PHẢI' },
+    { node: 4, status: 'found', label: 'Node = 6. Tìm thấy vị trí thích hợp!' }
+  ];
+  const nSteps = steps.length || 1;
+  const availT = Math.max(DURATION - 1.2, 1.0);
+  const tps = availT / nSteps;
+  const curStepIdx = clamp(Math.floor((t - 0.6) / tps), 0, nSteps - 1);
+  const curStep = steps[curStepIdx] || { node: 0, status: 'visiting', label: '' };
+  const stepProg = clamp((t - 0.6 - curStepIdx * tps) / tps, 0, 1);
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const treeH = box.h - cardH - px(24);
+
+  const nodePos = {};
+  const nNodes = nodes.length;
+  for (let i = 0; i < nNodes; i++) {
+    const nid = nodes[i].id != null ? nodes[i].id : i;
+    let lx, ly;
+    if (nodes[i].x != null && nodes[i].y != null) {
+      lx = box.x + nodes[i].x * box.w;
+      ly = box.y + nodes[i].y * treeH;
+    } else {
+      const lvl = Math.floor(Math.log2(i + 1));
+      const posInLvl = i - (Math.pow(2, lvl) - 1);
+      const totalInLvl = Math.pow(2, lvl);
+      const stepX = box.w / (totalInLvl + 1);
+      lx = box.x + (posInLvl + 1) * stepX;
+      ly = box.y + px(IS_VERTICAL ? 44 : 38) + lvl * (treeH - px(IS_VERTICAL ? 90 : 80)) / 2;
+    }
+    nodePos[nid] = { x: lx, y: ly, val: nodes[i].val };
+  }
+
+  const visitedSet = new Set();
+  const activeNid = curStep.node != null ? curStep.node : 0;
+  for (let s = 0; s <= curStepIdx; s++) {
+    if (steps[s] && steps[s].node != null) visitedSet.add(steps[s].node);
+  }
+
+  // 1. Edges
+  for (const [u, v] of edges) {
+    const p1 = nodePos[u], p2 = nodePos[v];
+    if (!p1 || !p2) continue;
+    const isTraversed = visitedSet.has(u) && visitedSet.has(v);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    if (isTraversed) {
+      ctx.strokeStyle = GREEN;
+      ctx.lineWidth = px(3.5);
+      ctx.shadowColor = GREEN;
+      ctx.shadowBlur = px(12);
+    } else {
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.45)';
+      ctx.lineWidth = px(2);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 2. Nodes
+  const nodeR = px(IS_VERTICAL ? 28 : 34);
+  for (let i = 0; i < nNodes; i++) {
+    const nid = nodes[i].id != null ? nodes[i].id : i;
+    const p = nodePos[nid];
+    if (!p) continue;
+    const isActive = (nid === activeNid);
+    const isVisited = visitedSet.has(nid) && !isActive;
+
+    ctx.save();
+    if (isActive) {
+      const pulse = 1.0 + Math.sin(stepProg * Math.PI) * 0.15;
+      withScale(p.x, p.y, pulse, () => {
+        ctx.beginPath(); ctx.arc(p.x, p.y, nodeR + px(8), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 230, 0, 0.25)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, nodeR, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(20, 25, 45, 0.95)'; ctx.fill();
+        ctx.strokeStyle = YELLOW; ctx.lineWidth = px(3.5);
+        ctx.shadowColor = YELLOW; ctx.shadowBlur = px(20); ctx.stroke();
+        text(String(p.val), p.x, p.y + px(10), font(px(IS_VERTICAL ? 22 : 28), 'bold', MONO), YELLOW, 'center');
+      });
+    } else if (isVisited) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, nodeR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(15, 35, 25, 0.95)'; ctx.fill();
+      ctx.strokeStyle = GREEN; ctx.lineWidth = px(2.5);
+      ctx.shadowColor = GREEN; ctx.shadowBlur = px(12); ctx.stroke();
+      text(String(p.val), p.x, p.y + px(9), font(px(IS_VERTICAL ? 20 : 26), 'bold', MONO), '#f1f5f9', 'center');
+    } else {
+      ctx.beginPath(); ctx.arc(p.x, p.y, nodeR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)'; ctx.lineWidth = px(1.5); ctx.stroke();
+      text(String(p.val), p.x, p.y + px(9), font(px(IS_VERTICAL ? 20 : 26), 'bold', MONO), '#94a3b8', 'center');
+    }
+    ctx.restore();
+  }
+
+  // 3. Bottom Status Panel
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const stepBadge = `STEP ${curStepIdx + 1} / ${nSteps}`;
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(stepBadge, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const stepLabel = curStep.label || `Duyệt node ${activeNid}`;
+  const lf = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  const maxLabelW = box.w - sbw - px(160);
+  text(fitText(stepLabel, maxLabelW, lf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), lf, '#ffffff');
+
+  if (tg.target != null) {
+    const tgtText = `Target: ${tg.target}`;
+    const tf = font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO);
+    const tw = measure(tgtText, tf) + px(26);
+    panel(box.x + box.w - tw - px(20), cardY + px(IS_VERTICAL ? 14 : 24), tw, px(32), { r: 16, fill: 'rgba(0, 240, 255, 0.15)', stroke: CYAN, lw: 1.5 });
+    text(tgtText, box.x + box.w - tw / 2 - px(20), cardY + px(IS_VERTICAL ? 35 : 45), tf, CYAN, 'center');
+  }
+};
+
+// --- two_pointers: Hai con trỏ / Cửa sổ trượt Sliding Window kiểu Deep-ML ---
+TEMPLATES.two_pointers = function (t, box) {
+  const tp = D.two_pointers; if (!tp) return TEMPLATES.architecture(t, box);
+  const arr = tp.data || [2, 7, 11, 15];
+  const target = tp.target != null ? tp.target : 9;
+  const steps = tp.steps || [
+    { left: 0, right: arr.length - 1, sum: arr[0] + arr[arr.length - 1], cmp: '>', action: 'Tổng > Target → right--' }
+  ];
+  const nSteps = steps.length || 1;
+  const availT = Math.max(DURATION - 1.2, 1.0);
+  const tps = availT / nSteps;
+  const curStepIdx = clamp(Math.floor((t - 0.6) / tps), 0, nSteps - 1);
+  const curStep = steps[curStepIdx] || { left: 0, right: arr.length - 1, sum: 0, cmp: '', action: '' };
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const mainH = box.h - cardH - px(24);
+
+  const n = arr.length;
+  const gap = px(12);
+  const cellW = Math.min(px(IS_VERTICAL ? 80 : 120), (box.w - px(60) - (n - 1) * gap) / n);
+  const cellH = px(IS_VERTICAL ? 80 : 100);
+  const totalArrW = n * cellW + (n - 1) * gap;
+  const arrX = box.x + (box.w - totalArrW) / 2;
+  const arrY = box.y + mainH / 2 - cellH / 2 + px(10);
+
+  // 1. Các phần tử mảng và con trỏ
+  for (let i = 0; i < n; i++) {
+    const cx = arrX + i * (cellW + gap);
+    const isL = (i === curStep.left);
+    const isR = (i === curStep.right);
+    const inWindow = (i >= curStep.left && i <= curStep.right);
+
+    if (isL || isR) {
+      const pColor = isL ? CYAN : YELLOW;
+      const pLabel = isL && isR ? 'L, R' : (isL ? 'Left' : 'Right');
+      const arrowY = arrY - px(24);
+      text('▼', cx + cellW / 2, arrowY, font(px(26), 'bold', MONO), pColor, 'center');
+      text(pLabel, cx + cellW / 2, arrowY - px(22), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO), pColor, 'center');
+    }
+
+    let fill = 'rgba(15, 23, 42, 0.85)', stroke = 'rgba(100, 116, 139, 0.4)', lw = 1.5, glow = 0;
+    if (isL) { fill = 'rgba(0, 240, 255, 0.18)'; stroke = CYAN; lw = 3; glow = px(20); }
+    else if (isR) { fill = 'rgba(255, 230, 0, 0.18)'; stroke = YELLOW; lw = 3; glow = px(20); }
+    else if (inWindow) { fill = 'rgba(30, 41, 59, 0.7)'; stroke = 'rgba(148, 163, 184, 0.5)'; }
+
+    panel(cx, arrY, cellW, cellH, { r: 14, fill, stroke, lw, glow });
+    text(`[${i}]`, cx + cellW / 2, arrY + px(22), font(px(14), 'bold', MONO), MUTED, 'center');
+    const valColor = isL ? CYAN : isR ? YELLOW : '#f1f5f9';
+    text(String(arr[i]), cx + cellW / 2, arrY + cellH / 2 + px(18), font(px(IS_VERTICAL ? 28 : 38), 'bold', MONO), valColor, 'center');
+  }
+
+  // 2. Thẻ tính toán trung tâm
+  const valL = arr[curStep.left] != null ? arr[curStep.left] : 0;
+  const valR = arr[curStep.right] != null ? arr[curStep.right] : 0;
+  const curSum = curStep.sum != null ? curStep.sum : (valL + valR);
+  const cmpStr = curStep.cmp || (curSum === target ? '==' : curSum < target ? '<' : '>');
+  const mathStr = `arr[${curStep.left}] + arr[${curStep.right}]  =  ${valL} + ${valR}  =  ${curSum}`;
+
+  const calcMidY = arrY + cellH + px(IS_VERTICAL ? 35 : 45);
+  text(mathStr, box.x + box.w / 2, calcMidY, font(px(IS_VERTICAL ? 20 : 28), 'bold', MONO), '#ffffff', 'center');
+
+  const matchStr = `Tổng (${curSum})  ${cmpStr}  Target (${target})`;
+  const matchCol = cmpStr === '==' ? GREEN : (cmpStr === '<' ? CYAN : YELLOW);
+  text(matchStr, box.x + box.w / 2, calcMidY + px(IS_VERTICAL ? 32 : 38), font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO), matchCol, 'center');
+
+  // 3. Bottom Action Panel
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: matchCol, lw: 2, glow: px(16) });
+  const stepBadge = `STEP ${curStepIdx + 1} / ${nSteps}`;
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(stepBadge, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const actionText = curStep.action || `Xét cặp con trỏ [${curStep.left}, ${curStep.right}]`;
+  const af = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  text(fitText(actionText, box.w - sbw - px(60), af), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), af, '#ffffff');
+};
+
+// --- stack_queue: Ngăn xếp (Stack LIFO) & Hàng đợi (Queue FIFO) kiểu Deep-ML ---
+TEMPLATES.stack_queue = function (t, box) {
+  const sq = D.stack_queue; if (!sq) return TEMPLATES.architecture(t, box);
+  const kind = (sq.kind || 'stack').toLowerCase();
+  const isStack = (kind === 'stack');
+  const ops = sq.ops || [
+    { op: 'PUSH', val: 42 }, { op: 'PUSH', val: 17 }, { op: 'PUSH', val: 99 },
+    { op: 'POP', val: 99 }, { op: 'PUSH', val: 55 }
+  ];
+  const nOps = ops.length || 1;
+  const availT = Math.max(DURATION - 1.2, 1.0);
+  const tps = availT / nOps;
+  const curStepIdx = clamp(Math.floor((t - 0.6) / tps), 0, nOps - 1);
+  const curStep = ops[curStepIdx] || { op: 'PUSH', val: 0 };
+
+  const items = [];
+  for (let s = 0; s <= curStepIdx; s++) {
+    const o = ops[s];
+    if (o.op.toUpperCase() === 'PUSH' || o.op.toUpperCase() === 'ENQUEUE') {
+      items.push(o.val);
+    } else if (o.op.toUpperCase() === 'POP' || o.op.toUpperCase() === 'DEQUEUE') {
+      if (isStack) items.pop();
+      else items.shift();
+    }
+  }
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const mainH = box.h - cardH - px(24);
+
+  if (isStack) {
+    const troughW = Math.min(px(IS_VERTICAL ? 280 : 360), box.w * 0.45);
+    const itemH = px(IS_VERTICAL ? 54 : 64);
+    const maxItems = 6;
+    const troughH = maxItems * itemH + px(40);
+    const troughX = box.x + (box.w - troughW) / 2;
+    const troughY = box.y + (mainH - troughH) / 2 + px(10);
+
+    ctx.save();
+    ctx.strokeStyle = CYAN; ctx.lineWidth = px(3);
+    ctx.shadowColor = CYAN; ctx.shadowBlur = px(12);
+    ctx.beginPath();
+    ctx.moveTo(troughX, troughY);
+    ctx.lineTo(troughX, troughY + troughH);
+    ctx.lineTo(troughX + troughW, troughY + troughH);
+    ctx.lineTo(troughX + troughW, troughY);
+    ctx.stroke(); ctx.restore();
+
+    text('STACK (LIFO)', troughX + troughW / 2, troughY - px(16), font(px(IS_VERTICAL ? 20 : 24), 'bold', MONO), CYAN, 'center');
+    text('← BASE / ĐÁY', troughX + troughW + px(16), troughY + troughH - px(10), font(px(14), 'bold', MONO), MUTED);
+
+    const padX = px(12);
+    const elementW = troughW - padX * 2;
+    for (let i = 0; i < items.length && i < maxItems; i++) {
+      const ey = troughY + troughH - (i + 1) * itemH - px(6);
+      const isTop = (i === items.length - 1);
+      const elCol = isTop ? GREEN : '#cbd5e1';
+      panel(troughX + padX, ey, elementW, itemH - px(8), {
+        r: 10,
+        fill: isTop ? 'rgba(57, 255, 20, 0.2)' : 'rgba(30, 41, 59, 0.85)',
+        stroke: isTop ? GREEN : 'rgba(100, 116, 139, 0.5)',
+        lw: isTop ? 2.5 : 1,
+        glow: isTop ? px(16) : 0
+      });
+      text(String(items[i]), troughX + troughW / 2, ey + itemH / 2 + px(4), font(px(IS_VERTICAL ? 24 : 30), 'bold', MONO), elCol, 'center');
+
+      if (isTop) {
+        text('← TOP', troughX + troughW + px(16), ey + itemH / 2 + px(4), font(px(18), 'bold', MONO), GREEN);
+      }
+    }
+  } else {
+    const queueW = Math.min(px(IS_VERTICAL ? 540 : 800), box.w - px(80));
+    const queueH = px(IS_VERTICAL ? 90 : 110);
+    const queueX = box.x + (box.w - queueW) / 2;
+    const queueY = box.y + (mainH - queueH) / 2;
+
+    ctx.save();
+    ctx.strokeStyle = CYAN; ctx.lineWidth = px(3);
+    ctx.shadowColor = CYAN; ctx.shadowBlur = px(12);
+    ctx.beginPath();
+    ctx.moveTo(queueX, queueY); ctx.lineTo(queueX + queueW, queueY);
+    ctx.moveTo(queueX, queueY + queueH); ctx.lineTo(queueX + queueW, queueY + queueH);
+    ctx.stroke(); ctx.restore();
+
+    text('← DEQUEUE (Front)', queueX, queueY - px(16), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO), GREEN);
+    text('ENQUEUE (Rear) ←', queueX + queueW, queueY - px(16), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO), YELLOW, 'right');
+
+    const maxItems = 6;
+    const itemW = px(IS_VERTICAL ? 70 : 100);
+    const itemGap = px(10);
+    for (let i = 0; i < items.length && i < maxItems; i++) {
+      const ix = queueX + px(20) + i * (itemW + itemGap);
+      const iy = queueY + px(10);
+      const isFront = (i === 0);
+      panel(ix, iy, itemW, queueH - px(20), {
+        r: 10,
+        fill: isFront ? 'rgba(57, 255, 20, 0.2)' : 'rgba(30, 41, 59, 0.85)',
+        stroke: isFront ? GREEN : 'rgba(100, 116, 139, 0.5)',
+        lw: isFront ? 2.5 : 1,
+        glow: isFront ? px(14) : 0
+      });
+      text(String(items[i]), ix + itemW / 2, iy + queueH / 2 - px(2), font(px(IS_VERTICAL ? 22 : 28), 'bold', MONO), isFront ? GREEN : '#cbd5e1', 'center');
+    }
+  }
+
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const stepBadge = `STEP ${curStepIdx + 1} / ${nOps}`;
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(stepBadge, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const opLabel = `Thao tác: ${curStep.op} (${curStep.val})  |  Số phần tử hiện tại: ${items.length}`;
+  const of = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  text(fitText(opLabel, box.w - sbw - px(60), of), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), of, '#ffffff');
+};
+
+// --- dp_grid: Bảng quy hoạch động (2D DP Table & Transitions) kiểu Deep-ML ---
+TEMPLATES.dp_grid = function (t, box) {
+  const dp = D.dp_grid; if (!dp) return TEMPLATES.architecture(t, box);
+  const rows = dp.rows || 3, cols = dp.cols || 4;
+  const totalCells = rows * cols;
+  const availT = Math.max(DURATION - 1.2, 1.0);
+  const tps = availT / totalCells;
+  const curCellIdx = clamp(Math.floor((t - 0.6) / tps), 0, totalCells - 1);
+  const activeR = Math.floor(curCellIdx / cols);
+  const activeC = curCellIdx % cols;
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const gridH = box.h - cardH - px(24);
+
+  const grid = dp.grid || [];
+  if (!grid.length) {
+    for (let r = 0; r < rows; r++) {
+      grid[r] = [];
+      for (let c = 0; c < cols; c++) {
+        grid[r][c] = (r === 0 || c === 0) ? 1 : (grid[r - 1][c] + grid[r][c - 1]);
+      }
+    }
+  }
+
+  const gap = px(10);
+  const cellW = Math.min(px(IS_VERTICAL ? 80 : 120), (box.w - px(60) - (cols - 1) * gap) / cols);
+  const cellH = Math.min(px(IS_VERTICAL ? 65 : 85), (gridH - px(40) - (rows - 1) * gap) / rows);
+  const totalW = cols * cellW + (cols - 1) * gap;
+  const totalH = rows * cellH + (rows - 1) * gap;
+  const startX = box.x + (box.w - totalW) / 2;
+  const startY = box.y + (gridH - totalH) / 2 + px(10);
+
+  // 1. Ô DP Grid
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cx = startX + c * (cellW + gap);
+      const cy = startY + r * (cellH + gap);
+      const cellIdx = r * cols + c;
+      const isActive = (r === activeR && c === activeC);
+      const isCalculated = (cellIdx <= curCellIdx);
+      const val = grid[r] ? grid[r][c] : 0;
+
+      let fill = 'rgba(15, 23, 42, 0.75)', stroke = 'rgba(71, 85, 105, 0.4)', lw = 1.5, glow = 0;
+      if (isActive) {
+        fill = 'rgba(255, 230, 0, 0.22)'; stroke = YELLOW; lw = 3; glow = px(22);
+      } else if (isCalculated) {
+        fill = 'rgba(20, 50, 35, 0.65)'; stroke = GREEN; lw = 2;
+      }
+
+      panel(cx, cy, cellW, cellH, { r: 12, fill, stroke, lw, glow });
+      text(`[${r},${c}]`, cx + px(10), cy + px(16), font(px(12), 'bold', MONO), MUTED);
+
+      const valCol = isActive ? YELLOW : (isCalculated ? '#f1f5f9' : DIM);
+      const valStr = isCalculated ? String(val) : '·';
+      text(valStr, cx + cellW / 2, cy + cellH / 2 + px(8), font(px(IS_VERTICAL ? 24 : 32), 'bold', MONO), valCol, 'center');
+    }
+  }
+
+  // 2. Mũi tên phụ thuộc
+  if (activeR > 0) {
+    const ax = startX + activeC * (cellW + gap) + cellW / 2;
+    const topY = startY + (activeR - 1) * (cellH + gap) + cellH;
+    const botY = startY + activeR * (cellH + gap);
+    ctx.save(); ctx.strokeStyle = CYAN; ctx.lineWidth = px(2.5); ctx.beginPath();
+    ctx.moveTo(ax, topY + px(2)); ctx.lineTo(ax, botY - px(2)); ctx.stroke();
+    text('▼', ax, botY + px(2), font(px(14), 'bold'), CYAN, 'center');
+    ctx.restore();
+  }
+  if (activeC > 0) {
+    const ay = startY + activeR * (cellH + gap) + cellH / 2;
+    const leftX = startX + (activeC - 1) * (cellW + gap) + cellW;
+    const rightX = startX + activeC * (cellW + gap);
+    ctx.save(); ctx.strokeStyle = CYAN; ctx.lineWidth = px(2.5); ctx.beginPath();
+    ctx.moveTo(leftX + px(2), ay); ctx.lineTo(rightX - px(2), ay); ctx.stroke();
+    text('▶', rightX - px(2), ay + px(5), font(px(14), 'bold'), CYAN, 'center');
+    ctx.restore();
+  }
+
+  // 3. Bottom Calculation Panel
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const cellBadge = `CELL [${activeR}, ${activeC}]`;
+  const cbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const cbw = measure(cellBadge, cbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), cbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(cellBadge, box.x + px(20) + cbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), cbf, YELLOW, 'center');
+
+  const curVal = grid[activeR] ? grid[activeR][activeC] : 0;
+  const topVal = (activeR > 0 && grid[activeR - 1]) ? grid[activeR - 1][activeC] : 0;
+  const leftVal = (activeC > 0 && grid[activeR]) ? grid[activeR][activeC - 1] : 0;
+  const calcText = (activeR === 0 && activeC === 0) ? `Cơ sở dp[0][0] = ${curVal}` :
+                   (activeR === 0) ? `dp[0][${activeC}] = dp[0][${activeC-1}] = ${curVal}` :
+                   (activeC === 0) ? `dp[${activeR}][0] = dp[${activeR-1}][0] = ${curVal}` :
+                   `dp[${activeR}][${activeC}] = ${topVal} (trên) + ${leftVal} (trái) = ${curVal}`;
+
+  const cf = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  text(fitText(calcText, box.w - cbw - px(60), cf), box.x + px(35) + cbw, cardY + px(IS_VERTICAL ? 36 : 46), cf, '#ffffff');
 };
 
 // ---------- điều phối ----------

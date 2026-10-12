@@ -42,11 +42,14 @@ _DEFAULT_WPM = 150
 _TITLE_HARD_MAX = 100  # giới hạn tiêu đề của YouTube
 
 _VISUAL_TYPES = {"title", "bullets", "chart", "code", "algorithm", "diagram", "quote", "animation", "challenge"}
-_ALGO_KINDS = {"sorting", "search", "graph", "neural_network", "matrix_mult", "covariance"}
+_ALGO_KINDS = {
+    "sorting", "search", "graph", "neural_network", "matrix_mult", "covariance",
+    "tree", "two_pointers", "linked_list", "stack_queue", "dp",
+}
 _CHART_KINDS = {"bar", "line", "pie"}
 _BASE_PRESETS = {
     "function", "neural_net", "bar_chart", "sorting", "counter", "steps", "custom", "pycode", "manim",
-    "matrix_op", "visual_algo",
+    "matrix_op", "visual_algo", "tree_graph", "two_pointers", "stack_queue", "dp_grid",
 }
 
 _BAD_TITLE_PREFIXES = (
@@ -143,21 +146,33 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
     score = dot(Q, K) / sqrt(d_k)   # Độ tương đồng
     weights = softmax(score)        # Chuẩn hoá thành xác suất
     output = weights @ V            # Tổng hợp có trọng số
-- "algorithm": đặt "algorithm" là 1 trong: sorting | search | graph | neural_network | matrix_mult | covariance.
+- "algorithm": đặt "algorithm" là 1 trong: sorting | search | graph | neural_network | matrix_mult | covariance | tree | two_pointers | stack_queue | dp.
 - "diagram": 3-5 bước ngắn trong "bullets" (mỗi bullet 1 bước).
 - "quote": câu chốt ấn tượng đặt vào bullets[0].
 - "challenge": cảnh ĐẶT BÀI TOÁN / NGHỊCH LÝ / BẾ TẮC / SAI LẦM THƯỜNG GẶP -> GIẢI PHÁP ĐỘT PHÁ. Hiển thị Animation Người Que (Stickman) bối rối trước rắc rối ('?') rồi bừng sáng ý tưởng giải cứu (bóng đèn phát sáng, dấu tích xanh) cực kỳ sinh động! "bullets" gồm 2-4 dòng (nửa đầu: vấn đề / rắc rối; nửa sau: giải pháp).
 - "animation": clip động visual thuật toán / toán học (kiểu Deep-ML / 3Blue1Brown). "animation" là object có "preset" thuộc:
-  matrix_op | visual_algo | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
+  matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
-_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION:
-  * matrix_op (KIỂU DEEP-ML / BÀI TOÁN MA TRẬN & ĐẠI SỐ TUYẾN TÍNH - GIỐNG LESSON.MP4):
+_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & 3BLUE1BROWN):
+  * matrix_op (MA TRẬN & ĐẠI SỐ TUYẾN TÍNH - GIỐNG LESSON.MP4):
     {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×", "difficulty": "Easy", "category": "Linear Algebra"}
-    (Minh hoạ phép nhân vô hướng với ma trận, hoặc phép toán ma trận từng ô: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
-  * visual_algo (BẢNG TÍNH / THUẬT TOÁN TỪNG BƯỚC / THỐNG KÊ - GIỐNG LESSON (1).MP4):
+    (Minh hoạ phép nhân vô hướng với ma trận: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
+  * visual_algo (BẢNG TÍNH / THỐNG KÊ TỪNG BƯỚC - GIỐNG LESSON (1).MP4):
     {"preset": "visual_algo", "table": {"headers": ["Ngày", "Nắng (X)", "Kem (Y)", "dx", "dy", "Tích dx*dy"], "rows": [[1, 2, 4, -2, -2, 4], [2, 4, 6, 0, 0, 0], [3, 6, 8, 2, 2, 4]]}, "formula": "Cov(X, Y) = Σ(dx · dy) / (N - 1) = 8 / 2 = 4", "difficulty": "Easy", "category": "Statistics"}
+  * tree_graph (CÂY NHỊ PHÂN BST / ĐỒ THỊ / DUYỆT CÂY):
+    {"preset": "tree_graph", "target": 12, "breadcrumb": "DEEP-ML / PROBLEM 08 / BINARY SEARCH TREE", "difficulty": "Medium", "category": "Data Structures"}
+    (Minh hoạ cây nhị phân tìm kiếm BST hoặc đồ thị: node đang xét sáng vàng neon, đường đi traversal sáng cyan, node tìm thấy sáng xanh lá).
+  * two_pointers (HAI CON TRỎ / SLIDING WINDOW / MẢNG):
+    {"preset": "two_pointers", "data": [2, 3, 5, 7, 11, 15], "target": 16, "breadcrumb": "DEEP-ML / PROBLEM 03 / TWO POINTERS", "difficulty": "Easy", "category": "Algorithms"}
+    (Minh hoạ mảng 1D với con trỏ L và R di chuyển, khung cửa sổ sáng vàng neon và công thức điều kiện kiểm tra bên dưới).
+  * stack_queue (NGĂN XẾP STACK LIFO / HÀNG ĐỢI QUEUE FIFO):
+    {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "PUSH 17", "POP -> 17", "PUSH 99"], "breadcrumb": "DEEP-ML / PROBLEM 04 / STACK (LIFO)", "difficulty": "Easy", "category": "Data Structures"}
+    (Minh hoạ ngăn xếp hoặc hàng đợi với các phần tử push rơi vào và pop nảy ra trực quan).
+  * dp_grid (QUY HOẠCH ĐỘNG / MA TRẬN 2D DP TABLE):
+    {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]", "breadcrumb": "DEEP-ML / PROBLEM 12 / DYNAMIC PROGRAMMING", "difficulty": "Medium", "category": "Algorithms"}
+    (Minh hoạ bảng DP 2D: ô đang tính sáng vàng neon, mũi tên nhận giá trị từ ô phụ thuộc, công thức truy hồi ở bên dưới).
   * function : {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
     (expr chỉ dùng x và các hàm sin,cos,tan,exp,log,sqrt,abs,tanh, toán tử + - * / ^, hằng pi,e)
   * neural_net: {"preset": "neural_net", "layers": [3, 5, 4, 2]}
