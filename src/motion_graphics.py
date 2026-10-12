@@ -967,6 +967,212 @@ def _d_radar_chart(scene: Scene, lang: str) -> dict | None:
     }
 
 
+def _d_trie_tree(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("trie_tree", "trie", "prefix_tree")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("trie", "prefix tree", "cây tiền tố", "autocomplete", "chuỗi ký tự"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    words = a.get("words") or ["cat", "car", "cart", "dog"]
+    query = a.get("query") or "car"
+    bc = a.get("breadcrumb") or "DATA STRUCTURES / TRIE / PREFIX TREE"
+    diff = a.get("difficulty") or "Medium"
+    cat = a.get("category") or "String Algorithms"
+
+    return {
+        "trie_tree": {
+            "words": words,
+            "query": query,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("words")),
+    }
+
+
+def _d_graph_network(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("graph_network", "network_graph", "dijkstra", "shortest_path")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("dijkstra", "shortest path", "đường đi ngắn nhất", "đồ thị có trọng số", "weighted graph", "network topology"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    raw_nodes = a.get("nodes") or ["A", "B", "C", "D", "E"]
+    nodes = []
+    for n in raw_nodes:
+        if isinstance(n, dict):
+            nid = str(n.get("id") or n.get("name") or n.get("label") or "Node")
+            lbl = str(n.get("label") or nid)
+            nodes.append({"id": nid, "label": lbl})
+        else:
+            nodes.append({"id": str(n), "label": str(n)})
+
+    raw_edges = a.get("edges") or [["A", "B", 4], ["A", "C", 2], ["C", "B", 1], ["B", "D", 5], ["C", "D", 8], ["D", "E", 3]]
+    edges = []
+    for e in raw_edges:
+        if isinstance(e, dict):
+            u = str(e.get("from") or e.get("u") or e.get("source") or "")
+            v = str(e.get("to") or e.get("v") or e.get("target") or "")
+            w = e.get("weight") if e.get("weight") is not None else (e.get("w") if e.get("w") is not None else 1)
+            if u and v:
+                edges.append([u, v, w])
+        elif isinstance(e, (list, tuple)) and len(e) >= 2:
+            w = e[2] if len(e) >= 3 else 1
+            edges.append([str(e[0]), str(e[1]), w])
+
+    raw_path = a.get("path") or ["A", "C", "B", "D", "E"]
+    path = [str(p.get("id") or "") if isinstance(p, dict) else str(p) for p in raw_path]
+    bc = a.get("breadcrumb") or "GRAPH THEORY / DIJKSTRA / SHORTEST PATH"
+    diff = a.get("difficulty") or "Medium"
+    cat = a.get("category") or "Graph Algorithms"
+
+    return {
+        "graph_network": {
+            "nodes": nodes,
+            "edges": edges,
+            "path": path,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("edges")),
+    }
+
+
+def _d_donut_chart(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    chart = _chart(scene)
+    is_explicit = preset in ("donut_chart", "pie_chart", "donut", "pie") or (chart and chart.get("kind") in ("pie", "donut"))
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("donut chart", "biểu đồ tròn", "tỷ lệ phần trăm", "phân bố", "market share", "thị phần"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    labels = (chart.get("labels") if chart else None) or a.get("labels") or ["Transformer", "CNN", "RNN", "MLP"]
+    values = (chart.get("values") if chart else None) or a.get("values") or [55, 25, 12, 8]
+    unit = a.get("unit") or "%"
+    bc = a.get("breadcrumb") or "BENCHMARK / ARCHITECTURE MARKET SHARE"
+    diff = a.get("difficulty") or "Easy"
+    cat = a.get("category") or "Statistics"
+
+    return {
+        "donut_chart": {
+            "labels": labels,
+            "values": values,
+            "unit": unit,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(chart or a.get("values")),
+    }
+
+
+def _d_math_equation(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("math_equation", "equation", "formula_breakdown")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("công thức toán", "phương trình", "bản chất công thức", "attention mechanism", "bayes", "gradient descent", "loss function", "định lý"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    name = a.get("name") or (scene.heading or "Transformer Attention")
+    formula = a.get("formula") or "Attention(Q, K, V) = Softmax( (Q · K^T) / √d_k ) · V"
+    parts = a.get("parts") or [
+        {"symbol": "Q · K^T", "name": "Độ tương đồng (Score)", "desc": "Tích vô hướng đo tương quan", "color": "#00f0ff"},
+        {"symbol": "√d_k", "name": "Scaling Factor", "desc": "Ổn định gradient khi chiều lớn", "color": "#ffe600"},
+        {"symbol": "Softmax", "name": "Chuẩn hoá xác suất", "desc": "Chuyển điểm số về tổng 1.0", "color": "#ff2bd6"},
+        {"symbol": "V", "name": "Value Matrix", "desc": "Tổng hợp ngữ nghĩa có trọng số", "color": "#39ff14"},
+    ]
+    bc = a.get("breadcrumb") or "MATHEMATICAL ESSENCE / EQUATION BREAKDOWN"
+    diff = a.get("difficulty") or "Core Theory"
+    cat = a.get("category") or "Mathematics"
+
+    return {
+        "math_equation": {
+            "name": name,
+            "formula": formula,
+            "parts": parts,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("parts")),
+    }
+
+
+def _d_linear_transform(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("linear_transform", "transform_2d", "matrix_grid")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("biến đổi tuyến tính", "linear transformation", "không gian vector", "vector cơ sở", "định thức", "determinant", "uốn cong lưới", "basis vectors"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    matrix = a.get("matrix") or [[2, 1], [0.5, 1.5]]
+    det = a.get("det") or (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0])
+    bc = a.get("breadcrumb") or "3BLUE1BROWN / LINEAR ALGEBRA / MATRIX TRANSFORMATION"
+    diff = a.get("difficulty") or "Medium"
+    cat = a.get("category") or "Linear Algebra"
+
+    return {
+        "linear_transform": {
+            "matrix": matrix,
+            "det": round(float(det), 2),
+            "ihat": [matrix[0][0], matrix[1][0]],
+            "jhat": [matrix[0][1], matrix[1][1]],
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("matrix")),
+    }
+
+
+def _d_calculus_curve(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("calculus_curve", "derivative", "tangent_curve", "integral")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("đạo hàm", "tiếp tuyến", "tích phân", "calculus", "derivative", "tangent", "hệ số góc", "giải tích", "riemann"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    func_str = a.get("func_str") or "f(x) = x³ - 2x + 1"
+    x_val = a.get("x_val") or 1.2
+    slope = a.get("slope") or 2.32
+    bc = a.get("breadcrumb") or "3BLUE1BROWN / ESSENCE OF CALCULUS / DERIVATIVES"
+    diff = a.get("difficulty") or "Medium"
+    cat = a.get("category") or "Calculus"
+
+    return {
+        "calculus_curve": {
+            "func_str": func_str,
+            "x_val": x_val,
+            "slope": slope,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("slope")),
+    }
+
+
 def _d_story(scene: Scene, lang: str) -> dict | None:
     vt = str(_g(scene, "visual_type", "")).lower()
     items = _bullets(scene, 6) or _sentences(scene.narration, 4, 120)
@@ -1038,10 +1244,22 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
                           "tiêu chí", "tieu chi", "feature matrix", "so sánh chi tiết", "đặc tính kỹ thuật", "matrix table"),
     "radar_chart": ("radar", "biểu đồ radar", "bieu do radar", "mạng nhện", "mang nhen",
                     "spider chart", "trade-off", "đánh đổi đa chiều", "đa chiều"),
+    "trie_tree": ("trie", "prefix tree", "cây tiền tố", "autocomplete", "chuỗi ký tự", "string matching"),
+    "graph_network": ("dijkstra", "shortest path", "đường đi ngắn nhất", "đồ thị có trọng số",
+                      "weighted graph", "network topology", "topo mạng", "mạng lưới"),
+    "donut_chart": ("donut chart", "pie chart", "biểu đồ tròn", "tỷ lệ phần trăm", "phân bố",
+                    "market share", "thị phần", "cơ cấu"),
+    "math_equation": ("công thức toán", "phương trình", "bản chất công thức", "equation", "formula",
+                      "attention mechanism", "bayes", "gradient descent", "loss function", "định lý"),
+    "linear_transform": ("biến đổi tuyến tính", "linear transformation", "không gian vector", "vector cơ sở",
+                         "định thức", "determinant", "uốn cong lưới", "basis vectors", "ma trận biến đổi"),
+    "calculus_curve": ("đạo hàm", "tiếp tuyến", "tích phân", "calculus", "derivative", "tangent",
+                      "hệ số góc", "giải tích", "riemann", "diện tích dưới đường cong"),
 }
 _PRIORITY = ["conclusion", "quote_card", "terminal", "matrix_op", "visual_algo", "tree_graph",
-             "two_pointers", "stack_queue", "dp_grid", "flowchart", "system_layers",
-             "comparison_matrix", "radar_chart", "scheduler", "bar_benchmark", "github_stats",
+             "two_pointers", "stack_queue", "dp_grid", "math_equation", "linear_transform",
+             "calculus_curve", "flowchart", "system_layers", "comparison_matrix", "radar_chart",
+             "trie_tree", "graph_network", "donut_chart", "scheduler", "bar_benchmark", "github_stats",
              "algo_trace", "neural_flow", "hud", "diff_view", "cpu_scheduler", "git_flow",
              "attention_map", "comparison", "metaphor", "stickman", "architecture"]
 
@@ -1078,6 +1296,18 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("stack_queue", 25)
     elif vt in ("dp_grid", "dp"):
         add("dp_grid", 25)
+    elif vt in ("math_equation", "equation", "formula"):
+        add("math_equation", 26)
+    elif vt in ("linear_transform", "linear_algebra"):
+        add("linear_transform", 26)
+    elif vt in ("calculus_curve", "calculus", "derivative", "integral"):
+        add("calculus_curve", 26)
+    elif vt in ("trie_tree", "trie"):
+        add("trie_tree", 26)
+    elif vt in ("graph_network", "dijkstra"):
+        add("graph_network", 26)
+    elif vt in ("donut_chart", "pie_chart"):
+        add("donut_chart", 26)
     elif vt in ("flowchart", "pipeline", "diagram"):
         add("flowchart", 26)
     elif vt in ("system_layers", "architecture_layers", "layers"):
@@ -1087,7 +1317,9 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
     elif vt in ("radar_chart", "radar", "spider_chart"):
         add("radar_chart", 26)
     elif vt == "chart" and chart:
-        if chart.get("kind") == "radar":
+        if chart.get("kind") in ("pie", "donut"):
+            add("donut_chart", 25)
+        elif chart.get("kind") == "radar":
             add("radar_chart", 25)
         else:
             add("github_stats" if chart["kind"] == "line" else "bar_benchmark", 20)
@@ -1103,6 +1335,10 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("visual_algo", 22)
     elif vt == "algorithm" and algo in ("tree", "graph"):
         add("tree_graph", 22)
+    elif vt == "algorithm" and algo in ("trie", "string"):
+        add("trie_tree", 22)
+    elif vt == "algorithm" and algo in ("dijkstra", "shortest_path"):
+        add("graph_network", 22)
     elif vt == "algorithm" and algo in ("two_pointers", "linked_list"):
         add("two_pointers", 22)
     elif vt == "algorithm" and algo in ("stack_queue", "stack", "queue"):
@@ -1128,6 +1364,18 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("stack_queue", 25)
     elif preset == "dp_grid":
         add("dp_grid", 25)
+    elif preset in ("math_equation", "equation"):
+        add("math_equation", 25)
+    elif preset in ("linear_transform", "transform_2d"):
+        add("linear_transform", 25)
+    elif preset in ("calculus_curve", "derivative", "integral"):
+        add("calculus_curve", 25)
+    elif preset in ("trie_tree", "trie"):
+        add("trie_tree", 25)
+    elif preset in ("graph_network", "dijkstra"):
+        add("graph_network", 25)
+    elif preset in ("donut_chart", "pie_chart"):
+        add("donut_chart", 25)
     elif preset in ("flowchart", "pipeline", "flowchart_diagram"):
         add("flowchart", 25)
     elif preset in ("system_layers", "layers", "layer_stack"):
@@ -1166,6 +1414,12 @@ def _plan_scene(scene: Scene, has_image: bool, lang: str) -> dict:
         "two_pointers": lambda: _d_two_pointers(scene, lang),
         "stack_queue": lambda: _d_stack_queue(scene, lang),
         "dp_grid": lambda: _d_dp_grid(scene, lang),
+        "math_equation": lambda: _d_math_equation(scene, lang),
+        "linear_transform": lambda: _d_linear_transform(scene, lang),
+        "calculus_curve": lambda: _d_calculus_curve(scene, lang),
+        "trie_tree": lambda: _d_trie_tree(scene, lang),
+        "graph_network": lambda: _d_graph_network(scene, lang),
+        "donut_chart": lambda: _d_donut_chart(scene, lang),
         "flowchart": lambda: _d_flowchart(scene, lang),
         "system_layers": lambda: _d_system_layers(scene, lang),
         "comparison_matrix": lambda: _d_comparison_matrix(scene, lang),
@@ -1392,7 +1646,7 @@ function drawBackground(t) {
 let HL = null;
 function headerLayout() {
   if (HL) return HL;
-  const meta = (D.matrix_op || D.visual_algo || D.tree_graph || D.two_pointers || D.stack_queue || D.dp_grid || D.flowchart || D.system_layers || D.comparison_matrix || D.radar_chart || {});
+  const meta = (D.matrix_op || D.visual_algo || D.tree_graph || D.two_pointers || D.stack_queue || D.dp_grid || D.flowchart || D.system_layers || D.comparison_matrix || D.radar_chart || D.math_equation || D.linear_transform || D.calculus_curve || D.trie_tree || D.graph_network || D.donut_chart || {});
   const hasMeta = !!(meta.breadcrumb || D.breadcrumb || meta.category || D.category);
   const mx = px(72);
   const top = px(IS_VERTICAL ? (hasMeta ? 130 : 96) : (hasMeta ? 78 : 48));
@@ -3048,6 +3302,551 @@ TEMPLATES.radar_chart = function (t, box) {
   const tradeOffMsg = 'Không có giải pháp hoàn hảo: Luôn là sự đánh đổi giữa các tiêu chí.';
   const tf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
   text(fitText(tradeOffMsg, box.w - sbw - px(60), tf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), tf, '#ffffff');
+};
+
+// --- trie_tree: Cây tiền tố Prefix Tree / Trie (String Matching & Autocomplete) ---
+TEMPLATES.trie_tree = function (t, box) {
+  const tt = D.trie_tree; if (!tt) return TEMPLATES.architecture(t, box);
+  const words = tt.words || ['cat', 'car', 'cart', 'dog'];
+  const query = (tt.query || 'car').toLowerCase();
+  const qLen = query.length;
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const treeH = box.h - cardH - px(24);
+
+  const availT = Math.max(DURATION - 1.2, 1.0);
+  const tps = availT / (qLen + 1);
+  const activeCharIdx = clamp(Math.floor((t - 0.6) / tps), 0, qLen);
+
+  // Cấu trúc node cây Trie trực quan
+  const nodes = [
+    { id: 'root', label: 'ROOT', level: 0, xFrac: 0.5 },
+    { id: 'c', label: 'c', level: 1, xFrac: 0.35, parent: 'root' },
+    { id: 'd', label: 'd', level: 1, xFrac: 0.68, parent: 'root' },
+    { id: 'ca', label: 'a', level: 2, xFrac: 0.35, parent: 'c' },
+    { id: 'do', label: 'o', level: 2, xFrac: 0.68, parent: 'd' },
+    { id: 'cat', label: 't', level: 3, xFrac: 0.24, parent: 'ca', isWord: true },
+    { id: 'car', label: 'r', level: 3, xFrac: 0.44, parent: 'ca', isWord: true },
+    { id: 'dog', label: 'g', level: 3, xFrac: 0.68, parent: 'do', isWord: true },
+    { id: 'cart', label: 't', level: 4, xFrac: 0.44, parent: 'car', isWord: true },
+  ];
+
+  const levelY = lvl => box.y + px(IS_VERTICAL ? 36 : 30) + lvl * (treeH - px(IS_VERTICAL ? 80 : 70)) / 4;
+  const nodeMap = {};
+  nodes.forEach(nd => {
+    nodeMap[nd.id] = {
+      x: box.x + nd.xFrac * box.w,
+      y: levelY(nd.level),
+      nd
+    };
+  });
+
+  // Đường đi tìm kiếm query (ví dụ: 'root' -> 'c' -> 'ca' -> 'car')
+  const searchPath = ['root'];
+  let curPrefix = '';
+  for (let i = 0; i < qLen; i++) {
+    curPrefix += query[i];
+    searchPath.push(curPrefix);
+  }
+
+  // 1. Vẽ các cạnh (Edges)
+  nodes.forEach(nd => {
+    if (!nd.parent) return;
+    const p1 = nodeMap[nd.parent], p2 = nodeMap[nd.id];
+    if (!p1 || !p2) return;
+
+    const isPathEdge = searchPath.includes(nd.parent) && searchPath.includes(nd.id) &&
+                       searchPath.indexOf(nd.id) <= activeCharIdx;
+
+    ctx.save();
+    ctx.strokeStyle = isPathEdge ? GREEN : 'rgba(100, 116, 139, 0.4)';
+    ctx.lineWidth = isPathEdge ? px(3.5) : px(2);
+    if (isPathEdge) { ctx.shadowColor = GREEN; ctx.shadowBlur = px(12); }
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // 2. Vẽ các Node
+  const nodeR = px(IS_VERTICAL ? 22 : 28);
+  nodes.forEach(nd => {
+    const p = nodeMap[nd.id];
+    if (!p) return;
+    const pathIdx = searchPath.indexOf(nd.id);
+    const isTraversed = (pathIdx >= 0 && pathIdx <= activeCharIdx);
+    const isCurrent = (pathIdx === activeCharIdx);
+
+    ctx.save();
+    let fill = 'rgba(15, 23, 42, 0.85)', stroke = 'rgba(100, 116, 139, 0.45)', textCol = '#94a3b8';
+    if (isCurrent) {
+      fill = 'rgba(255, 230, 0, 0.22)'; stroke = YELLOW; textCol = YELLOW;
+      ctx.shadowColor = YELLOW; ctx.shadowBlur = px(18);
+    } else if (isTraversed) {
+      fill = 'rgba(20, 50, 35, 0.85)'; stroke = GREEN; textCol = '#f1f5f9';
+      ctx.shadowColor = GREEN; ctx.shadowBlur = px(10);
+    }
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, nodeR, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = stroke; ctx.lineWidth = isCurrent ? px(3) : isTraversed ? px(2.5) : px(1.5); ctx.stroke();
+
+    const fs = px(nd.id === 'root' ? 14 : (IS_VERTICAL ? 18 : 22));
+    text(nd.label, p.x, p.y + px(fs * 0.35), font(fs, 'bold', MONO), textCol, 'center');
+
+    // Huy hiệu kết thúc từ (End of Word)
+    if (nd.isWord) {
+      ctx.beginPath(); ctx.arc(p.x + nodeR * 0.7, p.y - nodeR * 0.7, px(5), 0, Math.PI * 2);
+      ctx.fillStyle = isTraversed ? GREEN : CYAN; ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // 3. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const stepBadge = `SEARCH: "${query.slice(0, activeCharIdx)}"`;
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(stepBadge, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const isComplete = (activeCharIdx >= qLen);
+  const statusMsg = isComplete ? `Tìm kiếm từ "${query}": Thành công! Đã khớp tới node kết thúc.` : `Đang duyệt theo tiền tố ký tự '${query[activeCharIdx - 1] || 'root'}'`;
+  const sf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(statusMsg, box.w - sbw - px(60), sf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), sf, isComplete ? GREEN : '#ffffff');
+};
+
+// --- graph_network: Đồ thị có trọng số & Thuật toán Dijkstra (Weighted Graph & Shortest Path) ---
+TEMPLATES.graph_network = function (t, box) {
+  const gn = D.graph_network; if (!gn) return TEMPLATES.architecture(t, box);
+  const rawNodes = (gn.nodes || ['A', 'B', 'C', 'D', 'E']).map(n => {
+    if (typeof n === 'object' && n !== null) return { id: String(n.id || n.name || n.label), label: String(n.label || n.id || n.name) };
+    return { id: String(n), label: String(n) };
+  });
+  const edges = (gn.edges || [['A', 'B', 4], ['A', 'C', 2], ['C', 'B', 1], ['B', 'D', 5], ['C', 'D', 8], ['D', 'E', 3]]).map(e => {
+    if (Array.isArray(e)) return [String(e[0]), String(e[1]), e[2] != null ? e[2] : 1];
+    if (typeof e === 'object' && e !== null) return [String(e.from || e.u || e.source), String(e.to || e.v || e.target), e.weight != null ? e.weight : (e.w || 1)];
+    return ['', '', 1];
+  }).filter(e => e[0] && e[1]);
+  const path = (gn.path || ['A', 'C', 'B', 'D', 'E']).map(p => (typeof p === 'object' && p !== null) ? String(p.id || p.name || p.label) : String(p));
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const graphH = box.h - cardH - px(24);
+
+  const numNodes = rawNodes.length;
+  const cx = box.x + box.w / 2, cy = box.y + graphH / 2;
+  const radius = Math.min(box.w * 0.38, graphH * 0.40);
+
+  const nodePos = {};
+  rawNodes.forEach((nd, i) => {
+    const a = (i * Math.PI * 2) / numNodes - Math.PI / 2;
+    nodePos[nd.id] = { x: cx + Math.cos(a) * radius, y: cy + Math.sin(a) * radius, label: nd.label };
+  });
+
+  const pathEdges = new Set();
+  for (let i = 0; i < path.length - 1; i++) {
+    pathEdges.add(`${path[i]}-${path[i+1]}`);
+    pathEdges.add(`${path[i+1]}-${path[i]}`);
+  }
+
+  const pAnim = clamp((t - 0.4) / (DURATION - 1.2), 0, 1);
+  const activePathStep = Math.min(path.length - 1, Math.floor(pAnim * path.length));
+
+  // 1. Vẽ các cạnh có trọng số
+  edges.forEach(([u, v, w]) => {
+    const p1 = nodePos[u], p2 = nodePos[v];
+    if (!p1 || !p2) return;
+    const isShortest = pathEdges.has(`${u}-${v}`);
+
+    ctx.save();
+    ctx.strokeStyle = isShortest ? GREEN : 'rgba(100, 116, 139, 0.4)';
+    ctx.lineWidth = isShortest ? px(3.5) : px(1.8);
+    if (isShortest) { ctx.shadowColor = GREEN; ctx.shadowBlur = px(12); }
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+
+    // Weight Badge ở giữa cạnh
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    panel(mx - px(14), my - px(12), px(28), px(24), { r: 6, fill: 'rgba(15, 23, 42, 0.95)', stroke: isShortest ? GREEN : 'rgba(71, 85, 105, 0.5)', lw: 1 });
+    text(String(w), mx, my + px(5), font(px(14), 'bold', MONO), isShortest ? GREEN : '#cbd5e1', 'center');
+    ctx.restore();
+  });
+
+  // 2. Vẽ các Node
+  const nodeR = px(IS_VERTICAL ? 24 : 30);
+  rawNodes.forEach(nd => {
+    const p = nodePos[nd.id];
+    if (!p) return;
+    const pathIdx = path.indexOf(nd.id);
+    const inShortest = (pathIdx >= 0 && pathIdx <= activePathStep);
+    const isCurrent = (pathIdx === activePathStep);
+
+    ctx.save();
+    let fill = 'rgba(15, 23, 42, 0.85)', stroke = 'rgba(100, 116, 139, 0.5)', textCol = '#94a3b8';
+    if (isCurrent) {
+      fill = 'rgba(255, 230, 0, 0.22)'; stroke = YELLOW; textCol = YELLOW;
+      ctx.shadowColor = YELLOW; ctx.shadowBlur = px(20);
+    } else if (inShortest) {
+      fill = 'rgba(20, 50, 35, 0.85)'; stroke = GREEN; textCol = '#f1f5f9';
+      ctx.shadowColor = GREEN; ctx.shadowBlur = px(12);
+    }
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, nodeR, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = stroke; ctx.lineWidth = isCurrent ? px(3.5) : inShortest ? px(2.5) : px(1.5); ctx.stroke();
+
+    text(nd.id, p.x, p.y + px(9), font(px(IS_VERTICAL ? 20 : 24), 'bold', MONO), textCol, 'center');
+
+    if (nd.label && nd.label !== nd.id) {
+      const lblY = p.y >= cy ? p.y + nodeR + px(20) : p.y - nodeR - px(10);
+      text(nd.label, p.x, lblY, font(px(IS_VERTICAL ? 13 : 15), 'bold'), isCurrent ? YELLOW : (inShortest ? '#f1f5f9' : MUTED), 'center');
+    }
+    ctx.restore();
+  });
+
+  // 3. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: GREEN, lw: 2, glow: px(16) });
+  const bText = 'DIJKSTRA ALGO';
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(bText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, GREEN, 'center');
+
+  const pStr = path.slice(0, activePathStep + 1).join(' → ');
+  const pathMsg = `Đường đi ngắn nhất: ${pStr}`;
+  const pf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(pathMsg, box.w - sbw - px(60), pf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), pf, '#ffffff');
+};
+
+// --- donut_chart: Biểu đồ tròn Donut Cyberpunk với phân khúc phát sáng & Explode ---
+TEMPLATES.donut_chart = function (t, box) {
+  const dc = D.donut_chart; if (!dc) return TEMPLATES.architecture(t, box);
+  const labels = dc.labels || ['Transformer', 'CNN', 'RNN', 'MLP'];
+  const values = dc.values || [55, 25, 12, 8];
+  const unit = dc.unit || '%';
+  const total = values.reduce((a, b) => a + b, 0) || 100;
+  const n = values.length;
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const chartH = box.h - cardH - px(24);
+
+  const cx = box.x + (IS_VERTICAL ? box.w / 2 : box.w * 0.38);
+  const cy = box.y + (IS_VERTICAL ? chartH * 0.42 : chartH / 2);
+  const maxR = Math.min(box.w * (IS_VERTICAL ? 0.35 : 0.28), chartH * 0.40);
+  const innerR = maxR * 0.58;
+
+  const colors = [CYAN, PURPLE, GREEN, YELLOW];
+  const animProg = easeOutExpo(clamp(t / 1.2, 0, 1));
+
+  // 1. Vẽ các lát cắt Donut
+  let startAngle = -Math.PI / 2;
+  values.forEach((v, i) => {
+    const sliceAngle = (v / total) * Math.PI * 2 * animProg;
+    const endAngle = startAngle + sliceAngle;
+    const col = colors[i % colors.length];
+
+    // Lát cắt lớn nhất bung nhẹ ra ngoài
+    const isLargest = (i === 0);
+    const midA = startAngle + sliceAngle / 2;
+    const explodeDist = isLargest ? px(10) : 0;
+    const ox = Math.cos(midA) * explodeDist;
+    const oy = Math.sin(midA) * explodeDist;
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.beginPath();
+    ctx.arc(cx, cy, maxR, startAngle, endAngle);
+    ctx.arc(cx, cy, innerR, endAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = col + (isLargest ? 'dd' : '99');
+    ctx.shadowColor = col;
+    ctx.shadowBlur = isLargest ? px(16) : px(8);
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = px(2);
+    ctx.stroke();
+    ctx.restore();
+
+    startAngle = endAngle;
+  });
+
+  // 2. Chữ số ở tâm Donut
+  const mainVal = Math.round(values[0] * animProg);
+  text(`${mainVal}${unit}`, cx, cy + px(10), font(px(IS_VERTICAL ? 32 : 44), 'bold', MONO), '#ffffff', 'center');
+  text(labels[0], cx, cy - px(IS_VERTICAL ? 26 : 34), font(px(IS_VERTICAL ? 14 : 18), 'bold', MONO), CYAN, 'center');
+
+  // 3. Legend List bên cạnh
+  const legX = IS_VERTICAL ? box.x + px(20) : box.x + box.w * 0.68;
+  const legY = IS_VERTICAL ? box.y + chartH * 0.72 : box.y + px(30);
+  const legW = IS_VERTICAL ? box.w - px(40) : box.w * 0.28;
+  const itemH = px(IS_VERTICAL ? 36 : 46);
+
+  labels.forEach((l, i) => {
+    const col = colors[i % colors.length];
+    const iy = legY + i * itemH;
+    ctx.save();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(legX + px(10), iy + px(12), px(6), 0, Math.PI * 2); ctx.fill();
+    text(l, legX + px(26), iy + px(16), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO), '#cbd5e1');
+    const vStr = `${values[i]}${unit}`;
+    text(vStr, legX + legW, iy + px(16), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO), col, 'right');
+    ctx.restore();
+  });
+
+  // 4. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: CYAN, lw: 2, glow: px(16) });
+  const bText = 'SHARE ANALYSIS';
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(bText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(0, 240, 255, 0.15)', stroke: CYAN, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, CYAN, 'center');
+
+  const desc = `Thị phần áp đảo: ${labels[0]} chiếm ${values[0]}% tổng tỷ trọng.`;
+  const df = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(desc, box.w - sbw - px(60), df), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), df, '#ffffff');
+};
+
+// --- math_equation: Phương trình toán học chi tiết với biến số Color-Coded (3Blue1Brown Style) ---
+TEMPLATES.math_equation = function (t, box) {
+  const me = D.math_equation; if (!me) return TEMPLATES.architecture(t, box);
+  const formula = me.formula || 'Attention(Q, K, V) = Softmax( (Q · K^T) / √d_k ) · V';
+  const parts = me.parts || [
+    { symbol: 'Q · K^T', name: 'Độ tương đồng (Score)', desc: 'Tích vô hướng đo tương quan', color: CYAN },
+    { symbol: '√d_k', name: 'Scaling Factor', desc: 'Ổn định gradient khi chiều lớn', color: YELLOW },
+    { symbol: 'Softmax', name: 'Chuẩn hoá xác suất', desc: 'Chuyển điểm số về tổng 1.0', color: PINK },
+    { symbol: 'V', name: 'Value Matrix', desc: 'Tổng hợp ngữ nghĩa có trọng số', color: GREEN }
+  ];
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const eqAreaH = box.h - cardH - px(24);
+
+  // 1. Khung hiển thị công thức lớn ở trên
+  const fBoxH = px(IS_VERTICAL ? 110 : 130);
+  const fBoxY = box.y + px(16);
+  panel(box.x, fBoxY, box.w, fBoxH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2.5, glow: px(20) });
+
+  const ff = font(px(IS_VERTICAL ? 22 : 36), 'bold', MONO);
+  text(fitText(formula, box.w - px(60), ff), box.x + box.w / 2, fBoxY + fBoxH / 2 + px(10), ff, '#ffffff', 'center');
+
+  // 2. 4 thẻ giải thích từng thành phần (Callout Cards)
+  const nParts = parts.length;
+  const cAreaY = fBoxY + fBoxH + px(20);
+  const cAreaH = eqAreaH - fBoxH - px(30);
+
+  const horiz = !IS_VERTICAL;
+  const gap = px(12);
+  const cW = horiz ? (box.w - (nParts - 1) * gap) / nParts : box.w;
+  const cH = horiz ? cAreaH : (cAreaH - (nParts - 1) * gap) / nParts;
+
+  parts.forEach((p, i) => {
+    const cx = horiz ? box.x + i * (cW + gap) : box.x;
+    const cy = horiz ? cAreaY : cAreaY + i * (cH + gap);
+    const pCol = p.color || PALETTE[i % PALETTE.length];
+    const e = pop(t, 0.4 + i * 0.18, 0.5);
+
+    withScale(cx + cW / 2, cy + cH / 2, e, () => {
+      ctx.save();
+      ctx.globalAlpha = e;
+      panel(cx, cy, cW, cH, { r: 12, fill: 'rgba(15, 23, 42, 0.90)', stroke: pCol, lw: 2, glow: px(12) });
+
+      // Ký hiệu toán học lớn
+      text(p.symbol, cx + px(16), cy + px(IS_VERTICAL ? 24 : 32), font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO), pCol);
+      // Tên đại lượng
+      text(fitText(p.name, cW - px(32), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO)), cx + px(16), cy + px(IS_VERTICAL ? 46 : 64), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO), '#ffffff');
+      // Mô tả bản chất
+      if (!IS_VERTICAL || cH > px(70)) {
+        tb(p.desc, cx + px(16), cy + px(IS_VERTICAL ? 66 : 94), cW - px(32), px(14), '#94a3b8', { maxLines: 2 });
+      }
+      ctx.restore();
+    });
+  });
+
+  // 3. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const bText = 'ESSENCE BREAKDOWN';
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(bText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const sumMsg = 'Bản chất toán học: Mỗi ký hiệu đều đảm nhiệm một vai trò then chốt trong mô hình.';
+  const sf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(sumMsg, box.w - sbw - px(60), sf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), sf, '#ffffff');
+};
+
+// --- linear_transform: Biến đổi tuyến tính lưới 2D (Essence of Linear Algebra - 3Blue1Brown) ---
+TEMPLATES.linear_transform = function (t, box) {
+  const lt = D.linear_transform; if (!lt) return TEMPLATES.architecture(t, box);
+  const matrix = lt.matrix || [[2, 1], [0.5, 1.5]];
+  const det = lt.det != null ? lt.det : 2.5;
+  const ihat = lt.ihat || [matrix[0][0], matrix[1][0]];
+  const jhat = lt.jhat || [matrix[0][1], matrix[1][1]];
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const gridH = box.h - cardH - px(24);
+
+  const cx = box.x + box.w / 2, cy = box.y + gridH / 2;
+  const unitSize = px(IS_VERTICAL ? 65 : 85);
+
+  const lambda = easeOutExpo(clamp((t - 0.5) / (DURATION - 1.2), 0, 1));
+  // Ma trận nội suy M(t) = (1 - lambda) * I + lambda * M
+  const m00 = 1 * (1 - lambda) + matrix[0][0] * lambda;
+  const m01 = 0 * (1 - lambda) + matrix[0][1] * lambda;
+  const m10 = 0 * (1 - lambda) + matrix[1][0] * lambda;
+  const m11 = 1 * (1 - lambda) + matrix[1][1] * lambda;
+
+  const transform = (gx, gy) => {
+    const tx = (m00 * gx + m01 * gy) * unitSize;
+    const ty = -(m10 * gx + m11 * gy) * unitSize;
+    return { x: cx + tx, y: cy + ty };
+  };
+
+  // 1. Vẽ các đường lưới toạ độ sau khi biến đổi
+  ctx.save();
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.20)';
+  ctx.lineWidth = px(1.2);
+  const gridRange = 4;
+
+  for (let gx = -gridRange; gx <= gridRange; gx++) {
+    const pTop = transform(gx, gridRange), pBot = transform(gx, -gridRange);
+    ctx.beginPath(); ctx.moveTo(pTop.x, pTop.y); ctx.lineTo(pBot.x, pBot.y); ctx.stroke();
+  }
+  for (let gy = -gridRange; gy <= gridRange; gy++) {
+    const pLeft = transform(-gridRange, gy), pRight = transform(gridRange, gy);
+    ctx.beginPath(); ctx.moveTo(pLeft.x, pLeft.y); ctx.lineTo(pRight.x, pRight.y); ctx.stroke();
+  }
+
+  // 2. Hình bình hành đơn vị (Unit Area = det)
+  const p00 = transform(0, 0), p10 = transform(1, 0), p11 = transform(1, 1), p01 = transform(0, 1);
+  ctx.beginPath();
+  ctx.moveTo(p00.x, p00.y); ctx.lineTo(p10.x, p10.y); ctx.lineTo(p11.x, p11.y); ctx.lineTo(p01.x, p01.y);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255, 230, 0, 0.18)'; ctx.fill();
+  ctx.strokeStyle = YELLOW; ctx.lineWidth = px(2); ctx.stroke();
+
+  // 3. Vector i-hat (GREEN) và j-hat (RED/PINK)
+  const drawVector = (target, col, label) => {
+    ctx.strokeStyle = col; ctx.lineWidth = px(3.5); ctx.shadowColor = col; ctx.shadowBlur = px(12);
+    ctx.beginPath(); ctx.moveTo(p00.x, p00.y); ctx.lineTo(target.x, target.y); ctx.stroke();
+    text('▶', target.x, target.y + px(5), font(px(16), 'bold'), col, 'center');
+    text(label, target.x + px(12), target.y - px(8), font(px(16), 'bold', MONO), col);
+  };
+  drawVector(p10, GREEN, 'i-hat');
+  drawVector(p01, PINK, 'j-hat');
+  ctx.restore();
+
+  // 4. Matrix Panel ở góc trên
+  const matBoxW = px(IS_VERTICAL ? 220 : 280), matBoxH = px(70);
+  panel(box.x + px(20), box.y + px(16), matBoxW, matBoxH, { r: 12, fill: 'rgba(10, 18, 36, 0.95)', stroke: CYAN, lw: 1.5 });
+  text(`M = [ [${matrix[0][0]}, ${matrix[0][1]}], [${matrix[1][0]}, ${matrix[1][1]} ] ]`, box.x + px(35), box.y + px(42), font(px(15), 'bold', MONO), CYAN);
+  text(`det(M) = ${det}`, box.x + px(35), box.y + px(68), font(px(15), 'bold', MONO), YELLOW);
+
+  // 5. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const bText = 'LINEAR TRANSFORMATION';
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(bText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const lMsg = `Bản chất ma trận: Uốn cong không gian toạ độ (i-hat → [${ihat}], j-hat → [${jhat}]).`;
+  const lf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(lMsg, box.w - sbw - px(60), lf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), lf, '#ffffff');
+};
+
+// --- calculus_curve: Giải tích đạo hàm & tiếp tuyến trượt (Essence of Calculus - 3Blue1Brown) ---
+TEMPLATES.calculus_curve = function (t, box) {
+  const cc = D.calculus_curve; if (!cc) return TEMPLATES.architecture(t, box);
+  const funcStr = cc.func_str || 'f(x) = x³ - 2x + 1';
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const plotH = box.h - cardH - px(24);
+
+  const cx = box.x + box.w / 2, cy = box.y + plotH / 2;
+  const scaleX = px(IS_VERTICAL ? 80 : 120), scaleY = px(IS_VERTICAL ? 60 : 80);
+
+  // Hàm số f(x) = 0.5 * x^3 - 1.5 * x
+  const f = x => 0.4 * Math.pow(x, 3) - 1.4 * x;
+  // Đạo hàm f'(x) = 1.2 * x^2 - 1.4
+  const df = x => 1.2 * Math.pow(x, 2) - 1.4;
+
+  const toScreen = (x, y) => ({ x: cx + x * scaleX, y: cy - y * scaleY });
+
+  // 1. Vẽ trục Oxy
+  ctx.save();
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)';
+  ctx.lineWidth = px(1.5);
+  ctx.beginPath();
+  ctx.moveTo(box.x + px(20), cy); ctx.lineTo(box.x + box.w - px(20), cy);
+  ctx.moveTo(cx, box.y + px(10)); ctx.lineTo(cx, box.y + plotH - px(10));
+  ctx.stroke();
+
+  // 2. Vẽ đường cong hàm số f(x)
+  ctx.strokeStyle = CYAN;
+  ctx.lineWidth = px(3.5);
+  ctx.shadowColor = CYAN;
+  ctx.shadowBlur = px(14);
+  ctx.beginPath();
+  const xMin = -2.2, xMax = 2.2, steps = 100;
+  for (let i = 0; i <= steps; i++) {
+    const x = xMin + (i / steps) * (xMax - xMin);
+    const p = toScreen(x, f(x));
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+
+  // 3. Điểm tiếp xúc P(x0, f(x0)) trượt theo thời gian t
+  const animT = (t / DURATION) * Math.PI * 2;
+  const x0 = Math.sin(animT) * 1.5;
+  const y0 = f(x0);
+  const slope = df(x0);
+  const p0 = toScreen(x0, y0);
+
+  // Đường tiếp tuyến (Tangent Line)
+  const tanLen = 1.2;
+  const t1 = toScreen(x0 - tanLen, y0 - slope * tanLen);
+  const t2 = toScreen(x0 + tanLen, y0 + slope * tanLen);
+  ctx.strokeStyle = YELLOW;
+  ctx.lineWidth = px(3);
+  ctx.shadowColor = YELLOW;
+  ctx.shadowBlur = px(16);
+  ctx.beginPath();
+  ctx.moveTo(t1.x, t1.y); ctx.lineTo(t2.x, t2.y);
+  ctx.stroke();
+
+  // Điểm P
+  ctx.beginPath(); ctx.arc(p0.x, p0.y, px(7), 0, Math.PI * 2);
+  ctx.fillStyle = YELLOW; ctx.fill();
+  ctx.restore();
+
+  // 4. Slope Indicator Panel ở góc trên
+  const statBoxW = px(IS_VERTICAL ? 240 : 300), statBoxH = px(70);
+  panel(box.x + px(20), box.y + px(16), statBoxW, statBoxH, { r: 12, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 1.5 });
+  text(funcStr, box.x + px(35), box.y + px(42), font(px(15), 'bold', MONO), CYAN);
+  text(`x = ${x0.toFixed(2)}  |  Hệ số góc f'(x) = ${slope.toFixed(2)}`, box.x + px(35), box.y + px(68), font(px(14), 'bold', MONO), YELLOW);
+
+  // 5. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const bText = 'CALCULUS ESSENCE';
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(bText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const cMsg = 'Đạo hàm: Tốc độ biến thiên tức thời là hệ số góc tiếp tuyến khi khoảng cách tiến về 0.';
+  const cf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(cMsg, box.w - sbw - px(60), cf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), cf, '#ffffff');
 };
 
 // ---------- điều phối ----------

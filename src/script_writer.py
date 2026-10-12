@@ -44,13 +44,14 @@ _TITLE_HARD_MAX = 100  # giới hạn tiêu đề của YouTube
 _VISUAL_TYPES = {"title", "bullets", "chart", "code", "algorithm", "diagram", "quote", "animation", "challenge"}
 _ALGO_KINDS = {
     "sorting", "search", "graph", "neural_network", "matrix_mult", "covariance",
-    "tree", "two_pointers", "linked_list", "stack_queue", "dp",
+    "tree", "two_pointers", "linked_list", "stack_queue", "dp", "trie",
 }
-_CHART_KINDS = {"bar", "line", "pie"}
+_CHART_KINDS = {"bar", "line", "pie", "donut"}
 _BASE_PRESETS = {
     "function", "neural_net", "bar_chart", "sorting", "counter", "steps", "custom", "pycode", "manim",
     "matrix_op", "visual_algo", "tree_graph", "two_pointers", "stack_queue", "dp_grid",
     "flowchart", "system_layers", "comparison_matrix", "radar_chart",
+    "trie_tree", "graph_network", "donut_chart", "math_equation", "linear_transform", "calculus_curve",
 }
 
 _BAD_TITLE_PREFIXES = (
@@ -151,12 +152,30 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
 - "diagram": SƠ ĐỒ QUY TRÌNH / LUỒNG DỮ LIỆU / KIẾN TRÚC. 3-5 bước trong "bullets" (mỗi bullet 1 bước để tự động vẽ flowchart động với hạt dữ liệu di chuyển), hoặc dùng visual_type "animation" với preset "flowchart" hoặc "system_layers".
 - "quote": câu chốt ấn tượng đặt vào bullets[0].
 - "challenge": cảnh ĐẶT BÀI TOÁN / NGHỊCH LÝ / BẾ TẮC / SAI LẦM THƯỜNG GẶP -> GIẢI PHÁP ĐỘT PHÁ. Hiển thị Animation Người Que (Stickman) bối rối trước rắc rối ('?') rồi bừng sáng ý tưởng giải cứu (bóng đèn phát sáng, dấu tích xanh) cực kỳ sinh động! "bullets" gồm 2-4 dòng (nửa đầu: vấn đề / rắc rối; nửa sau: giải pháp).
-- "animation": clip động visual thuật toán / toán học / sơ đồ / bảng biểu (kiểu Deep-ML & Tech Studio). "animation" là object có "preset" thuộc:
-  flowchart | system_layers | comparison_matrix | radar_chart | matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
+- "animation": clip động visual thuật toán / toán học / sơ đồ / bảng biểu (kiểu Deep-ML & Tech Studio & 3Blue1Brown). "animation" là object có "preset" thuộc:
+  linear_transform | calculus_curve | math_equation | trie_tree | graph_network | donut_chart | flowchart | system_layers | comparison_matrix | radar_chart | matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
-_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & TECH STUDIO):
+_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & TECH STUDIO & 3BLUE1BROWN):
+  * linear_transform (BIẾN ĐỔI TUYẾN TÍNH 2D / BIẾN DẠNG LƯỚI KHÔNG GIAN - ĐẶC TRƯNG 3BLUE1BROWN):
+    {"preset": "linear_transform", "matrix": [[2, 1], [0.5, 1.5]], "det_label": "det(A) = 2.5 (Diện tích dãn 2.5×)", "vector_i": "î = [2, 0.5]ᵀ (Xanh lá)", "vector_j": "ĵ = [1, 1.5]ᵀ (Hồng tím)", "breadcrumb": "ESSENCE OF LINEAR ALGEBRA / 2D TRANSFORMATION", "difficulty": "3B1B Core", "category": "Geometry"}
+    (Minh hoạ kinh điển 3Blue1Brown: lưới toạ độ Cartesian biến dạng mượt mà theo ma trận, vector cơ sở î và ĵ chuyển động và kéo giãn diện tích det(A)).
+  * calculus_curve (GIẢI TÍCH ĐẠO HÀM / TIẾP TUYẾN TRƯỢT TRÊN ĐƯỜNG CONG - KIỂU 3BLUE1BROWN):
+    {"preset": "calculus_curve", "func_name": "f(x) = x³ - 3x + 2", "derivative_name": "f'(x) = 3x² - 3", "x0": 1.2, "tangent_slope": "f'(1.2) = 1.32", "insight": "Đạo hàm là hệ số góc tức thời của đường tiếp tuyến tại tiếp điểm", "breadcrumb": "ESSENCE OF CALCULUS / INSTANTANEOUS RATE OF CHANGE", "difficulty": "Calculus", "category": "Analysis"}
+    (Minh hoạ kinh điển 3Blue1Brown: đường cong hàm số mượt mà, tiếp điểm P trượt dọc đồ thị, tiếp tuyến xoay theo hệ số góc f'(x)).
+  * math_equation (CÔNG THỨC TOÁN HỌC & BÓC TÁCH MÀU SẮC - KIỂU 3BLUE1BROWN):
+    {"preset": "math_equation", "title": "Cơ Chế Scaled Dot-Product Attention", "latex": "Attention(Q, K, V) = softmax(Q·Kᵀ / √dₖ) · V", "parts": [{"symbol": "Q · Kᵀ", "name": "Độ tương quan", "desc": "Tích vô hướng đo tương đồng Query và Key", "color": "#ffe600"}, {"symbol": "/ √dₖ", "name": "Hệ số co giãn", "desc": "Ổn định phương sai, chống bão hoà Softmax", "color": "#00f0ff"}, {"symbol": "softmax(...)", "name": "Xác suất chuẩn hoá", "desc": "Chuẩn hoá tổng trọng số chú ý về 1.0", "color": "#ff2bd6"}, {"symbol": "· V", "name": "Tổng hợp giá trị", "desc": "Nhân với Value để lấy ngữ cảnh quan trọng", "color": "#39ff14"}], "insight": "Bản chất là phép tra cứu mềm (Soft Lookup) theo mức độ liên quan ngữ nghĩa.", "breadcrumb": "MATHEMATICS OF DEEP LEARNING / ATTENTION", "difficulty": "Advanced", "category": "Linear Algebra"}
+    (Minh hoạ công thức toán học trung tâm nổi bật, 4 card bóc tách từng ký hiệu bằng màu sắc tương ứng, kèm card bản chất chiều sâu).
+  * trie_tree (CÂY TIỀN TỐ PREFIX TREE / TRIE & TÌM KIẾM CHUỖI):
+    {"preset": "trie_tree", "words": ["CAT", "CAR", "CARD", "DO", "DOG"], "query": "CAR", "breadcrumb": "DEEP-ML / PROBLEM 16 / PREFIX TREE (TRIE)", "difficulty": "Medium", "category": "Data Structures"}
+    (Minh hoạ cấu trúc cây tiền tố nhiều tầng, đường duyệt từng ký tự sáng vàng neon và thông báo kết quả tìm thấy xanh lá).
+  * graph_network (ĐỒ THỊ TRỌNG SỐ & ĐƯỜNG ĐI NGẮN NHẤT DIJKSTRA):
+    {"preset": "graph_network", "nodes": [{"id": "A", "label": "Start A"}, {"id": "B", "label": "Node B"}, {"id": "C", "label": "Node C"}, {"id": "D", "label": "Target D"}], "edges": [{"from": "A", "to": "B", "weight": 4}, {"from": "A", "to": "C", "weight": 2}, {"from": "C", "to": "B", "weight": 1}, {"from": "B", "to": "D", "weight": 5}, {"from": "C", "to": "D", "weight": 8}], "path": ["A", "C", "B", "D"], "breadcrumb": "ALGORITHMS / DIJKSTRA SHORTEST PATH", "difficulty": "Hard", "category": "Graph Theory"}
+    (Minh hoạ đồ thị mạng lưới trọng số, đường đi ngắn nhất phát sáng cyan viền vàng, hộp tóm tắt tổng trọng số min-cost).
+  * donut_chart (BIỂU ĐỒ DONUT / TỶ TRỌNG CƠ CẤU VỚI SLICE BUNG NỔ):
+    {"preset": "donut_chart", "slices": [{"label": "Transformer Attention", "value": 55, "color": "#00f0ff"}, {"label": "FFN Layers", "value": 25, "color": "#ffe600"}, {"label": "Embedding", "value": 12, "color": "#ff2bd6"}, {"label": "Norm & Residual", "value": 8, "color": "#39ff14"}], "center_label": "ATTENTION 55%", "breadcrumb": "MODEL PROFILE / COMPUTE BREAKDOWN", "difficulty": "Analysis", "category": "Deep Learning"}
+    (Minh hoạ lát cắt phần trăm phát quang dạng vòng tròn donut neon, lát lớn nhất bung tách ra ngoài, bộ đếm phần trăm chạy ở tâm, bảng ghi chú bên phải).
   * flowchart (SƠ ĐỒ LUỒNG XỬ LÝ / PIPELINE DỮ LIỆU):
     {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client App"}, {"id": 1, "label": "API Gateway"}, {"id": 2, "label": "Message Queue"}, {"id": 3, "label": "Worker Service"}, {"id": 4, "label": "Database Cache"}], "breadcrumb": "SYSTEM ARCHITECTURE / PIPELINE", "difficulty": "System Design", "category": "Architecture"}
     (Minh hoạ các khối chức năng nối bằng mũi tên phát sáng, hạt dữ liệu photon di chuyển qua từng trạm mượt mà).
