@@ -379,8 +379,18 @@ def _d_compare(scene: Scene, lang: str) -> dict | None:
         return None
     k = math.ceil(len(b) / 2)
     left, right = b[:k], b[k:]
-    return {"cmp": {"left": {"title": _truncate(left[0], 40), "rows": [_truncate(x, 90) for x in left[1:5]]},
-                    "right": {"title": _truncate(right[0], 40), "rows": [_truncate(x, 90) for x in right[1:5]]}}}
+
+    def parse_side(items: list[str]) -> dict:
+        if not items:
+            return {"title": "", "rows": []}
+        first = items[0]
+        if ":" in first:
+            t, r = first.split(":", 1)
+            rows = ([r.strip()] if r.strip() else []) + [x for x in items[1:]]
+            return {"title": _truncate(t.strip(), 30), "rows": [_truncate(x, 90) for x in rows[:4]]}
+        return {"title": _truncate(first, 30), "rows": [_truncate(x, 90) for x in items[1:5]]}
+
+    return {"cmp": {"left": parse_side(left), "right": parse_side(right)}}
 
 
 _INTERVAL_RE = re.compile(
@@ -651,7 +661,7 @@ def _plan_scene(scene: Scene, has_image: bool, lang: str) -> dict:
     if _d_intervals(scene, lang):
         scores["scheduler"] = scores.get("scheduler", 0) + 12
     if any(str(b).lstrip().startswith(("+", "-")) for b in (_g(scene, "bullets", []) or [])) and _d_diff(scene, lang):
-        scores["diff_view"] = scores.get("diff_view", 0) + 8
+        scores["diff_view"] = scores.get("diff_view", 0) + 24
     if has_image and "metaphor" in scores:
         scores["metaphor"] += 2
 
@@ -951,8 +961,9 @@ TEMPLATES.architecture = function (t, box) {
       ctx.globalAlpha = e;
       panel(p.x, p.y, cw, ch, { stroke: on ? PINK : BORDER, glow: on ? px(22) : px(8), gc: on ? PINK : CYAN });
       text('0' + (i + 1), p.x + px(22), p.y + px(36), font(px(22), 'bold', MONO), on ? PINK : CYAN);
-      const th = tbHeight(s, cw - px(44), fs, { weight: 'bold', maxLines: 5 });
-      tb(s, p.x + px(22), p.y + px(48) + Math.max(0, (ch - px(60) - th) / 2), cw - px(44), fs, '#f1f5f9', { weight: 'bold', maxLines: 5 });
+      const maxL = Math.max(2, Math.floor((ch - px(54)) / (fs * 1.3)));
+      const th = tbHeight(s, cw - px(44), fs, { weight: 'bold', maxLines: maxL });
+      tb(s, p.x + px(22), p.y + px(48) + Math.max(0, (ch - px(60) - th) / 2), cw - px(44), fs, '#f1f5f9', { weight: 'bold', maxLines: maxL });
     });
   });
 };
@@ -1070,12 +1081,15 @@ TEMPLATES.diff_view = function (t, box) {
     panel(p.x, p.y, p.w, p.h, { fill: k ? 'rgba(16,50,25,0.9)' : 'rgba(50,10,10,0.9)', stroke: col });
     roundRect(p.x, p.y, p.w, hh, [px(18), px(18), 0, 0]); ctx.fillStyle = k ? 'rgba(57,255,20,0.15)' : 'rgba(239,68,68,0.15)'; ctx.fill();
     text(titles[k], p.x + p.w / 2, p.y + hh / 2 + px(7), font(px(20), 'bold', MONO), MUTED, 'center');
-    const cnt = Math.min(lines.length, Math.floor(progress(t, 0.5 + k * 0.4, Math.min(DURATION * 0.6, 5)) * (lines.length + 1)));
-    lines.slice(0, cnt).forEach((ln, i) => {
+    lines.forEach((ln, i) => {
+      const le = pop(t, 0.35 + k * 0.15 + i * 0.12, 0.35);
+      if (le <= 0) return;
+      ctx.save(); ctx.globalAlpha = e * le;
       const ly = p.y + hh + px(12) + i * lh;
       ctx.fillStyle = k ? 'rgba(57,255,20,0.08)' : 'rgba(239,68,68,0.08)'; ctx.fillRect(p.x + px(6), ly, p.w - px(12), lh - px(4));
       text(k ? '+' : '-', p.x + px(20), ly + lh * 0.68, f, col);
       text(fitText(ln, p.w - px(80), f), p.x + px(52), ly + lh * 0.68, f, '#e2e8f0');
+      ctx.restore();
     });
     ctx.restore();
   });
@@ -1091,7 +1105,7 @@ TEMPLATES.comparison = function (t, box) {
       const ty = p.y + px(26), th = tb(s.title, p.x + px(28), ty, p.w - px(56), px(36), col, { weight: 'bold', maxLines: 2 });
       const avail = p.h - th - px(70), rows = s.rows.slice(0, 4), rowH = rows.length ? Math.min(px(96), avail / rows.length) : 0;
       rows.forEach((r, i) => {
-        const re = pop(t, 0.8 + k * 0.3 + i * 0.35, 0.4); if (re <= 0) return;
+        const re = pop(t, 0.4 + k * 0.15 + i * 0.2, 0.4); if (re <= 0) return;
         ctx.save(); ctx.globalAlpha = e * re;
         const ry = ty + th + px(22) + i * rowH; icon('dot', p.x + px(44), ry + rowH * 0.35, px(26), col);
         tb(r, p.x + px(70), ry, p.w - px(100), px(28), '#e2e8f0', { maxLines: 2 }); ctx.restore();
@@ -1107,7 +1121,8 @@ TEMPLATES.comparison = function (t, box) {
 TEMPLATES.bar_benchmark = function (t, box) {
   const b = D.bars; if (!b) return;
   const n = b.values.length, maxV = Math.max(...b.values.map(Math.abs), 1e-9);
-  const labelW = Math.min(px(340), box.w * 0.32), barX = box.x + labelW + px(20), vW = px(210), barMax = box.w - labelW - px(20) - vW;
+  const labelW = Math.min(px(340), box.w * 0.30), barX = box.x + labelW + px(20);
+  const vW = Math.min(px(IS_VERTICAL ? 280 : 360), box.w * 0.30), barMax = box.w - labelW - px(20) - vW;
   const rowH = Math.min(px(100), (box.h - px(110)) / n), barH = rowH * 0.56, y0 = box.y + px(10);
   ctx.save(); ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = px(2); ctx.beginPath(); ctx.moveTo(barX, y0); ctx.lineTo(barX, y0 + n * rowH); ctx.stroke(); ctx.restore();
   b.values.forEach((v, i) => {
@@ -1118,7 +1133,10 @@ TEMPLATES.bar_benchmark = function (t, box) {
     ctx.save(); roundRect(barX, y, w, barH, [0, px(10), px(10), 0]);
     const gr = ctx.createLinearGradient(barX, 0, barX + w, 0); gr.addColorStop(0, col + '55'); gr.addColorStop(1, col);
     ctx.fillStyle = gr; ctx.shadowColor = col; ctx.shadowBlur = px(14); ctx.fill(); ctx.restore();
-    text(fmtNum(v * g) + (b.unit ? ' ' + b.unit : ''), barX + w + px(14), y + barH / 2 + px(9), font(px(26), 'bold', MONO), col);
+    const valStr = fmtNum(v * g) + (b.unit ? ' ' + b.unit : '');
+    let valFs = px(26);
+    while (valFs > px(16) && measure(valStr, font(valFs, 'bold', MONO)) > vW - px(20)) valFs -= px(2);
+    text(fitText(valStr, vW - px(16), font(valFs, 'bold', MONO)), barX + w + px(14), y + barH / 2 + px(valFs * 0.35), font(valFs, 'bold', MONO), col);
   });
   const posVals = b.values.filter(v => v > 0);
   const mn = posVals.length ? Math.min(...posVals) : 0;
@@ -1149,8 +1167,11 @@ TEMPLATES.github_stats = function (t, box) {
   for (let i = 0; i <= i0; i++) { icon('dot', X(i), Y(s.values[i]), px(20), YELLOW);
     if (n <= 7 || i === 0 || i === n - 1) text(fitText(s.labels[i], cw / Math.min(n, 7), font(px(20))), X(i), base + px(34), font(px(20)), MUTED, 'center'); }
   ctx.save(); ctx.shadowColor = YELLOW; ctx.shadowBlur = px(26);
-  text(fmtNum(cur) + (s.unit ? ' ' + s.unit : ''), box.x + box.w / 2, box.y + px(100), font(px(IS_VERTICAL ? 84 : 96), 'bold', MONO), YELLOW, 'center'); ctx.restore();
-  text(s.labels[Math.min(n - 1, Math.round(pos))], box.x + box.w / 2, box.y + px(150), font(px(28), 'bold'), MUTED, 'center');
+  const curStr = fmtNum(cur) + (s.unit ? ' ' + s.unit : '');
+  let curFs = px(IS_VERTICAL ? 72 : 96);
+  while (curFs > px(36) && measure(curStr, font(curFs, 'bold', MONO)) > box.w - px(40)) curFs -= px(4);
+  text(curStr, box.x + box.w / 2, box.y + px(100), font(curFs, 'bold', MONO), YELLOW, 'center'); ctx.restore();
+  text(fitText(s.labels[Math.min(n - 1, Math.round(pos))], box.w - px(40), font(px(28), 'bold')), box.x + box.w / 2, box.y + px(150), font(px(28), 'bold'), MUTED, 'center');
 };
 
 // --- hud: bộ đếm lớn ---
@@ -1248,7 +1269,7 @@ TEMPLATES.cpu_scheduler = function (t, box) {
     const run = i === cur, done = t >= slots[i].e; centers.push([x + cwd / 2, y + chh]); ctx.save(); ctx.globalAlpha = e * (done ? 0.55 : 1);
     panel(x, y, cwd, chh, { r: 12, stroke: run ? ORANGE : done ? GREEN : BORDER, glow: run ? px(18) : 0, lw: run ? 3 : 2 });
     text(fitText(k.name, cwd - px(24), font(px(24), 'bold')), x + px(14), y + px(40), font(px(24), 'bold'), run ? ORANGE : '#f1f5f9');
-    text(k.dur != null ? fmtNum(k.dur) + ' ' + (k.unit || '') : `#${i + 1}`, x + px(14), y + px(76), font(px(20), 'normal', MONO), MUTED);
+    text(fitText(k.dur != null ? fmtNum(k.dur) + ' ' + (k.unit || '') : `#${i + 1}`, cwd - px(24), font(px(20), 'normal', MONO)), x + px(14), y + px(76), font(px(20), 'normal', MONO), MUTED);
     if (done) icon('check', x + cwd - px(28), y + px(30), px(22), GREEN);
     if (run) { ctx.fillStyle = ORANGE; ctx.fillRect(x + px(10), y + chh - px(10), (cwd - px(20)) * progress(t, slots[i].s, slots[i].e), px(5)); } ctx.restore();
   });
@@ -1262,13 +1283,14 @@ TEMPLATES.cpu_scheduler = function (t, box) {
   const label = cur >= 0 ? `${L.running}: ${tasks[cur].name}` : (doneN >= n ? L.done : '');
   text(fitText(label, size - px(24), font(px(20))), cx, cpuY + size * 0.56, font(px(20)), MUTED, 'center');
   text(`${doneN}/${n}`, cx, cpuY + size * 0.8, font(px(38), 'bold', MONO), GREEN, 'center');
-  if (known) text(`${L.total}: ${fmtNum(wsum)} ${tasks[0].unit || ''}`, cx, cpuY + size + px(52), font(px(22), 'normal', MONO), DIM, 'center');
+  if (known) text(fitText(`${L.total}: ${fmtNum(wsum)} ${tasks[0].unit || ''}`, box.w - px(40), font(px(22), 'normal', MONO)), cx, cpuY + size + px(52), font(px(22), 'normal', MONO), DIM, 'center');
 };
 
 // --- git_flow ---
 TEMPLATES.git_flow = function (t, box) {
   const cm = D.commits || []; const n = cm.length; if (n < 2) return;
-  const x0 = box.x + px(60), x1 = box.x + box.w - px(60), lineY = box.y + box.h * 0.6, brY = lineY - Math.min(px(200), box.h * 0.36);
+  const lw = Math.min(px(180), (box.w - px(160)) / (n - 1) - px(12));
+  const x0 = box.x + Math.max(px(70), lw / 2 + px(10)), x1 = box.x + box.w - Math.max(px(70), lw / 2 + px(10)), lineY = box.y + box.h * 0.6, brY = lineY - Math.min(px(200), box.h * 0.36);
   const X = i => lerp(x0, x1, i / (n - 1)), lp = easeInOut(progress(t, 0.2, 1.2));
   ctx.save(); glowStroke(GREEN, px(14), px(4)); ctx.beginPath(); ctx.moveTo(x0, lineY); ctx.lineTo(x0 + lp * (x1 - x0), lineY); ctx.stroke(); ctx.restore();
   const bp = easeInOut(progress(t, 0.9, 2.0)), bx0 = X(0), bx1 = X(n - 1), k = Math.min(px(60), (bx1 - bx0) / 5);
@@ -1358,8 +1380,10 @@ TEMPLATES.algo_trace = function (t, box) {
   const idx = clamp(Math.floor((t - 0.8) / tps), 0, total - 1), st = SORT_STEPS[idx], n = arr.length;
   const maxV = Math.max(...arr.map(Math.abs), 1), minV = Math.min(0, ...arr), range = maxV - minV || 1;
   const baseY = box.y + box.h - px(60), maxH = Math.max(px(120), box.h - px(230)), bw = Math.min(px(120), box.w / n * 0.78), gap = Math.min(px(20), bw * 0.25), totalW = n * bw + (n - 1) * gap, sx = box.x + (box.w - totalW) / 2;
-  text(SORT_NAMES[D.algo || 'bubble'], box.x, box.y + px(34), font(px(34), 'bold', MONO), PINK);
-  text(`${L.step} ${idx} / ${total - 1}   \u00B7   ${L.compared}: ${st.cmp}   \u00B7   ${L.swaps}: ${st.swp}`, box.x, box.y + px(80), font(px(26), 'bold', MONO), YELLOW);
+  text(fitText(SORT_NAMES[D.algo || 'bubble'], box.w, font(px(34), 'bold', MONO)), box.x, box.y + px(34), font(px(34), 'bold', MONO), PINK);
+  const infoStr = `${L.step} ${idx} / ${total - 1}   \u00B7   ${L.compared}: ${st.cmp}   \u00B7   ${L.swaps}: ${st.swp}`;
+  const infoFs = px(IS_VERTICAL ? 20 : 26);
+  text(fitText(infoStr, box.w, font(infoFs, 'bold', MONO)), box.x, box.y + px(80), font(infoFs, 'bold', MONO), YELLOW);
   st.a.forEach((v, i) => {
     const bh = Math.max(px(8), (v - minV) / range * maxH), x = sx + i * (bw + gap), y = baseY - bh, hi = st.hi.includes(i), sw = hi && st.sw, ok = st.sorted.has(i);
     const col = sw ? PINK : hi ? YELLOW : ok ? GREEN : CYAN;
