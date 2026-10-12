@@ -92,10 +92,17 @@ def _is_quota_or_auth_error(e: Exception) -> bool:
         "unauthorized",
         "401",
         "403",
+        "413",
+        "payload too large",
+        "request too large",
+        "tokens per minute",
         "account behind this api key",
         "billing not active",
         "no available channel",
         "model_not_found",
+        "does not exist or you do not have access",
+        "is unavailable for free",
+        "all nodes exhausted",
     )) or "authenticationerror" in name or "permissiondenied" in name
 
 
@@ -148,7 +155,7 @@ def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -
     api_key = _api_key(provider, "GEMINI_API_KEY")
     genai.configure(api_key=api_key)
     gm = genai.GenerativeModel(provider["model"], system_instruction=system or None)
-    timeout = provider.get("timeout") or 20.0
+    timeout = provider.get("timeout") or 120.0
     req_opts = {"timeout": float(timeout)}
     resp = gm.generate_content(
         prompt,

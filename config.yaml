@@ -44,25 +44,26 @@ llm:
       - groq
       - groq_fast
 
-    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Pollinations (DeepSeek) -> Groq
+    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq -> Cerebras -> Pollinations
     script:
       - anthropic
       - gemini_37
       - gemini_latest
-      - pollinations
       - groq
+      - cerebras
       - groq_fast
       - openrouter
+      - pollinations
       - mistral
 
     # 3. Viết code thuật toán Visual / Animation: Claude Opus -> Cerebras -> Groq LPU -> Gemini 3.7 -> Pollinations
     code:
       - anthropic                # Claude Opus 4.8 (Viết code thuật toán, Manim & Matplotlib chuẩn nhất)
-      - cerebras                 # Llama 3.3 70B qua Cerebras siêu tốc (1800+ tokens/giây, 1M tokens free/ngày)
-      - groq                     # LPU gpt-oss-120b siêu tốc độ
-      - github_models            # GPT-4o-mini qua GitHub Models (Free 150 req/ngày)
-      - groq_fast                # Qwen 3.8 27B
+      - cerebras                 # Llama 3.1 8B qua Cerebras siêu tốc (1800+ tokens/giây, 1M tokens free/ngày)
+      - groq                     # LPU Llama 3.3 70B siêu tốc độ
+      - groq_fast                # Llama 3.1 8B
       - gemini_37                # Gemini 3.7 Flash
+      - github_models            # GPT-4o-mini qua GitHub Models (Free 150 req/ngày)
       - pollinations_coder       # Qwen Coder qua Pollinations (Dự phòng)
 
 
@@ -76,7 +77,7 @@ llm:
       max_output_tokens: 16000
       supports_temperature: false
       stream: false                         # Proxy justwoker không hỗ trợ stream content chunk, tắt stream để nhận đầy đủ văn bản
-      timeout: 25
+      timeout: 45
       retries: 1
 
     # Tier 1.1 — Google Gemini 3.7 Flash (Mạnh nhất dòng Flash, tốc độ cao, context rộng)
@@ -84,61 +85,75 @@ llm:
       type: gemini
       model: gemini-3.7-flash
       api_key_env: GEMINI_API_KEY
+      timeout: 120
 
     # Tier 1.2 — Google Gemini Flash Latest (Dự phòng khi 3.7 chạm quota)
     - name: gemini_latest
       type: gemini
       model: gemini-flash-latest
       api_key_env: GEMINI_API_KEY
+      timeout: 120
 
-    # Tier 2.1 — Pollinations AI Coder (Qwen 3 Coder 30B / DeepSeek V4.1 — Trùm viết code thuật toán & Animation)
+    # Tier 2.1 — Groq LPU (Llama 3.3 70B Versatile: 12,000 TPM limit — Siêu tốc độ, context dài)
+    - name: groq
+      type: groq
+      model: llama-3.3-70b-versatile
+      api_key_env: GROQ_API_KEY
+      max_output_tokens: 8192
+      timeout: 60
+
+    - name: groq_fast
+      type: groq
+      model: llama-3.1-8b-instant
+      api_key_env: GROQ_API_KEY
+      max_output_tokens: 8192
+      timeout: 45
+
+    - name: groq_oss
+      type: groq
+      model: openai/gpt-oss-120b
+      api_key_env: GROQ_API_KEY
+      max_output_tokens: 16384
+      timeout: 60
+
+    # Tier 2.2 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
+    - name: cerebras
+      type: openai
+      model: llama3.1-8b
+      base_url: https://api.cerebras.ai/v1
+      api_key_env: CEREBRAS_API_KEY
+      max_output_tokens: 8192
+      timeout: 45
+
+    # Tier 2.3 — OpenRouter (Free models router dynamic)
+    - name: openrouter
+      type: openai
+      model: openrouter/free
+      base_url: https://openrouter.ai/api/v1
+      api_key_env: OPENROUTER_API_KEY
+      max_output_tokens: 8192
+      timeout: 60
+      headers:
+        HTTP-Referer: https://github.com/datqg0/Auto-Creat-Video-Ai-WorkFlow
+        X-Title: Auto Video AI
+
+    # Tier 3.1 — Pollinations AI Coder (Qwen 3 Coder 30B / DeepSeek V4.1 — Trùm viết code thuật toán & Animation)
     - name: pollinations_coder
       type: openai
       model: qwen/qwen3-coder-30b-a3b-instruct
       base_url: https://gen.pollinations.ai/v1
       api_key_env: POLLINATIONS_API_KEY
       max_output_tokens: 16384
+      timeout: 60
 
-    # Tier 2.2 — Pollinations AI Chat (DeepSeek V4.1 Flash — Suy luận & văn bản)
+    # Tier 3.2 — Pollinations AI Chat (DeepSeek V4.1 Flash — Suy luận & văn bản)
     - name: pollinations
       type: openai
       model: deepseek/deepseek-v4.1-flash
       base_url: https://gen.pollinations.ai/v1
       api_key_env: POLLINATIONS_API_KEY
       max_output_tokens: 16384
-
-    # Tier 3 — Groq (gpt-oss-120b / qwen3.8-27b — Siêu tốc độ LPU)
-    - name: groq
-      type: groq
-      model: openai/gpt-oss-120b
-      api_key_env: GROQ_API_KEY
-      max_output_tokens: 32768              # Max lên tới 65k tokens, để 32k cực kỳ rộng rãi
-
-    - name: groq_fast
-      type: groq
-      model: qwen/qwen3.8-27b
-      api_key_env: GROQ_API_KEY
-      max_output_tokens: 16384              # Max trần của Qwen trên Groq
-
-    # Tier 3.0 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
-    - name: cerebras
-      type: openai
-      model: llama-3.3-70b
-      base_url: https://api.cerebras.ai/v1
-      api_key_env: CEREBRAS_API_KEY
-      max_output_tokens: 8192
-
-
-    # Tier 3 — OpenRouter (free models, tương thích OpenAI)
-    - name: openrouter
-      type: openai
-      model: meta-llama/llama-3.3-70b-instruct:free
-      base_url: https://openrouter.ai/api/v1
-      api_key_env: OPENROUTER_API_KEY
-      max_output_tokens: 16384
-      headers:
-        HTTP-Referer: https://github.com/datqg0/Auto-Creat-Video-Ai-WorkFlow
-        X-Title: Auto Video AI
+      timeout: 60
 
     # Tier 3.5 — Z.ai GLM Flash (tương thích Anthropic SDK)
     - name: zai
