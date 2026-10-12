@@ -150,9 +150,9 @@ PHA 4: ỨNG DỤNG THỰC CHIẾN & ĐÁNH ĐỔI (TRADE-OFFS) (~15% thời lư
 - Phân tích cái giá phải trả: Tốn thêm bóng bán dẫn, ngốn bộ nhớ, tăng độ phức tạp mạch điện, hay rủi ro bảo mật (như Spectre)?
 - Các hệ thống lớn (Linux kernel, Intel Core, Apple Silicon, V8...) xử lý đánh đổi này ra sao.
 
-PHA 5: BẢN CHẤT TRONG 1 CÂU & KẾ THỪA TẬP SAU (~5% thời lượng, 1 scene)
-- Đúc kết insight đắt giá nhất trong 1 câu chốt.
-- Đặt câu hỏi kích thích tư duy hoặc gợi mở tập tiếp theo của chuỗi video.
+PHA 5: KẾT LUẬN & TỔNG KẾT CỐT LÕI (BẮT BUỘC, 1-2 SCENE CUỐI):
+- Scene TỔNG KẾT (Takeaways): Đúc kết 3 điểm mấu chốt (1. Bản chất cốt lõi; 2. Khi nào NÊN dùng; 3. Khi nào KHÔNG NÊN dùng/cạm bẫy cần tránh). Heading BẮT BUỘC: "Tổng kết & Ghi nhớ" hoặc "Kết luận cốt lõi". Bullets chứa 3 ý ngắn gọn.
+- Scene KẾT THÚC & KÊU GỌI (Outro & Call To Action): Đúc kết 1 câu châm ngôn tâm đắc nhất, gợi mở bài toán tập sau, và kêu gọi bấm Like, Đăng ký kênh để không bỏ lỡ.
 
 Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
 - "title": scene mở đầu, chỉ có heading lớn.
@@ -300,7 +300,7 @@ CẤU TRÚC SHORT 4 PHA:
 1. MỞ MÀN ẤN TƯỢNG (Scene 1 — 0-5s): Một nghịch lý phản trực giác hoặc câu hỏi gây sốc khiến người xem dừng lướt. BẮT BUỘC visual_type: "animation".
 2. ẨN DỤ TỨC THÌ (Scene 2): 1 so sánh đời thực cực nhanh để não bộ hình dung ngay.
 3. TRACE VI MÔ & CÚ HACK (Scene 3-4, chiếm 60% thời lượng): Mổ xẻ 1 ví dụ cụ thể có xung đột và cách giải quyết thông minh bằng animation code.
-4. INSIGHT CHỐT & KÊU GỌI (Scene cuối): Đúc kết 1 câu bản chất nhất + câu hỏi kích thích bình luận.
+4. TỔNG KẾT, INSIGHT & KÊU GỌI (Scene cuối): Đúc kết 1 câu bản chất nhất + 3 điểm takeaway + câu hỏi kích thích bình luận & kêu gọi đăng ký kênh. Heading BẮT BUỘC: "Tổng kết & Ghi nhớ" hoặc "Kết luận".
 
 QUY TẮC BẮT BUỘC VỀ HEADING (TIÊU ĐỀ HIỂN THỊ):
 - TUYỆT ĐỐI KHÔNG ghi chữ "Hook:", "Hook -", "Cảnh 1:", "Scene 1:" vào trường "heading" hoặc "title" (ví dụ: ghi "Lịch hội nghị hỗn loạn", TUYỆT ĐỐI KHÔNG ghi "Hook: Lịch hội nghị hỗn loạn").
@@ -482,6 +482,28 @@ def _parse_script(topic: str, raw: str) -> Script:
             log.warning("Bỏ qua scene lỗi: %s", e)
     if not scenes:
         raise ValueError("Kịch bản không có scene nào")
+
+    # Bắt buộc video phải có phần KẾT LUẬN & TỔNG KẾT ở cuối
+    has_conclusion = any(
+        any(k in (sc.heading or "").lower() or k in (sc.narration or "").lower()
+            for k in ("kết luận", "tổng kết", "takeaway", "ghi nhớ", "điểm cần nhớ"))
+        for sc in scenes[-2:]
+    )
+    if not has_conclusion:
+        conclusion_scene = Scene(
+            heading="Tổng kết & Ghi nhớ",
+            visual_type="animation",
+            bullets=[
+                "Bản chất cốt lõi: Tối ưu từng bước, không quay lui",
+                "Điều kiện áp dụng: Có cấu trúc con tối ưu & Greedy-choice",
+                "Cạm bẫy cần tránh: Nghiệm toàn cục phụ thuộc -> dùng Quy hoạch động"
+            ],
+            narration=f"Tóm lại, bản chất của {topic} là sự đánh đổi thông minh giữa tốc độ và độ chính xác. Hãy nhớ 3 nguyên tắc cốt lõi trên màn hình trước khi áp dụng vào dự án thực tế. Đừng quên bấm Like và Đăng ký kênh để cùng chinh phục các thuật toán tiếp theo!",
+            visual_prompt=f"Conclusion summary cards for {topic} with 3 glowing neon checklist badges and key takeaways.",
+            image_query=f"{topic} summary cheat sheet",
+            animation={"preset": "motion_graphic"},
+        )
+        scenes.append(conclusion_scene)
 
     exercises: list[Exercise] = []
     for ex in data.get("exercises", []):

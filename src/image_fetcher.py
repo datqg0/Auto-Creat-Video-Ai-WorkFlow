@@ -56,8 +56,11 @@ def _download(url: str, out: Path, headers: dict | None = None) -> bool:
 
 
 def _search_google(query: str, count: int = 8) -> list[str]:
-    """Tìm ảnh qua Google Custom Search API (nếu có GOOGLE_API_KEY + GOOGLE_CSE_ID)."""
-    api_key = env("GOOGLE_API_KEY") or env("GEMINI_API_KEY")
+    """Tìm ảnh qua Google Custom Search API (nếu có GOOGLE_API_KEY + GOOGLE_CSE_ID).
+    
+    LƯU Ý: Tuyệt đối không dùng GEMINI_API_KEY cho Google Custom Search vì sẽ bị 403 Forbidden.
+    """
+    api_key = env("GOOGLE_API_KEY")
     cse_id = env("GOOGLE_CSE_ID") or env("GOOGLE_SEARCH_CX")
     if not api_key or not cse_id:
         return []
@@ -90,16 +93,19 @@ def _search_duckduckgo(query: str, count: int = 8) -> list[str]:
     """Tìm ảnh qua DuckDuckGo / Bing web image search (100% miễn phí, không cần key)."""
     # 1. Thử qua thư viện ddgs / duckduckgo_search
     try:
-        try:
-            from ddgs import DDGS
-        except ImportError:
-            from duckduckgo_search import DDGS
-        with DDGS(timeout=10) as ddgs:
-            results = list(ddgs.images(query, max_results=count))
-            urls = [r["image"] for r in results if r.get("image")]
-            if urls:
-                log.info("DuckDuckGo Image Search tìm thấy %d ảnh cho '%s'", len(urls), query)
-                return urls
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
+            with DDGS(timeout=10) as ddgs:
+                results = list(ddgs.images(query, max_results=count))
+                urls = [r["image"] for r in results if r.get("image")]
+                if urls:
+                    log.info("DuckDuckGo Image Search tìm thấy %d ảnh cho '%s'", len(urls), query)
+                    return urls
     except Exception as e:  # noqa: BLE001
         log.debug("DuckDuckGo thư viện (%s) -> chuyển hướng web direct", e)
 
@@ -351,8 +357,15 @@ def fetch_image(query: str, index: int = 0) -> Path | None:
             log.info("Ảnh AI (Primary) '%s' #%d -> %s", query, index, cached.name)
             return cached
 
-    # 2. Tìm kiếm ảnh stock từ các nguồn
-    for search in (_search_google, _search_duckduckgo, _search_pexels, _search_openverse, _search_tinyfish):
+    # 2. Tìm kiếm ảnh stock từ các nguồn (ưu tiên các API chính thức trước nếu có key)
+    search_list = []
+    if env("PEXELS_API_KEY"):
+        search_list.append(_search_pexels)
+    if env("GOOGLE_API_KEY") and (env("GOOGLE_CSE_ID") or env("GOOGLE_SEARCH_CX")):
+        search_list.append(_search_google)
+    search_list.extend([_search_duckduckgo, _search_openverse, _search_tinyfish])
+
+    for search in search_list:
         urls = search(query)
         if not urls:
             continue

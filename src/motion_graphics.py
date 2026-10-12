@@ -117,15 +117,51 @@ def _detect_template(scene: Scene) -> str:
     prompt = (scene.visual_prompt or "").lower()
     corpus = f"{title} {narration} {prompt}"
 
-    # 1. Lịch trình, phòng họp, interval scheduling, timeline, xung đột thời gian, task queue
+    # 1. Kết luận / Tổng kết / Takeaways (Ưu tiên số 1 cho các scene kết thúc)
+    if any(k in corpus for k in (
+        "tổng kết", "kết luận", "takeaway", "takeaways", "ghi nhớ", "điểm cần nhớ",
+        "tóm lại", "bài học", "checklist", "đúc kết"
+    )):
+        return "conclusion"
+
+    # 2. Trích dẫn / Triết lý / Bản chất cốt lõi / Quote card
+    if any(k in corpus for k in (
+        "trích dẫn", "triết lý", "châm ngôn", "bản chất cốt lõi", "quy tắc vàng",
+        "câu nói", "quote", "insight", "bản chất trong 1 câu", "câu trích dẫn"
+    )):
+        return "quote_card"
+
+    # 3. CPU / Hệ điều hành / CPU Scheduler / Tiến trình
+    if any(k in corpus for k in (
+        "cpu", "hệ điều hành", "os", "tiến trình", "process", "thread",
+        "cpu scheduler", "phần cứng", "kernel", "core", "vi xử lý"
+    )):
+        return "cpu_scheduler"
+
+    # 4. Biểu đồ cột / So sánh hiệu năng / Benchmark / Thời gian thực thi
+    if any(k in corpus for k in (
+        "biểu đồ thanh", "biểu đồ cột", "thời gian thực thi", "micro giây", "microsecond",
+        "benchmark", "so sánh hiệu năng", "nhanh hơn", "tối ưu thời gian", "đo lường",
+        "bar chart", "performance comparison"
+    )):
+        return "bar_benchmark"
+
+    # 5. Ẩn dụ đời thường / Mô hình đời thực / Tủ đồ / Ngăn kéo
+    if any(k in corpus for k in (
+        "mô hình đời thực", "ẩn dụ", "đời thường", "tủ đồ", "ngăn kéo", "thủ thư",
+        "cao tốc", "ví dụ đời sống", "tưởng tượng", "đời thực"
+    )):
+        return "metaphor"
+
+    # 6. Lịch trình, phòng họp, interval scheduling, timeline, xung đột thời gian, task queue
     if any(k in corpus for k in (
         "lịch", "phòng", "hội nghị", "schedule", "scheduling", "meeting", "interval",
         "thời gian", "xung đột", "trùng lịch", "trùng lặp", "deadline", "slot",
-        "đặt phòng", "bàn giao", "xếp lịch", "xếp phòng"
+        "đặt phòng", "bàn giao", "xếp lịch", "xếp phòng", "chồng lên", "chồng chéo"
     )):
         return "scheduler"
 
-    # 2. Người que (Stickman) / Con người / Câu chuyện bối rối / Nghịch lý / Tình huống
+    # 7. Người que (Stickman) / Con người / Câu chuyện bối rối / Nghịch lý / Tình huống
     if any(k in corpus for k in (
         "người que", "stickman", "người", "con người", "bạn nghĩ", "tại sao", "hỗn loạn",
         "bế tắc", "nghịch lý", "sai lầm", "human", "who", "why", "user", "developer",
@@ -134,39 +170,39 @@ def _detect_template(scene: Scene) -> str:
     )):
         return "stickman"
 
-    # 3. GitHub / Git / Open source
+    # 8. GitHub / Git / Open source
     if any(k in corpus for k in ("git ", "github", "commit", "branch", "merge", "rebase", "pull request", "repo", "open source", "clone")):
         return "git_flow"
 
-    # 4. Attention / Transformer / LLM
+    # 9. Attention / Transformer / LLM
     if any(k in corpus for k in ("attention", "transformer", "self-attention", "query key value", "head", "embedding", "token", "bert", "gpt", "llm")):
         return "attention_map"
 
-    # 5. Thuật toán trace / sorting / search
+    # 10. Thuật toán trace / sorting / search
     if any(k in corpus for k in ("sorting", "sắp xếp", "search", "tìm kiếm", "mảng", "array", "quicksort", "mergesort", "heap", "bfs", "dfs", "dijkstra", "trace", "từng bước", "step by step")):
         return "algo_trace"
 
-    # 6. GitHub stats / metrics
+    # 11. GitHub stats / metrics
     if any(k in corpus for k in ("star", "fork", "contributor", "release", "version", "changelog", "repo stats", "downloads", "popularity")):
         return "github_stats"
 
-    # 7. Neural network forward pass
+    # 12. Neural network forward pass
     if any(k in corpus for k in ("neural", "backprop", "gradient", "layer", "activation", "relu", "sigmoid", "mạng neural", "training", "loss", "epoch")):
         return "neural_flow"
 
-    # 8. Code diff / review
+    # 13. Code diff / review
     if any(k in corpus for k in ("diff", "thêm dòng", "xóa dòng", "code review", "patch", "refactor", "before after code")):
         return "diff_view"
 
-    # 9. Code / terminal
-    if any(k in corpus for k in ("def ", "code", "lệnh", "thuật toán", "cú pháp", "terminal", "log", "api key", "function", "class ", "import")):
+    # 14. Code / terminal (Chỉ khi thực sự là gõ lệnh bash hoặc code cụ thể)
+    if any(k in corpus for k in ("def ", "câu lệnh", "cú pháp", "terminal", "log", "api key", "function", "class ", "pip install", "bash", "chạy lệnh")):
         return "terminal"
 
-    # 10. Comparison / benchmark
-    if any(k in corpus for k in ("so sánh", "vs", "versus", "khác biệt", "trade-off", "benchmark", "nhanh hơn", "chậm hơn", "hiệu năng")):
+    # 15. Comparison / benchmark chung
+    if any(k in corpus for k in ("so sánh", "vs", "versus", "khác biệt", "trade-off", "hiệu năng")):
         return "comparison"
 
-    # 11. Counter / metrics / HUD
+    # 16. Counter / metrics / HUD
     if any(k in corpus for k in ("triệu", "tỷ", "qps", "req/s", "counter", "con số", "%", "ms", "latency", "throughput")):
         return "hud"
 
@@ -182,7 +218,14 @@ def _detect_template(scene: Scene) -> str:
 # HTML / Canvas Templates
 # ---------------------------------------------------------------------------
 
-def _build_motion_html(scene: Scene, duration: float, width: int, height: int, fps: int) -> str:
+def _build_motion_html(
+    scene: Scene,
+    duration: float,
+    width: int,
+    height: int,
+    fps: int,
+    image_path: Path | None = None,
+) -> str:
     """Tạo trang HTML chứa animation canvas tự động khớp với chủ đề và nội dung scene."""
     title = _clean_title(scene.heading)
     raw_sub = scene.narration or ""
@@ -194,6 +237,20 @@ def _build_motion_html(scene: Scene, duration: float, width: int, height: int, f
     clean_bullets = [str(b).strip() for b in raw_bullets if str(b).strip()]
     bullets_json = json.dumps(clean_bullets, ensure_ascii=False)
     is_vertical = height > width
+
+    # Đọc ảnh stock / minh họa nếu có để lồng vào canvas
+    img_b64 = ""
+    has_image = False
+    if image_path and image_path.exists():
+        try:
+            import base64
+            raw_bytes = image_path.read_bytes()
+            if len(raw_bytes) > 1000:
+                ext = "png" if image_path.suffix.lower() == ".png" else "jpeg"
+                img_b64 = f"data:image/{ext};base64," + base64.b64encode(raw_bytes).decode("ascii")
+                has_image = True
+        except Exception as e:
+            log.debug("Không thể đọc ảnh minh họa: %s", e)
 
     # Lấy topic_hint từ visual_prompt để enriching animation
     visual_prompt = (scene.visual_prompt or "").strip()[:300]
@@ -232,6 +289,13 @@ const SUBTITLE = {json.dumps(narration_snippet, ensure_ascii=False)};
 const BULLETS = {bullets_json};
 const IS_VERTICAL = {json.dumps(is_vertical)};
 const VISUAL_PROMPT = {json.dumps(visual_prompt, ensure_ascii=False)};
+const HAS_IMAGE = {json.dumps(has_image)};
+const IMG_DATA = {json.dumps(img_b64)};
+let stockImg = null;
+if (HAS_IMAGE) {{
+  stockImg = new Image();
+  stockImg.src = IMG_DATA;
+}}
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -1692,12 +1756,472 @@ function drawHUD(t) {{
   ctx.restore();
 }}
 
+// ── TEMPLATE: CPU Scheduler ──
+function drawCpuScheduler(t) {{
+  const cx = W / 2;
+  const cy = H / 2 + (IS_VERTICAL ? 40 : 30);
+
+  // 1. Central CPU Core Chip (ORANGE neon)
+  const cpuSize = IS_VERTICAL ? 180 : 220;
+  const cpuX = cx - cpuSize / 2;
+  const cpuY = cy - cpuSize / 2 + (IS_VERTICAL ? 60 : 30);
+
+  ctx.save();
+  // Chip pins
+  const pinCount = 8;
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < pinCount; i++) {{
+    const frac = (i + 0.5) / pinCount;
+    const px = cpuX + frac * cpuSize;
+    ctx.beginPath();
+    ctx.moveTo(px, cpuY - 14); ctx.lineTo(px, cpuY);
+    ctx.moveTo(px, cpuY + cpuSize); ctx.lineTo(px, cpuY + cpuSize + 14);
+    ctx.stroke();
+    const py = cpuY + frac * cpuSize;
+    ctx.beginPath();
+    ctx.moveTo(cpuX - 14, py); ctx.lineTo(cpuX, py);
+    ctx.moveTo(cpuX + cpuSize, py); ctx.lineTo(cpuX + cpuSize + 14, py);
+    ctx.stroke();
+  }}
+
+  // CPU Body
+  roundRect(cpuX, cpuY, cpuSize, cpuSize, 18);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+  ctx.fill();
+  ctx.strokeStyle = ORANGE;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = ORANGE;
+  ctx.shadowBlur = 24 + Math.sin(t * 5) * 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // CPU Core Inner
+  roundRect(cpuX + 20, cpuY + 20, cpuSize - 40, cpuSize - 40, 10);
+  ctx.fillStyle = 'rgba(255, 107, 53, 0.12)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 107, 53, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = ORANGE;
+  ctx.font = `bold ${{IS_VERTICAL ? 20 : 24}}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('CPU CORE', cx, cpuY + cpuSize / 2 - 8);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = `bold ${{IS_VERTICAL ? 14 : 16}}px monospace`;
+  ctx.fillText('3.8 GHz ⚡', cx, cpuY + cpuSize / 2 + 20);
+
+  // 2. Ready Queue of Processes (Tasks sliding in)
+  const queueY = IS_VERTICAL ? cpuY - 130 : cpuY - 140;
+  const qW = IS_VERTICAL ? W - 100 : 700;
+  const qX = cx - qW / 2;
+
+  roundRect(qX, queueY, qW, 64, 14);
+  ctx.fillStyle = 'rgba(12, 20, 40, 0.85)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = `bold ${{IS_VERTICAL ? 14 : 16}}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText('TASK QUEUE (HÀNG ĐỢI TIẾN TRÌNH)', qX + 16, queueY - 10);
+
+  // Processes in queue
+  const pList = [
+    {{ name: 'P1: Audio', dur: '4ms', color: GREEN }},
+    {{ name: 'P2: UI Render', dur: '8ms', color: CYAN }},
+    {{ name: 'P3: Network', dur: '12ms', color: YELLOW }},
+    {{ name: 'P4: Disk IO', dur: '20ms', color: PURPLE }},
+  ];
+  const pw = (qW - 50) / 4;
+  pList.forEach((p, idx) => {{
+    const shift = (t * 60) % (pw + 10);
+    const px = qX + 12 + idx * (pw + 8) - (idx === 0 ? shift * 0.4 : 0);
+    roundRect(px, queueY + 8, pw - 4, 48, 8);
+    ctx.fillStyle = 'rgba(15, 30, 60, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = idx === 0 ? 2.5 : 1.5;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = idx === 0 ? 12 : 0;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = p.color;
+    ctx.font = `bold ${{IS_VERTICAL ? 13 : 15}}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name, px + pw / 2 - 2, queueY + 28);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px monospace';
+    ctx.fillText(p.dur, px + pw / 2 - 2, queueY + 46);
+  }});
+
+  // 3. Status Badge: "Thuật toán Shortest Job First / Greedy"
+  const badgeY = IS_VERTICAL ? cpuY + cpuSize + 30 : cpuY + cpuSize + 30;
+  roundRect(cx - 210, badgeY, 420, 48, 24);
+  ctx.fillStyle = 'rgba(57, 255, 20, 0.15)';
+  ctx.fill();
+  ctx.strokeStyle = GREEN;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = GREEN;
+  ctx.font = `bold ${{IS_VERTICAL ? 16 : 19}}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('✓ GIẢM 75% THỜI GIAN CHỜ TRUNG BÌNH', cx, badgeY + 30);
+  ctx.restore();
+}}
+
+// ── TEMPLATE: Bar Benchmark ──
+function drawBarBenchmark(t) {{
+  const cx = W / 2;
+  const cy = H / 2 + 20;
+  const chartW = IS_VERTICAL ? W - 100 : Math.min(800, W * 0.65);
+  const chartH = IS_VERTICAL ? 280 : 320;
+  const chartX = cx - chartW / 2;
+  const chartY = cy + chartH / 2 - 20;
+
+  ctx.save();
+  // Coordinate frame
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(chartX, chartY - chartH);
+  ctx.lineTo(chartX, chartY);
+  ctx.lineTo(chartX + chartW, chartY);
+  ctx.stroke();
+
+  // Grid lines
+  for (let g = 1; g <= 3; g++) {{
+    const gy = chartY - (g / 3) * chartH;
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.15)';
+    ctx.beginPath();
+    ctx.moveTo(chartX, gy); ctx.lineTo(chartX + chartW, gy);
+    ctx.stroke();
+  }}
+
+  // Bar 1: Brute Force (Vét cạn / Không tối ưu) - RED, very tall
+  const barW = IS_VERTICAL ? 100 : 140;
+  const b1X = chartX + chartW * 0.25 - barW / 2;
+  const maxH1 = chartH * 0.88;
+  const animH1 = maxH1 * easeOutExpo(clamp(t * 1.5, 0, 1));
+  const b1Y = chartY - animH1;
+
+  roundRect(b1X, b1Y, barW, animH1, [12, 12, 0, 0]);
+  const grad1 = ctx.createLinearGradient(b1X, b1Y, b1X, chartY);
+  grad1.addColorStop(0, '#ef4444');
+  grad1.addColorStop(1, 'rgba(239, 68, 68, 0.2)');
+  ctx.fillStyle = grad1; ctx.fill();
+  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+  ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 14;
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#ef4444';
+  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('12,500 ms', b1X + barW / 2, b1Y - 12);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = `bold ${{IS_VERTICAL ? 14 : 17}}px sans-serif`;
+  ctx.fillText('Liệt kê toàn bộ', b1X + barW / 2, chartY + 30);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '13px monospace';
+  ctx.fillText('O(2ⁿ) Chậm', b1X + barW / 2, chartY + 50);
+
+  // Bar 2: Greedy Algorithm (Tối ưu) - GREEN, low microsecond
+  const b2X = chartX + chartW * 0.72 - barW / 2;
+  const maxH2 = chartH * 0.16;
+  const animH2 = maxH2 * easeOutExpo(clamp((t - 0.3) * 1.5, 0, 1));
+  const b2Y = chartY - animH2;
+
+  roundRect(b2X, b2Y, barW, animH2, [12, 12, 0, 0]);
+  const grad2 = ctx.createLinearGradient(b2X, b2Y, b2X, chartY);
+  grad2.addColorStop(0, GREEN);
+  grad2.addColorStop(1, 'rgba(57, 255, 20, 0.2)');
+  ctx.fillStyle = grad2; ctx.fill();
+  ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
+  ctx.shadowColor = GREEN; ctx.shadowBlur = 18;
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  ctx.fillStyle = GREEN;
+  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('0.15 ms ⚡', b2X + barW / 2, b2Y - 12);
+  ctx.fillStyle = '#39ff14';
+  ctx.font = `bold ${{IS_VERTICAL ? 14 : 17}}px sans-serif`;
+  ctx.fillText('Thuật toán Tham lam', b2X + barW / 2, chartY + 30);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '13px monospace';
+  ctx.fillText('O(N log N) Siêu tốc', b2X + barW / 2, chartY + 50);
+
+  // Highlight Box: "TỐC ĐỘ GẤP 83,000 LẦN"
+  const pulse = Math.sin(t * 4) * 0.1 + 0.9;
+  const hlY = chartY - chartH - 40;
+  roundRect(cx - 180, hlY, 360, 48, 24);
+  ctx.fillStyle = 'rgba(57, 255, 20, 0.15)'; ctx.fill();
+  ctx.strokeStyle = GREEN; ctx.lineWidth = 2;
+  ctx.shadowColor = GREEN; ctx.shadowBlur = 16 * pulse;
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  ctx.fillStyle = GREEN;
+  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
+  ctx.fillText('⚡ TĂNG TỐC 83,000 LẦN', cx, hlY + 31);
+  ctx.restore();
+}}
+
+// ── TEMPLATE: Quote Card ──
+function drawQuoteCard(t) {{
+  const cx = W / 2;
+  const cy = H / 2 + 30;
+  const qW = IS_VERTICAL ? W - 80 : Math.min(880, W * 0.70);
+  const qH = IS_VERTICAL ? Math.round(H * 0.40) : 340;
+  const qX = cx - qW / 2;
+  const qY = cy - qH / 2;
+
+  const enter = easeOutExpo(clamp(t / 0.7, 0, 1));
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(enter, enter);
+  ctx.translate(-cx, -cy);
+
+  // Purple glowing card
+  roundRect(qX, qY, qW, qH, 22);
+  ctx.fillStyle = 'rgba(18, 12, 38, 0.95)';
+  ctx.fill();
+  ctx.strokeStyle = PURPLE;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = PURPLE;
+  ctx.shadowBlur = 28 + Math.sin(t * 3) * 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Header tag
+  roundRect(cx - 140, qY - 20, 280, 40, 20);
+  ctx.fillStyle = 'rgba(168, 85, 247, 0.25)'; ctx.fill();
+  ctx.strokeStyle = PURPLE; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#e9d5ff';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('💎 BẢN CHẤT CỐT LÕI', cx, qY + 6);
+
+  // Large quotation mark
+  ctx.fillStyle = 'rgba(168, 85, 247, 0.35)';
+  ctx.font = 'bold 120px Georgia, serif';
+  ctx.fillText('“', qX + 60, qY + 110);
+
+  // Quote text
+  const quoteText = (BULLETS && BULLETS.length > 0)
+    ? BULLETS[0]
+    : 'Lựa chọn tốt nhất ở hiện tại sẽ dẫn đến giải pháp tối ưu cho toàn bộ bài toán.';
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = `italic bold ${{IS_VERTICAL ? 22 : 28}}px "Segoe UI", sans-serif`;
+  ctx.textAlign = 'center';
+
+  // Word wrap
+  const maxW = qW - 100;
+  const words = quoteText.split(' ');
+  let line = '';
+  let lineY = qY + qH * 0.42;
+  words.forEach(w => {{
+    const testLine = line + w + ' ';
+    if (ctx.measureText(testLine).width > maxW) {{
+      ctx.fillText(line.trim(), cx, lineY);
+      line = w + ' ';
+      lineY += IS_VERTICAL ? 36 : 44;
+    }} else {{
+      line = testLine;
+    }}
+  }});
+  if (line) ctx.fillText(line.trim(), cx, lineY);
+
+  // Sub-tag
+  ctx.fillStyle = PURPLE;
+  ctx.font = `bold ${{IS_VERTICAL ? 15 : 18}}px monospace`;
+  ctx.fillText('— GREEDY CHOICE PROPERTY —', cx, qY + qH - 30);
+  ctx.restore();
+}}
+
+// ── TEMPLATE: Conclusion Summary Cards ──
+function drawSummaryCards(t) {{
+  const cx = W / 2;
+  const cy = H / 2 + (IS_VERTICAL ? 30 : 25);
+  const cardW = IS_VERTICAL ? W - 80 : Math.min(860, W * 0.72);
+  const cardH = IS_VERTICAL ? 110 : 120;
+  const startY = cy - (cardH * 3 + 40) / 2;
+
+  const takeaways = [
+    {{
+      num: '01',
+      title: 'BẢN CHẤT CỐT LÕI',
+      desc: 'Luôn chọn phương án tốt nhất tại bước hiện tại, không cần quay lui hay xét lại quá khứ.',
+      color: GREEN,
+      icon: '✓'
+    }},
+    {{
+      num: '02',
+      title: 'ĐIỀU KIỆN ÁP DỤNG THÀNH CÔNG',
+      desc: 'Bài toán phải thoả mãn Tính chất lựa chọn tham lam & Cấu trúc con tối ưu (Optimal Substructure).',
+      color: ORANGE,
+      icon: '⚡'
+    }},
+    {{
+      num: '03',
+      title: 'CẠM BẪY CẦN TRÁNH',
+      desc: 'Nếu bài toán yêu cầu nghiệm toàn cục phụ thuộc vào tổng thể (như Cái Túi 0/1) -> chuyển sang Quy hoạch động (DP).',
+      color: CYAN,
+      icon: '💡'
+    }}
+  ];
+
+  ctx.save();
+  takeaways.forEach((item, idx) => {{
+    const enterDelay = idx * 0.25;
+    const enter = easeOutExpo(clamp((t - enterDelay) / 0.6, 0, 1));
+    const itemY = startY + idx * (cardH + 20);
+
+    ctx.save();
+    ctx.translate(cx, itemY + cardH / 2);
+    ctx.scale(enter, enter);
+    ctx.translate(-cx, -(itemY + cardH / 2));
+
+    roundRect(cx - cardW / 2, itemY, cardW, cardH, 16);
+    ctx.fillStyle = 'rgba(10, 18, 36, 0.94)';
+    ctx.fill();
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = item.color;
+    ctx.shadowBlur = 14;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Number tag box
+    roundRect(cx - cardW / 2 + 16, itemY + 16, 56, cardH - 32, 10);
+    ctx.fillStyle = item.color;
+    ctx.fill();
+    ctx.fillStyle = '#060a14';
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(item.num, cx - cardW / 2 + 44, itemY + cardH / 2 + 8);
+
+    // Title & Description
+    ctx.textAlign = 'left';
+    ctx.fillStyle = item.color;
+    ctx.font = `bold ${{IS_VERTICAL ? 16 : 20}}px sans-serif`;
+    ctx.fillText(`${{item.icon}} ${{item.title}}`, cx - cardW / 2 + 90, itemY + 36);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = `${{IS_VERTICAL ? 13 : 16}}px sans-serif`;
+    const maxDescW = cardW - 110;
+    const words = item.desc.split(' ');
+    let line1 = '', line2 = '';
+    words.forEach(w => {{
+      if (ctx.measureText(line1 + w + ' ').width < maxDescW && !line2) {{
+        line1 += w + ' ';
+      }} else {{
+        line2 += w + ' ';
+      }}
+    }});
+    ctx.fillText(line1.trim(), cx - cardW / 2 + 90, itemY + 64);
+    if (line2) ctx.fillText(line2.trim(), cx - cardW / 2 + 90, itemY + 86);
+    ctx.restore();
+  }});
+  ctx.restore();
+}}
+
+// ── TEMPLATE: Real-world Metaphor with Stock Image ──
+function drawMetaphor(t) {{
+  const cx = W / 2;
+  const cy = H / 2 + (IS_VERTICAL ? 20 : 30);
+  const cardW = IS_VERTICAL ? W - 80 : Math.min(840, W * 0.54);
+  const cardH = IS_VERTICAL ? Math.round(H * 0.44) : Math.round(H * 0.56);
+  const cardX = IS_VERTICAL ? 40 : (W - cardW) / 2;
+  const cardY = cy - cardH / 2;
+
+  const enter = easeOutExpo(clamp(t / 0.6, 0, 1));
+  ctx.save();
+  ctx.translate(cardX + cardW/2, cardY + cardH/2);
+  ctx.scale(enter, enter);
+  ctx.translate(-(cardX + cardW/2), -(cardY + cardH/2));
+
+  // Outer glow frame
+  roundRect(cardX, cardY, cardW, cardH, 20);
+  ctx.fillStyle = 'rgba(10, 18, 36, 0.95)';
+  ctx.fill();
+  ctx.strokeStyle = YELLOW;
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = YELLOW;
+  ctx.shadowBlur = 20;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  if (HAS_IMAGE && stockImg && stockImg.complete && stockImg.naturalWidth > 0) {{
+    // Draw loaded stock photo with slight Ken Burns slow zoom
+    ctx.save();
+    roundRect(cardX + 10, cardY + 54, cardW - 20, cardH - 64, 14);
+    ctx.clip();
+    const zoom = 1.0 + Math.sin(t * 0.2) * 0.05;
+    const iw = (cardW - 20) * zoom;
+    const ih = (cardH - 64) * zoom;
+    const ix = cardX + 10 - (iw - (cardW - 20)) / 2;
+    const iy = cardY + 54 - (ih - (cardH - 64)) / 2;
+    ctx.drawImage(stockImg, ix, iy, iw, ih);
+
+    // Subtle dark gradient overlay at bottom for readability
+    const grad = ctx.createLinearGradient(0, cardY + cardH - 120, 0, cardY + cardH);
+    grad.addColorStop(0, 'rgba(6,10,20,0)');
+    grad.addColorStop(1, 'rgba(6,10,20,0.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(cardX + 10, cardY + cardH - 120, cardW - 20, cardH - 64);
+    ctx.restore();
+  }} else {{
+    // Procedural drawers illustration: 3 drawers sliding
+    const drW = cardW - 60;
+    const drH = (cardH - 120) / 3;
+    const drX = cardX + 30;
+    for (let di = 0; di < 3; di++) {{
+      const drY = cardY + 70 + di * (drH + 10);
+      const isYellow = di === 0;
+      const slide = isYellow ? Math.sin(t * 2) * 15 + 15 : 0;
+      roundRect(drX + slide, drY, drW - slide, drH - 10, 10);
+      ctx.fillStyle = isYellow ? 'rgba(255, 230, 0, 0.18)' : 'rgba(30, 41, 59, 0.8)';
+      ctx.fill();
+      ctx.strokeStyle = isYellow ? YELLOW : 'rgba(100, 116, 139, 0.4)';
+      ctx.lineWidth = isYellow ? 2 : 1;
+      ctx.stroke();
+
+      // Drawer handle
+      roundRect(drX + slide + (drW - slide)/2 - 30, drY + (drH - 10)/2 - 4, 60, 8, 4);
+      ctx.fillStyle = isYellow ? YELLOW : '#64748b';
+      ctx.fill();
+
+      ctx.fillStyle = isYellow ? YELLOW : '#cbd5e1';
+      ctx.font = `bold ${{IS_VERTICAL ? 14 : 17}}px sans-serif`;
+      ctx.fillText(di === 0 ? 'Ngăn 1 (Ưu tiên cao nhất)' : (di === 1 ? 'Ngăn 2' : 'Ngăn 3'), drX + slide + 20, drY + 28);
+    }}
+  }}
+
+  // Header badge on card
+  roundRect(cardX, cardY, cardW, 50, [20, 20, 0, 0]);
+  ctx.fillStyle = 'rgba(255, 230, 0, 0.15)';
+  ctx.fill();
+  ctx.fillStyle = YELLOW;
+  ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
+  ctx.fillText('📦 MÔ HÌNH ẨN DỤ ĐỜI THƯỜNG', cardX + 24, cardY + 33);
+  ctx.restore();
+}}
+
 // ── Master Render ──
 function renderFrameAt(f) {{
   const t = f / FPS;
   drawBackground(t);
   drawHeader(t);
   switch (TEMPLATE) {{
+    case 'conclusion':    drawSummaryCards(t); break;
+    case 'quote_card':    drawQuoteCard(t); break;
+    case 'cpu_scheduler': drawCpuScheduler(t); break;
+    case 'bar_benchmark': drawBarBenchmark(t); break;
+    case 'metaphor':      drawMetaphor(t); break;
     case 'scheduler':     drawScheduler(t); break;
     case 'stickman':      drawStickmanStory(t); break;
     case 'git_flow':      drawGitFlow(t); break;
@@ -1743,6 +2267,7 @@ def render_motion_graphic_scene(
     height: int = 1080,
     fps: int = 30,
     timeout: int = 120,
+    image_path: Path | None = None,
 ) -> Path | None:
     """Render 1 scene thành video Motion Graphic bằng Edge/Chrome Headless + HTML5 Canvas.
 
@@ -1766,7 +2291,7 @@ def render_motion_graphic_scene(
     is_done = threading.Event()
     total_expected = max(1, round(duration * fps))
 
-    html_content = _build_motion_html(scene, duration, width, height, fps)
+    html_content = _build_motion_html(scene, duration, width, height, fps, image_path=image_path)
 
     class FrameHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):

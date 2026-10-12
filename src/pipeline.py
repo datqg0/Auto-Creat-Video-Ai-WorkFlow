@@ -177,6 +177,13 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             if code_video is None and anim_cfg.get("motion_graphics_enabled", True) and is_motion_graphics_available():
                 try:
                     mg_dir = workdir / f"motion_graphic_{i:02d}"
+                    stock_img_path = None
+                    if scene.image_query:
+                        try:
+                            from .image_fetcher import fetch_image
+                            stock_img_path = fetch_image(scene.image_query, index=i % 3)
+                        except Exception as e:
+                            log.debug("fetch_image error: %s", e)
                     code_video = render_motion_graphic_scene(
                         scene,
                         mg_dir,
@@ -184,6 +191,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                         width=CONFIG["visual"]["width"],
                         height=CONFIG["visual"]["height"],
                         fps=CONFIG["visual"]["fps"],
+                        image_path=stock_img_path,
                     )
                     if code_video:
                         log.info("Scene %d: Render thành công bằng Motion Graphics HTML5/Edge", i)
