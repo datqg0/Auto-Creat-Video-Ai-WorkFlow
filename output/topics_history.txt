@@ -17,3 +17,4 @@
 2026-10-11T12:07:51.572662	giải thích giải nobel năm 2020
 2026-10-11T16:55:43.718815	Warp Divergence: Vì sao một câu lệnh if-else có thể làm GPU mất một nửa sức mạnh?
 2026-10-12T02:13:43.688327	thuật toán Tham lam
+2026-10-12T03:50:47.760741	Bloom Filter – Phát hiện dấu vân tay số nhanh trong 5 phút
