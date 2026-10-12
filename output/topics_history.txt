@@ -16,3 +16,4 @@
 2026-10-11T09:38:09.472656	Zero‑knowledge proof: chứng minh mà không tiết lộ dữ liệu
 2026-10-11T12:07:51.572662	giải thích giải nobel năm 2020
 2026-10-11T16:55:43.718815	Warp Divergence: Vì sao một câu lệnh if-else có thể làm GPU mất một nửa sức mạnh?
+2026-10-12T02:13:43.688327	thuật toán Tham lam
