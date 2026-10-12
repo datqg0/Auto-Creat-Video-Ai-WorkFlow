@@ -1114,7 +1114,7 @@ TEMPLATES.bar_benchmark = function (t, box) {
     const col = PALETTE[i % PALETTE.length], g = easeOutExpo(progress(t, 0.3 + i * 0.25, 1.3 + i * 0.25)), y = y0 + i * rowH + (rowH - barH) / 2;
     const w = Math.max(px(4), Math.abs(v) / maxV * barMax * g);
     const lh = tbHeight(b.labels[i], labelW, px(26), { weight: 'bold', maxLines: 2 });
-    tb(b.labels[i], barX - px(20) - labelW, y + (barH - lh) / 2, labelW, px(26), '#cbd5e1', { weight: 'bold', maxLines: 2, align: 'right' });
+    tb(b.labels[i], barX - px(20), y + (barH - lh) / 2, labelW, px(26), '#cbd5e1', { weight: 'bold', maxLines: 2, align: 'right' });
     ctx.save(); roundRect(barX, y, w, barH, [0, px(10), px(10), 0]);
     const gr = ctx.createLinearGradient(barX, 0, barX + w, 0); gr.addColorStop(0, col + '55'); gr.addColorStop(1, col);
     ctx.fillStyle = gr; ctx.shadowColor = col; ctx.shadowBlur = px(14); ctx.fill(); ctx.restore();
