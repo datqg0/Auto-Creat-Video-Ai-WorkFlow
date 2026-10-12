@@ -100,48 +100,79 @@ def is_motion_graphics_available() -> bool:
 # Template Detection (smart routing based on scene content)
 # ---------------------------------------------------------------------------
 
+def _clean_title(text: str | None) -> str:
+    """Loại bỏ triệt để các tiền tố kịch bản như 'Hook:', 'Hook -', 'Cảnh 1:', 'Scene 1:'."""
+    if not text:
+        return "PHÂN TÍCH KỸ THUẬT"
+    t = text.strip()
+    pattern = r"^(?:\[?\s*(?:hook|cảnh\s*\d+|scene\s*\d+|phần\s*\d+|mở\s*đầu|intro|bước\s*\d+|pha\s*\d+)\s*\]?[\s:\-–—|]*)+"
+    t = re.sub(pattern, "", t, flags=re.IGNORECASE).strip()
+    return t or "PHÂN TÍCH KỸ THUẬT"
+
+
 def _detect_template(scene: Scene) -> str:
     """Nhận diện template phù hợp nhất dựa trên nội dung scene."""
     title = (scene.heading or "").lower()
-    narration = (scene.narration or "")[:200].lower()
+    narration = (scene.narration or "")[:300].lower()
     prompt = (scene.visual_prompt or "").lower()
     corpus = f"{title} {narration} {prompt}"
 
-    # GitHub / Git / Open source
+    # 1. Lịch trình, phòng họp, interval scheduling, timeline, xung đột thời gian, task queue
+    if any(k in corpus for k in (
+        "lịch", "phòng", "hội nghị", "schedule", "scheduling", "meeting", "interval",
+        "thời gian", "xung đột", "trùng lịch", "trùng lặp", "deadline", "slot",
+        "đặt phòng", "bàn giao", "xếp lịch", "xếp phòng"
+    )):
+        return "scheduler"
+
+    # 2. Người que (Stickman) / Con người / Câu chuyện bối rối / Nghịch lý / Tình huống
+    if any(k in corpus for k in (
+        "người que", "stickman", "người", "con người", "bạn nghĩ", "tại sao", "hỗn loạn",
+        "bế tắc", "nghịch lý", "sai lầm", "human", "who", "why", "user", "developer",
+        "kỹ sư", "lập trình viên", "anh ta", "cô ấy", "mọi người", "team", "nhóm",
+        "bối rối", "loay hoay", "thực tế", "vấn đề", "thử thách", "nghĩ lại", "ngẫu nhiên"
+    )):
+        return "stickman"
+
+    # 3. GitHub / Git / Open source
     if any(k in corpus for k in ("git ", "github", "commit", "branch", "merge", "rebase", "pull request", "repo", "open source", "clone")):
         return "git_flow"
 
-    # Attention / Transformer / LLM
+    # 4. Attention / Transformer / LLM
     if any(k in corpus for k in ("attention", "transformer", "self-attention", "query key value", "head", "embedding", "token", "bert", "gpt", "llm")):
         return "attention_map"
 
-    # Thuật toán trace / sorting / search
+    # 5. Thuật toán trace / sorting / search
     if any(k in corpus for k in ("sorting", "sắp xếp", "search", "tìm kiếm", "mảng", "array", "quicksort", "mergesort", "heap", "bfs", "dfs", "dijkstra", "trace", "từng bước", "step by step")):
         return "algo_trace"
 
-    # GitHub stats / metrics
+    # 6. GitHub stats / metrics
     if any(k in corpus for k in ("star", "fork", "contributor", "release", "version", "changelog", "repo stats", "downloads", "popularity")):
         return "github_stats"
 
-    # Neural network forward pass
+    # 7. Neural network forward pass
     if any(k in corpus for k in ("neural", "backprop", "gradient", "layer", "activation", "relu", "sigmoid", "mạng neural", "training", "loss", "epoch")):
         return "neural_flow"
 
-    # Code diff / review
+    # 8. Code diff / review
     if any(k in corpus for k in ("diff", "thêm dòng", "xóa dòng", "code review", "patch", "refactor", "before after code")):
         return "diff_view"
 
-    # Code / terminal
+    # 9. Code / terminal
     if any(k in corpus for k in ("def ", "code", "lệnh", "thuật toán", "cú pháp", "terminal", "log", "api key", "function", "class ", "import")):
         return "terminal"
 
-    # Comparison / benchmark
+    # 10. Comparison / benchmark
     if any(k in corpus for k in ("so sánh", "vs", "versus", "khác biệt", "trade-off", "benchmark", "nhanh hơn", "chậm hơn", "hiệu năng")):
         return "comparison"
 
-    # Counter / metrics / HUD
+    # 11. Counter / metrics / HUD
     if any(k in corpus for k in ("triệu", "tỷ", "qps", "req/s", "counter", "con số", "%", "ms", "latency", "throughput")):
         return "hud"
+
+    # Mở đầu hoặc tình huống chung chưa rõ kiểu: ưu tiên Stickman trực quan
+    if any(k in corpus for k in ("mở đầu", "bắt đầu", "đầu tiên", "intro", "nguyên nhân")):
+        return "stickman"
 
     # Default: architecture flow
     return "architecture"
@@ -153,8 +184,10 @@ def _detect_template(scene: Scene) -> str:
 
 def _build_motion_html(scene: Scene, duration: float, width: int, height: int, fps: int) -> str:
     """Tạo trang HTML chứa animation canvas tự động khớp với chủ đề và nội dung scene."""
-    title = (scene.heading or "PHÂN TÍCH KỸ THUẬT").strip()
-    narration_snippet = (scene.narration or "")[:120].strip()
+    title = _clean_title(scene.heading)
+    raw_sub = scene.narration or ""
+    clean_sub = re.sub(r"^(?:\[?\s*(?:hook|cảnh\s*\d+|scene\s*\d+|phần\s*\d+|mở\s*đầu|intro|bước\s*\d+|pha\s*\d+)\s*\]?[\s:\-–—|]*)+", "", raw_sub, flags=re.IGNORECASE).strip()
+    narration_snippet = clean_sub[:120].strip()
     template_type = _detect_template(scene)
 
     raw_bullets = scene.bullets or []
@@ -332,6 +365,411 @@ function drawHeader(t) {{
     const maxSub = IS_VERTICAL ? 55 : 85;
     const sub = SUBTITLE.length > maxSub ? SUBTITLE.slice(0,maxSub-1)+'…' : SUBTITLE;
     ctx.fillText(sub, hx+22, titleBottom + (IS_VERTICAL ? 34 : 42));
+  }}
+
+  ctx.restore();
+}}
+
+// ── Helper: Người Que (Stickman) ──
+function drawStickmanFigure(x, y, scale, pose, t, color) {{
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  const headR = 24;
+  const spineLen = 65;
+  const bob = Math.sin(t * 5) * 3;
+
+  let headTilt = 0;
+  let leftArmA = 0.5, rightArmA = -0.5;
+  let leftForeA = 0.8, rightForeA = -0.8;
+  let leftLegA = 0.25, rightLegA = -0.25;
+  let jumpY = 0;
+
+  if (pose === 'confused') {{
+    headTilt = 0.22 + Math.sin(t * 3) * 0.08;
+    rightArmA = -2.2;
+    rightForeA = -1.4 + Math.sin(t * 8) * 0.28;
+    leftArmA = 0.6;
+    leftForeA = -1.1;
+    for (let q = 0; q < 3; q++) {{
+      const qProg = ((t * 0.5 + q * 0.33) % 1.0);
+      const qY = -headR - 22 - qProg * 55;
+      const qX = (q - 1) * 24 + Math.sin(t * 3 + q) * 12;
+      const qAlpha = Math.sin(qProg * Math.PI);
+      ctx.save();
+      ctx.fillStyle = `rgba(255, 230, 0, ${{qAlpha}})`;
+      ctx.font = 'bold 26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = YELLOW;
+      ctx.shadowBlur = 14;
+      ctx.fillText('?', qX, qY);
+      ctx.restore();
+    }}
+  }} else if (pose === 'idea' || pose === 'eureka') {{
+    jumpY = -Math.abs(Math.sin(t * 6)) * 20;
+    headTilt = -0.05;
+    leftArmA = -2.3;
+    leftForeA = -0.3;
+    rightArmA = 2.3;
+    rightForeA = 0.3;
+    drawGlowingBulb(0, -headR - 50, t);
+  }} else if (pose === 'working') {{
+    leftArmA = 0.9;
+    leftForeA = -0.8 + Math.sin(t * 14) * 0.25;
+    rightArmA = 0.9;
+    rightForeA = -0.8 + Math.cos(t * 14) * 0.25;
+  }}
+
+  const curY = bob + jumpY;
+
+  // Bóng đổ dưới sàn
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 240, 255, 0.16)';
+  ctx.beginPath();
+  ctx.ellipse(0, spineLen + 65, 34 * (1 + jumpY * 0.01), 10 * (1 + jumpY * 0.01), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Đầu
+  ctx.save();
+  ctx.translate(0, curY);
+  ctx.rotate(headTilt);
+  ctx.strokeStyle = color || CYAN;
+  ctx.lineWidth = 4;
+  ctx.fillStyle = '#060a14';
+  ctx.shadowColor = color || CYAN;
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.arc(0, 0, headR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Kính visor mắt phát sáng
+  ctx.fillStyle = YELLOW;
+  ctx.shadowColor = YELLOW;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-12, -4, 24, 7);
+  ctx.restore();
+
+  // Thân mình
+  const neckY = curY + headR;
+  const hipY = neckY + spineLen;
+  ctx.save();
+  ctx.strokeStyle = color || CYAN;
+  ctx.lineWidth = 4.5;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = color || CYAN;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.moveTo(0, neckY);
+  ctx.lineTo(0, hipY);
+  ctx.stroke();
+
+  // Tay
+  const shoulderY = neckY + 14;
+  const armLen = 30, forearmLen = 26;
+  const lElbowX = Math.sin(leftArmA) * armLen;
+  const lElbowY = shoulderY + Math.cos(leftArmA) * armLen;
+  const lHandX = lElbowX + Math.sin(leftArmA + leftForeA) * forearmLen;
+  const lHandY = lElbowY + Math.cos(leftArmA + leftForeA) * forearmLen;
+  ctx.beginPath();
+  ctx.moveTo(0, shoulderY);
+  ctx.lineTo(lElbowX, lElbowY);
+  ctx.lineTo(lHandX, lHandY);
+  ctx.stroke();
+
+  const rElbowX = Math.sin(rightArmA) * armLen;
+  const rElbowY = shoulderY + Math.cos(rightArmA) * armLen;
+  const rHandX = rElbowX + Math.sin(rightArmA + rightForeA) * forearmLen;
+  const rHandY = rElbowY + Math.cos(rightArmA + rightForeA) * forearmLen;
+  ctx.beginPath();
+  ctx.moveTo(0, shoulderY);
+  ctx.lineTo(rElbowX, rElbowY);
+  ctx.lineTo(rHandX, rHandY);
+  ctx.stroke();
+
+  // Chân
+  const legLen = 34, shinLen = 30;
+  const lKneeX = Math.sin(leftLegA) * legLen;
+  const lKneeY = hipY + Math.cos(leftLegA) * legLen;
+  ctx.beginPath();
+  ctx.moveTo(0, hipY);
+  ctx.lineTo(lKneeX, lKneeY);
+  ctx.lineTo(lKneeX, lKneeY + shinLen);
+  ctx.stroke();
+
+  const rKneeX = Math.sin(rightLegA) * legLen;
+  const rKneeY = hipY + Math.cos(rightLegA) * legLen;
+  ctx.beginPath();
+  ctx.moveTo(0, hipY);
+  ctx.lineTo(rKneeX, rKneeY);
+  ctx.lineTo(rKneeX, rKneeY + shinLen);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+}}
+
+// ── Helper: Bóng đèn phát sáng ý tưởng ──
+function drawGlowingBulb(bx, by, t) {{
+  ctx.save();
+  ctx.translate(bx, by);
+  const numRays = 8;
+  const rayLen = 16 + Math.sin(t * 8) * 6;
+  ctx.strokeStyle = YELLOW;
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = YELLOW;
+  ctx.shadowBlur = 18;
+  for (let i = 0; i < numRays; i++) {{
+    const ang = (i * Math.PI * 2) / numRays + t * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * 20, Math.sin(ang) * 20);
+    ctx.lineTo(Math.cos(ang) * (20 + rayLen), Math.sin(ang) * (20 + rayLen));
+    ctx.stroke();
+  }}
+  ctx.fillStyle = YELLOW;
+  ctx.beginPath();
+  ctx.arc(0, 0, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(0, -2, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}}
+
+// ── TEMPLATE: Scheduler & Meeting Conflicts (Lịch trình & Xung đột phòng) ──
+function drawScheduler(t) {{
+  const enter = easeOutExpo(clamp(t / 0.6, 0, 1));
+  const isResolved = t >= 2.4;
+  const resolveProg = clamp((t - 2.4) / 0.8, 0, 1);
+  const pose = isResolved ? 'idea' : 'confused';
+
+  const boardX = IS_VERTICAL ? 40 : W * 0.32;
+  const boardY = IS_VERTICAL ? H * 0.44 : H * 0.28;
+  const boardW = IS_VERTICAL ? W - 80 : W * 0.62;
+  const boardH = IS_VERTICAL ? H * 0.44 : H * 0.58;
+
+  const stickX = IS_VERTICAL ? W * 0.5 : W * 0.16;
+  const stickY = IS_VERTICAL ? H * 0.32 : H * 0.58;
+  const stickScale = IS_VERTICAL ? 0.95 : 1.15;
+
+  // Người que theo dõi lịch
+  drawStickmanFigure(stickX, stickY, stickScale, pose, t, CYAN);
+
+  // Bảng lịch trình
+  ctx.save();
+  ctx.translate(boardX, boardY);
+  ctx.scale(enter, enter);
+  roundRect(0, 0, boardW, boardH, 18);
+  ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
+  ctx.fill();
+  ctx.strokeStyle = isResolved ? GREEN : BORDER;
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = isResolved ? GREEN : CYAN;
+  ctx.shadowBlur = 18;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Header bảng lịch
+  roundRect(0, 0, boardW, 52, [18, 18, 0, 0]);
+  ctx.fillStyle = 'rgba(20, 30, 52, 0.85)';
+  ctx.fill();
+
+  ctx.fillStyle = isResolved ? GREEN : YELLOW;
+  ctx.font = 'bold 20px monospace';
+  ctx.fillText(isResolved ? '✓ LỊCH TỐI ƯU (GREEDY ALGORITHM)' : '⚡ HỖN LOẠN: TRÙNG LỊCH PHÒNG HỌP', 24, 33);
+
+  // Trục thời gian
+  const timeY = 82;
+  const timeLabels = ['09:00', '10:00', '11:00', '12:00'];
+  const tStart = 140, tEnd = boardW - 40;
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(tStart, timeY);
+  ctx.lineTo(tEnd, timeY);
+  ctx.stroke();
+
+  timeLabels.forEach((tl, ti) => {{
+    const tx = tStart + (ti / (timeLabels.length - 1)) * (tEnd - tStart);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(tl, tx, timeY - 8);
+    ctx.beginPath();
+    ctx.moveTo(tx, timeY);
+    ctx.lineTo(tx, boardH - 24);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }});
+  ctx.textAlign = 'left';
+
+  // Hàng phòng: Phòng 101 và Phòng 102
+  const lane1Y = 120, lane2Y = boardH * 0.62;
+  const laneH = boardH * 0.28;
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 17px sans-serif';
+  ctx.fillText('Phòng 101', 18, lane1Y + laneH * 0.55);
+  ctx.fillText('Phòng 102', 18, lane2Y + laneH * 0.55);
+
+  // Cuộc họp 1: 09:00 -> 10:30 (Phòng 101)
+  const m1X = tStart + 10;
+  const m1W = (tEnd - tStart) * 0.48;
+  roundRect(m1X, lane1Y, m1W, laneH, 12);
+  ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+  ctx.fill();
+  ctx.strokeStyle = CYAN;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#f1f5f9';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText('Họp Dự Án Alpha', m1X + 16, lane1Y + laneH * 0.45);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '13px monospace';
+  ctx.fillText('09:00 - 10:30', m1X + 16, lane1Y + laneH * 0.75);
+
+  // Cuộc họp 2: 10:00 -> 11:30
+  const m2X = tStart + (tEnd - tStart) * 0.33;
+  const m2W = (tEnd - tStart) * 0.48;
+  const curM2Y = lerp(lane1Y, lane2Y, resolveProg);
+
+  roundRect(m2X, curM2Y, m2W, laneH, 12);
+  if (!isResolved) {{
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+    ctx.fill();
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 18;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    const overlapX = m2X;
+    const overlapW = (m1X + m1W) - m2X;
+    ctx.save();
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
+    roundRect(overlapX, lane1Y, overlapW, laneH, 10);
+    ctx.fill();
+    ctx.fillStyle = '#ffe600';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠️ TRÙNG LỊCH!', overlapX + overlapW / 2, lane1Y + laneH * 0.55);
+    ctx.restore();
+  }} else {{
+    ctx.fillStyle = 'rgba(57, 255, 20, 0.25)';
+    ctx.fill();
+    ctx.strokeStyle = GREEN;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = GREEN;
+    ctx.shadowBlur = 16;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }}
+
+  ctx.fillStyle = '#f1f5f9';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText('Hội Nghị Beta', m2X + 16, curM2Y + laneH * 0.45);
+  ctx.fillStyle = isResolved ? GREEN : '#fca5a5';
+  ctx.font = '13px monospace';
+  ctx.fillText('10:00 - 11:30', m2X + 16, curM2Y + laneH * 0.75);
+
+  ctx.restore();
+}}
+
+// ── TEMPLATE: Stickman Story & Chaos Resolution (Người que kể chuyện) ──
+function drawStickmanStory(t) {{
+  const isResolved = t >= 2.5;
+  const pose = isResolved ? 'idea' : 'confused';
+
+  const stickX = IS_VERTICAL ? W * 0.5 : W * 0.24;
+  const stickY = IS_VERTICAL ? H * 0.36 : H * 0.55;
+  const stickScale = IS_VERTICAL ? 1.05 : 1.35;
+
+  drawStickmanFigure(stickX, stickY, stickScale, pose, t, isResolved ? GREEN : CYAN);
+
+  const panelX = IS_VERTICAL ? 40 : W * 0.48;
+  const panelY = IS_VERTICAL ? H * 0.52 : H * 0.28;
+  const panelW = IS_VERTICAL ? W - 80 : W * 0.46;
+  const panelH = IS_VERTICAL ? H * 0.38 : H * 0.58;
+
+  ctx.save();
+  ctx.translate(panelX, panelY);
+
+  if (!isResolved) {{
+    roundRect(0, 0, panelW, panelH, 20);
+    ctx.fillStyle = 'rgba(24, 12, 18, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 20;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    roundRect(0, 0, panelW, 56, [20, 20, 0, 0]);
+    ctx.fillStyle = 'rgba(50, 14, 20, 0.95)';
+    ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText('⚠️ TÌNH TRẠNG: HỖN LOẠN & BẾ TẮC', 24, 36);
+
+    const issues = [
+      '❌ 97% Người dùng chọn ngẫu nhiên',
+      '⚡ Xung đột lịch & tài nguyên tăng vọt',
+      '⏱️ Lãng phí 40% thời gian xử lý',
+    ];
+    issues.forEach((iss, ii) => {{
+      const iy = 90 + ii * (IS_VERTICAL ? 68 : 80);
+      roundRect(20, iy, panelW - 40, IS_VERTICAL ? 54 : 64, 12);
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
+      ctx.fillText(iss, 36, iy + (IS_VERTICAL ? 34 : 40));
+    }});
+  }} else {{
+    roundRect(0, 0, panelW, panelH, 20);
+    ctx.fillStyle = 'rgba(10, 30, 20, 0.94)';
+    ctx.fill();
+    ctx.strokeStyle = GREEN;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = GREEN;
+    ctx.shadowBlur = 22;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    roundRect(0, 0, panelW, 56, [20, 20, 0, 0]);
+    ctx.fillStyle = 'rgba(16, 50, 28, 0.95)';
+    ctx.fill();
+    ctx.fillStyle = GREEN;
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText('💡 GIẢI PHÁP: CÚ HACK THUẬT TOÁN', 24, 36);
+
+    const solutions = [
+      '✓ Tự động sắp xếp không trùng lặp',
+      '⚡ Tối ưu O(N log N) - Nhanh tức thì',
+      '🎯 Tỷ lệ thành công đạt 100%',
+    ];
+    solutions.forEach((sol, si) => {{
+      const sy = 90 + si * (IS_VERTICAL ? 68 : 80);
+      roundRect(20, sy, panelW - 40, IS_VERTICAL ? 54 : 64, 12);
+      ctx.fillStyle = 'rgba(57, 255, 20, 0.12)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(57, 255, 20, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = `bold ${{IS_VERTICAL ? 18 : 22}}px sans-serif`;
+      ctx.fillText(sol, 36, sy + (IS_VERTICAL ? 34 : 40));
+    }});
   }}
 
   ctx.restore();
@@ -949,9 +1387,18 @@ function drawDiffView(t) {{
 
 // ── TEMPLATE: Architecture Flow ──
 function drawArchitecture(t) {{
+  const topicHint = (TITLE + ' ' + SUBTITLE).toLowerCase();
+  let defaultNodes = ['1. Thu thập dữ liệu', '2. Phân tích logic', '3. Tối ưu thuật toán', '4. Kết quả'];
+  if (topicHint.includes('lịch') || topicHint.includes('phòng') || topicHint.includes('hội nghị') || topicHint.includes('thời gian')) {{
+    defaultNodes = ['1. Đặt phòng', '2. Quét xung đột', '3. Thuật toán phân bổ', '4. Chốt lịch'];
+  }} else if (topicHint.includes('mạng') || topicHint.includes('server') || topicHint.includes('api') || topicHint.includes('web')) {{
+    defaultNodes = ['Client Request', 'Load Balancer', 'API Gateway', 'Microservice'];
+  }} else if (topicHint.includes('ai') || topicHint.includes('mô hình') || topicHint.includes('model') || topicHint.includes('học')) {{
+    defaultNodes = ['1. Dataset', '2. Huấn luyện model', '3. Đánh giá loss', '4. Inference'];
+  }}
   const rawNodes = (BULLETS && BULLETS.length >= 3)
     ? BULLETS.slice(0, 4)
-    : ['Client Request', 'Load Balancer', 'API Gateway', 'Service Mesh'];
+    : defaultNodes;
   const nodes = rawNodes.map(n => n.length > 22 ? n.slice(0,20)+'..' : n);
   const n = nodes.length;
 
@@ -1251,6 +1698,8 @@ function renderFrameAt(f) {{
   drawBackground(t);
   drawHeader(t);
   switch (TEMPLATE) {{
+    case 'scheduler':     drawScheduler(t); break;
+    case 'stickman':      drawStickmanStory(t); break;
     case 'git_flow':      drawGitFlow(t); break;
     case 'attention_map': drawAttentionMap(t); break;
     case 'algo_trace':    drawAlgoTrace(t); break;

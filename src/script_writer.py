@@ -132,9 +132,10 @@ TRIẾT LÝ SƯ PHẠM CHIỀU SÂU (DEPTH-FIRST PEDAGOGY — CHỐNG CƯỠI NG
 
 CẤU TRÚC 5 PHA BẮT BUỘC:
 
-PHA 1: HOOK & NGHỊCH LÝ BẾ TẮC (~15% thời lượng, 1-2 scene)
+PHA 1: MỞ MÀN & NGHỊCH LÝ BẾ TẮC (~15% thời lượng, 1-2 scene)
 - Scene 1 BẮT BUỘC visual_type: "animation" do AI code vẽ ngay từ giây thứ 0.
 - Câu đầu tiên là một cú sốc / nghịch lý phản trực giác. Nêu bài toán: Tại sao cách làm tự nhiên lại chậm chạp, tắc nghẽn hoặc thất bại? TUYỆT ĐỐI không mở đầu bằng "Xin chào", "Hôm nay chúng ta". Vào thẳng vấn đề!
+- TUYỆT ĐỐI KHÔNG ghi chữ "Hook:", "Cảnh 1:" vào trường "heading" hoặc "title".
 
 PHA 2: MENTAL MODEL & ẨN DỤ TRỰC GIÁC ĐỜI THƯỜNG (~15% thời lượng, 1-2 scene)
 - 1 ẩn dụ đời thực cực đắt (ví dụ: máy giặt sấy gối đầu, thủ thư đánh số ngăn kéo, cao tốc phân luồng...).
@@ -296,10 +297,13 @@ Ngôn ngữ: {lang_name}. TRIẾT LÝ SƯ PHẠM SHORT (CHIỀU SÂU & 1 SINGLE 
 - DEICTIC NARRATION: Lời thoại chỉ thẳng vào hình vẽ trên màn hình ("Nhìn vào con số màu đỏ này...", "Chính đường dây màu xanh này...").
 
 CẤU TRÚC SHORT 4 PHA:
-1. HOOK CỰC MẠNH (Scene 1 — 0-5s): Một nghịch lý phản trực giác hoặc câu hỏi gây sốc khiến người xem dừng lướt. BẮT BUỘC visual_type: "animation".
+1. MỞ MÀN ẤN TƯỢNG (Scene 1 — 0-5s): Một nghịch lý phản trực giác hoặc câu hỏi gây sốc khiến người xem dừng lướt. BẮT BUỘC visual_type: "animation".
 2. ẨN DỤ TỨC THÌ (Scene 2): 1 so sánh đời thực cực nhanh để não bộ hình dung ngay.
 3. TRACE VI MÔ & CÚ HACK (Scene 3-4, chiếm 60% thời lượng): Mổ xẻ 1 ví dụ cụ thể có xung đột và cách giải quyết thông minh bằng animation code.
 4. INSIGHT CHỐT & KÊU GỌI (Scene cuối): Đúc kết 1 câu bản chất nhất + câu hỏi kích thích bình luận.
+
+QUY TẮC BẮT BUỘC VỀ HEADING (TIÊU ĐỀ HIỂN THỊ):
+- TUYỆT ĐỐI KHÔNG ghi chữ "Hook:", "Hook -", "Cảnh 1:", "Scene 1:" vào trường "heading" hoặc "title" (ví dụ: ghi "Lịch hội nghị hỗn loạn", TUYỆT ĐỐI KHÔNG ghi "Hook: Lịch hội nghị hỗn loạn").
 
 Trả về DUY NHẤT một object JSON theo schema:
 {{
@@ -450,6 +454,15 @@ def _clean_narration_markdown(text: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+def _clean_heading(text: str) -> str:
+    """Loại bỏ triệt để các tiền tố kịch bản như 'Hook:', 'Hook -', 'Cảnh 1:', 'Scene 1:', 'Phần 1:'."""
+    if not text:
+        return ""
+    t = _clean_narration_markdown(text)
+    pattern = r"^(?:\[?\s*(?:hook|cảnh\s*\d+|scene\s*\d+|phần\s*\d+|mở\s*đầu|intro|bước\s*\d+|pha\s*\d+)\s*\]?[\s:\-–—|]*)+"
+    return re.sub(pattern, "", t, flags=re.IGNORECASE).strip()
+
+
 def _parse_script(topic: str, raw: str) -> Script:
     data = _extract_json(raw)
 
@@ -458,11 +471,11 @@ def _parse_script(topic: str, raw: str) -> Script:
         if not isinstance(s, dict):
             continue
         if "narration" in s and isinstance(s["narration"], str):
-            s["narration"] = _clean_narration_markdown(s["narration"])
+            s["narration"] = _clean_heading(s["narration"])
         if "heading" in s and isinstance(s["heading"], str):
-            s["heading"] = _clean_narration_markdown(s["heading"])
+            s["heading"] = _clean_heading(s["heading"])
         if "bullets" in s and isinstance(s["bullets"], list):
-            s["bullets"] = [_clean_narration_markdown(b) if isinstance(b, str) else b for b in s["bullets"]]
+            s["bullets"] = [_clean_heading(b) if isinstance(b, str) else b for b in s["bullets"]]
         try:
             scenes.append(Scene(**s))
         except Exception as e:  # noqa: BLE001 - bỏ qua scene lỗi, không giết cả run

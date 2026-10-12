@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Left Hemisphere -->
+  <path d="M30 16C24 16 16 20 16 28C16 33 19 36 21 38C19 41 18 45 22 48C25 50 28 48 30 46" stroke="#ff2bd6" stroke-width="3" stroke-linecap="round"/>
+  <!-- Right Hemisphere -->
+  <path d="M34 16C40 16 48 20 48 28C48 33 45 36 43 38C45 41 46 45 42 48C39 50 36 48 34 46" stroke="#00f0ff" stroke-width="3" stroke-linecap="round"/>
+  <!-- Center Synapse Nodes -->
+  <circle cx="32" cy="22" r="3" fill="#ffe600"/>
+  <circle cx="32" cy="34" r="3" fill="#ffe600"/>
+  <circle cx="32" cy="44" r="3" fill="#ffe600"/>
+  <line x1="32" y1="22" x2="32" y2="44" stroke="#ffe600" stroke-width="2" stroke-dasharray="2 2"/>
+</svg>

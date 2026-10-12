@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Glowing Check Circle -->
+  <circle cx="32" cy="32" r="24" stroke="#39ff14" stroke-width="3" fill="#0f172a"/>
+  <!-- Checkmark -->
+  <path d="M20 32L28 40L44 24" stroke="#39ff14" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

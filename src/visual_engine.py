@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import textwrap
 from pathlib import Path
 
@@ -18,7 +19,14 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from .config import CONFIG
 from .models import Scene
 
-log = logging.getLogger(__name__)
+def _clean_heading(text: str | None) -> str:
+    """Xóa bỏ triệt để tiền tố 'Hook:', 'Cảnh 1:', 'Scene 1:' khỏi heading."""
+    if not text:
+        return ""
+    t = str(text).strip()
+    pattern = r"^(?:\[?\s*(?:hook|cảnh\s*\d+|scene\s*\d+|phần\s*\d+|mở\s*đầu|intro|bước\s*\d+|pha\s*\d+)\s*\]?[\s:\-–—|]*)+"
+    return re.sub(pattern, "", t, flags=re.IGNORECASE).strip()
+
 
 def _W() -> int:
     return int(CONFIG["visual"]["width"])
@@ -485,7 +493,7 @@ def _render_bullets(scene: Scene, out: Path) -> None:
 
     # 2. Heading
     hy = by0 + badge_h + 20
-    heading = scene.heading or "Điểm cốt lõi"
+    heading = _clean_heading(scene.heading) or "Điểm cốt lõi"
     max_hw = half_w - 88
     hfont = _fit_font(draw, heading, 52, max_hw)
     for line in _wrap_lines(draw, heading, hfont, max_hw)[:2]:
@@ -538,10 +546,11 @@ def _render_bullets_vertical(scene: Scene, out: Path) -> None:
     draw.rounded_rectangle([_margin() + 30, y + 24, _margin() + 270, y + 66], radius=20, fill=(30, 41, 59, 220), outline=ACCENT, width=1)
     draw.text((_margin() + 48, y + 33), "⚡ NGUYÊN LÝ CHÍNH", font=_font(22, bold=True), fill=ACCENT)
 
-    if scene.heading:
-        hfont = _fit_font(draw, scene.heading, 64, inner_w - 60)
+    clean_h = _clean_heading(scene.heading)
+    if clean_h:
+        hfont = _fit_font(draw, clean_h, 64, inner_w - 60)
         hy = y + 84
-        for hl in _wrap_lines(draw, scene.heading, hfont, inner_w - 60)[:2]:
+        for hl in _wrap_lines(draw, clean_h, hfont, inner_w - 60)[:2]:
             draw.text((_margin() + 30, hy), hl, font=hfont, fill=_TEXT)
             hy += hfont.size + 8
 

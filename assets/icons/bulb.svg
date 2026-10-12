@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Glowing bulb body -->
+  <path d="M22 24C22 18.4772 26.4772 14 32 14C37.5228 14 42 18.4772 42 24C42 28.5 39 31.5 37 35H27C25 31.5 22 28.5 22 24Z" fill="#ffe600" fill-opacity="0.2" stroke="#ffe600" stroke-width="3"/>
+  <!-- Filament -->
+  <path d="M28 26L32 20L36 26" stroke="#ffe600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Base -->
+  <path d="M26 39H38M28 44H36M30 49H34" stroke="#f1f5f9" stroke-width="3" stroke-linecap="round"/>
+  <!-- Radiant rays -->
+  <line x1="32" y1="5" x2="32" y2="9" stroke="#ffe600" stroke-width="3" stroke-linecap="round"/>
+  <line x1="16" y1="12" x2="19" y2="15" stroke="#ffe600" stroke-width="3" stroke-linecap="round"/>
+  <line x1="48" y1="12" x2="45" y2="15" stroke="#ffe600" stroke-width="3" stroke-linecap="round"/>
+  <line x1="10" y1="26" x2="14" y2="26" stroke="#ffe600" stroke-width="3" stroke-linecap="round"/>
+  <line x1="54" y1="26" x2="50" y2="26" stroke="#ffe600" stroke-width="3" stroke-linecap="round"/>
+</svg>

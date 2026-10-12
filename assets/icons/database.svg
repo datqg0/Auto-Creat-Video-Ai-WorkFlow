@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Top Ellipse -->
+  <ellipse cx="32" cy="18" rx="20" ry="8" stroke="#38bdf8" stroke-width="3" fill="#0f172a"/>
+  <!-- Middle Tier -->
+  <path d="M12 18V32C12 36.4 21 40 32 40C43 40 52 36.4 52 32V18" stroke="#38bdf8" stroke-width="3"/>
+  <!-- Bottom Tier -->
+  <path d="M12 32V46C12 50.4 21 54 32 54C43 54 52 50.4 52 46V32" stroke="#38bdf8" stroke-width="3"/>
+  <!-- Activity LED -->
+  <circle cx="44" cy="32" r="2" fill="#39ff14"/>
+  <circle cx="44" cy="46" r="2" fill="#ffe600"/>
+</svg>

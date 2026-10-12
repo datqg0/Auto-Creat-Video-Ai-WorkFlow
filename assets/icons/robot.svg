@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Antenna -->
+  <line x1="32" y1="6" x2="32" y2="14" stroke="#00f0ff" stroke-width="3"/>
+  <circle cx="32" cy="6" r="3" fill="#ffe600"/>
+  <!-- Head -->
+  <rect x="14" y="14" width="36" height="30" rx="8" fill="#0f172a" stroke="#00f0ff" stroke-width="3"/>
+  <!-- Glowing Eyes -->
+  <circle cx="25" cy="27" r="4" fill="#00f0ff"/>
+  <circle cx="39" cy="27" r="4" fill="#00f0ff"/>
+  <!-- Mouth / Frequency line -->
+  <path d="M22 37H42" stroke="#ff2bd6" stroke-width="2" stroke-linecap="round"/>
+  <!-- Ears -->
+  <rect x="8" y="24" width="6" height="10" rx="2" fill="#38bdf8"/>
+  <rect x="50" y="24" width="6" height="10" rx="2" fill="#38bdf8"/>
+</svg>

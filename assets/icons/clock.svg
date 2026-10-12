@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Clock Circle -->
+  <circle cx="32" cy="32" r="24" stroke="#00f0ff" stroke-width="3" fill="#0f172a"/>
+  <!-- Center Pin -->
+  <circle cx="32" cy="32" r="3" fill="#ffe600"/>
+  <!-- Hands -->
+  <line x1="32" y1="32" x2="32" y2="18" stroke="#ffe600" stroke-width="3" stroke-linecap="round"/>
+  <line x1="32" y1="32" x2="43" y2="32" stroke="#39ff14" stroke-width="3" stroke-linecap="round"/>
+  <!-- Ticks -->
+  <line x1="32" y1="11" x2="32" y2="14" stroke="#38bdf8" stroke-width="2"/>
+  <line x1="53" y1="32" x2="50" y2="32" stroke="#38bdf8" stroke-width="2"/>
+  <line x1="32" y1="53" x2="32" y2="50" stroke="#38bdf8" stroke-width="2"/>
+  <line x1="11" y1="32" x2="14" y2="32" stroke="#38bdf8" stroke-width="2"/>
+</svg>

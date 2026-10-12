@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Calendar Body -->
+  <rect x="8" y="14" width="48" height="42" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="3"/>
+  <path d="M8 26H56" stroke="#38bdf8" stroke-width="3"/>
+  <!-- Top Rings -->
+  <rect x="18" y="8" width="4" height="10" rx="2" fill="#00f0ff"/>
+  <rect x="42" y="8" width="4" height="10" rx="2" fill="#00f0ff"/>
+  <!-- Event Grid -->
+  <rect x="15" y="32" width="8" height="6" rx="2" fill="#39ff14"/>
+  <rect x="28" y="32" width="8" height="6" rx="2" fill="#ff2bd6"/>
+  <rect x="41" y="32" width="8" height="6" rx="2" fill="#ef4444"/>
+  <rect x="15" y="42" width="8" height="6" rx="2" fill="#ffe600"/>
+  <rect x="28" y="42" width="8" height="6" rx="2" fill="#38bdf8"/>
+  <rect x="41" y="42" width="8" height="6" rx="2" fill="#39ff14"/>
+</svg>

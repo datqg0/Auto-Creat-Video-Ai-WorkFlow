@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Head -->
+  <circle cx="32" cy="14" r="7" stroke="#00f0ff" stroke-width="3" fill="#0f172a"/>
+  <!-- Eyes / Cyber Visor -->
+  <path d="M29 14H35" stroke="#ffe600" stroke-width="2" stroke-linecap="round"/>
+  <!-- Torso -->
+  <line x1="32" y1="21" x2="32" y2="40" stroke="#00f0ff" stroke-width="3" stroke-linecap="round"/>
+  <!-- Arms (Thinking / Idea gesture) -->
+  <path d="M32 26L20 32L16 26" stroke="#00f0ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 26L44 24L48 14" stroke="#ff2bd6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Legs -->
+  <path d="M32 40L22 56" stroke="#00f0ff" stroke-width="3" stroke-linecap="round"/>
+  <path d="M32 40L42 56" stroke="#00f0ff" stroke-width="3" stroke-linecap="round"/>
+  <!-- Idea Spark -->
+  <circle cx="49" cy="10" r="2" fill="#ffe600"/>
+</svg>

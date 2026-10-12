@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Warning Triangle -->
+  <path d="M32 8L56 50H8L32 8Z" fill="#ef4444" fill-opacity="0.2" stroke="#ef4444" stroke-width="3" stroke-linejoin="round"/>
+  <!-- Exclamation / Lightning -->
+  <path d="M32 20L28 32H36L31 42" stroke="#ffe600" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
