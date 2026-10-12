@@ -44,15 +44,17 @@ def _split_sentences(text: str) -> list[str]:
     """Tách narration thành cụm ngắn để hiện phụ đề (theo dấu câu, rồi theo độ dài)."""
     text = _clean_sub_text(" ".join(text.split()))
     parts = re.split(r"(?<=[.!?…:;])\s+|(?<=,)\s+", text)
+    is_vert = int(CONFIG.get("visual", {}).get("height", 1080)) > int(CONFIG.get("visual", {}).get("width", 1920))
+    max_chunk = 30 if is_vert else 48
     chunks: list[str] = []
     for p in parts:
         p = p.strip()
         if not p:
             continue
-        while len(p) > 48:
-            cut = p.rfind(" ", 0, 48)
+        while len(p) > max_chunk:
+            cut = p.rfind(" ", 0, max_chunk)
             if cut <= 0:
-                cut = 48
+                cut = max_chunk
             chunks.append(p[:cut].strip())
             p = p[cut:].strip()
         if p:

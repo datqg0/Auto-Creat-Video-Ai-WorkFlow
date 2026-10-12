@@ -1,5 +1,6 @@
 """AI tu chon chu de tech, tranh trung voi cac chu de da dung gan day.
 Tich hop du lieu trending (HackerNews, Reddit, Google Trends) lam ngu canh.
+Dam bao >=1/3 so video thuoc nhom: GitHub repos, thuat toan AI/ML, open-source.
 """
 from __future__ import annotations
 
@@ -8,18 +9,51 @@ import random
 
 from . import db
 from .config import CONFIG
-from .llm import generate
 
 log = logging.getLogger(__name__)
+
+
+def _should_use_priority_domain() -> bool:
+    """Kiểm tra xem lần chọn này có nên dùng priority domain không.
+
+    Logic: Cứ N video thì 1 video bắt buộc từ priority domain (GitHub/AI/thuật toán).
+    Đếm tổng số video đã tạo gần đây trong dedup_days để quyết định.
+    """
+    topics_cfg = CONFIG["topics"]
+    every_n = int(topics_cfg.get("priority_domains_every_n", 3))
+    dedup_days = int(topics_cfg.get("dedup_days", 30))
+
+    try:
+        # Đếm video đã tạo trong N ngày gần nhất (bao gồm cả ngày hôm nay)
+        recent = db.recent_topics(dedup_days)
+        total = len(recent)
+        # Nếu tổng video % every_n == 0 (ví dụ lần 0, 3, 6...) -> dùng priority
+        return (total % every_n) == 0
+    except Exception:
+        # Fallback: 1/3 xác suất ngẫu nhiên
+        return random.randint(1, 3) == 1
 
 
 def pick_topic() -> str:
     topics_cfg = CONFIG["topics"]
     domains: list[str] = topics_cfg["domains"]
     dedup_days = int(topics_cfg.get("dedup_days", 30))
+    priority_indices: list[int] = topics_cfg.get("priority_domain_indices", [])
 
     used = db.recent_topics(dedup_days)
-    domain = random.choice(domains)
+
+    # Quyết định dùng priority domain hay random domain
+    use_priority = priority_indices and _should_use_priority_domain()
+
+    if use_priority:
+        valid_priority = [i for i in priority_indices if 0 <= i < len(domains)]
+        if valid_priority:
+            domain = domains[random.choice(valid_priority)]
+            log.info("🎯 Chọn PRIORITY domain (GitHub/AI/thuật toán): %s", domain)
+        else:
+            domain = random.choice(domains)
+    else:
+        domain = random.choice(domains)
 
     used_block = "\n".join(f"- {t}" for t in used) if used else "(chua co)"
     lang = CONFIG.get("language", "vi")
@@ -41,6 +75,25 @@ def pick_topic() -> str:
         if trend_block else ""
     )
 
+    # Thêm hướng dẫn đặc biệt nếu là priority domain GitHub/AI
+    github_hint = ""
+    if "github" in domain.lower() or "open-source" in domain.lower():
+        github_hint = (
+            "\n\nGỢI Ý CHỦ ĐỀ GITHUB/OPEN-SOURCE (ưu tiên):"
+            "\n- Phân tích kỹ thuật của một repo GitHub nổi tiếng (ví dụ: llm.c của Karpathy,"
+            " whisper, stable-diffusion, transformers, langchain, vllm, llama.cpp, comfyui...)"
+            "\n- Giải thích cách hoạt động bên trong của một open-source tool phổ biến"
+            "\n- Cách đọc và hiểu source code của một dự án ML/AI nổi tiếng"
+            "\nCHÚ Ý: Tập trung vào MỘT repo cụ thể, phân tích đến tầng thuật toán/kiến trúc."
+        )
+    elif "thuật toán ai" in domain.lower() or "ml" in domain.lower():
+        github_hint = (
+            "\n\nGỢI Ý CHỦ ĐỀ THUẬT TOÁN AI/ML (ưu tiên):"
+            "\n- Cơ chế toán học đằng sau: attention/transformer, backprop, diffusion, RLHF"
+            "\n- Tại sao thuật toán X hoạt động và tại sao cách truyền thống thất bại"
+            "\n- Trace từng bước tính toán với ma trận/tensor cụ thể (không chỉ công thức)"
+        )
+
     prompt = f"""Ban la bien tap vien kenh YouTube ve cong nghe theo phong cach giai thich truc quan (visualization).
 Hay de xuat MOT chu de video cu the, hap dan trong linh vuc: {domain}.
 
@@ -49,10 +102,16 @@ Yeu cau:
 - Phu hop de minh hoa bang animation, bieu do du lieu, hoac mo phong thuat toan.
 - Viet bang {lang_name}.
 - KHONG trung hoac qua giong cac chu de da dung duoi day:
-{used_block}{trend_section}
+{used_block}{trend_section}{github_hint}
 
 Chi tra ve DUY NHAT ten chu de tren mot dong, khong giai thich, khong danh so, khong dau ngoac kep."""
 
-    topic = generate(prompt, task="topic").strip().splitlines()[0].strip().strip('"').strip("-").strip()
+    topic = generate_topic(prompt)
     log.info("Chu de da chon: %s", topic)
     return topic
+
+
+def generate_topic(prompt: str) -> str:
+    """Gọi LLM lấy chủ đề. Tách riêng để dễ test."""
+    from .llm import generate
+    return generate(prompt, task="topic").strip().splitlines()[0].strip().strip('"').strip("-").strip()

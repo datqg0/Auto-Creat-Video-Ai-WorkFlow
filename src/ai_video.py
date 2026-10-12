@@ -44,11 +44,11 @@ _TIMEOUT = 120
 
 
 def _W(vertical: bool = False) -> int:
-    return int(CONFIG["visual"]["height" if vertical else "width"])
+    return 1080 if vertical else 1920
 
 
 def _H(vertical: bool = False) -> int:
-    return int(CONFIG["visual"]["width" if vertical else "height"])
+    return 1920 if vertical else 1080
 
 
 def _clean_prompt(prompt: str) -> str:

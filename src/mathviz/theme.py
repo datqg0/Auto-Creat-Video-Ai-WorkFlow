@@ -34,9 +34,15 @@ def _abs_font(rel: str) -> str:
 class Theme:
     """Gom toàn bộ hằng số style vào 1 chỗ để chỉnh nhanh."""
 
+    @property
+    def width(self) -> int:
+        return int(_cfg(["visual", "width"], 1920))
+
+    @property
+    def height(self) -> int:
+        return int(_cfg(["visual", "height"], 1080))
+
     def __init__(self) -> None:
-        self.width: int = _cfg(["visual", "width"], 1920)
-        self.height: int = _cfg(["visual", "height"], 1080)
         self.fps: int = _cfg(["visual", "fps"], 30)
 
         self.bg: str = _cfg(["visual", "background_color"], "#0d1117")

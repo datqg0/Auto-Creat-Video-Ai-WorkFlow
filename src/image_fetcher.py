@@ -110,9 +110,11 @@ def _search_duckduckgo(query: str, count: int = 8) -> list[str]:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.8",
         }
+        is_vert = int(CONFIG.get("visual", {}).get("height", 1080)) > int(CONFIG.get("visual", {}).get("width", 1920))
+        filter_aspect = "+filterui:aspect-tall" if is_vert else "+filterui:aspect-wide"
         r = requests.get(
             "https://www.bing.com/images/search",
-            params={"q": query, "qft": "+filterui:aspect-wide"},
+            params={"q": query, "qft": filter_aspect},
             headers=headers,
             timeout=_TIMEOUT,
         )
@@ -140,9 +142,11 @@ def _search_pexels(query: str, count: int = 8) -> list[str]:
     if not key:
         return []
     try:
+        is_vert = int(CONFIG.get("visual", {}).get("height", 1080)) > int(CONFIG.get("visual", {}).get("width", 1920))
+        orientation = "portrait" if is_vert else "landscape"
         r = requests.get(
             "https://api.pexels.com/v1/search",
-            params={"query": query, "per_page": count, "orientation": "landscape"},
+            params={"query": query, "per_page": count, "orientation": orientation},
             headers={"Authorization": key},
             timeout=_TIMEOUT,
         )
@@ -156,13 +160,15 @@ def _search_pexels(query: str, count: int = 8) -> list[str]:
 
 def _search_openverse(query: str, count: int = 8) -> list[str]:
     try:
+        is_vert = int(CONFIG.get("visual", {}).get("height", 1080)) > int(CONFIG.get("visual", {}).get("width", 1920))
+        ratio = "tall" if is_vert else "wide"
         r = requests.get(
             "https://api.openverse.org/v1/images/",
             params={
                 "q": query,
                 "page_size": count,
                 "license_type": "all",
-                "aspect_ratio": "wide",
+                "aspect_ratio": ratio,
                 "mature": "false",
             },
             headers=_HEADERS,
@@ -412,11 +418,12 @@ def _search_pexels_videos(query: str, orientation: str, count: int = 10) -> list
             files = v.get("video_files", [])
             if not files:
                 continue
-            # chọn file .mp4 có chiều cao gần 1080 nhất (không quá lớn để tải nhanh)
+            # chọn file .mp4 có chiều cao gần chuẩn nhất (1920 cho vertical, 1080 cho horizontal)
             mp4s = [f for f in files if f.get("file_type") == "video/mp4" and f.get("link")]
             if not mp4s:
                 continue
-            best = min(mp4s, key=lambda f: abs((f.get("height") or 0) - 1080))
+            target_h = 1920 if orientation == "portrait" else 1080
+            best = min(mp4s, key=lambda f: abs((f.get("height") or 0) - target_h))
             out.append(best["link"])
         return out
     except Exception as e:  # noqa: BLE001

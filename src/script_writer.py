@@ -112,6 +112,7 @@ TRIẾT LÝ SƯ PHẠM CHIỀU SÂU (DEPTH-FIRST PEDAGOGY — CHỐNG CƯỠI NG
      * CPU/Phần cứng: 3 lệnh hợp ngữ cụ thể (Lệnh 1: R1 = R2 + R3; Lệnh 2: R4 = R1 + 5; Lệnh 3: Branch...), mổ xẻ từng chu kỳ xung nhịp (Clock Cycle 1, 2, 3, 4, 5).
      * Thuật toán: Mảng số cụ thể [5, 2, 8, 1], lần theo từng bước so sánh, hoán đổi và con trỏ.
      * Mạng/Hệ thống: Client gửi gói tin SYN seq=100, Server phản hồi ACK=101, mô phỏng tình huống mất gói tin ở bước nào.
+     * GitHub Repo / ML: Trace một tensor cụ thể qua từng lớp (shape [8, 512] -> attention -> [8, 512]), chỉ rõ từng phép biến đổi.
    - Phân tích rõ 3 chặng của ca cụ thể này:
      * Chặng A (Bình thường): Dữ liệu di chuyển qua các trạm.
      * Chặng B (Xung đột / Nút thắt): Điểm nghẽn xuất hiện! Lệnh 2 cần R1 nhưng Lệnh 1 chưa kịp ghi vào thanh ghi -> CPU bị khựng (Stall / Bubble) mất 2 chu kỳ thế nào!
@@ -122,6 +123,12 @@ TRIẾT LÝ SƯ PHẠM CHIỀU SÂU (DEPTH-FIRST PEDAGOGY — CHỐNG CƯỠI NG
      * ĐÚNG: "Hãy nhìn vào đường dây màu vàng này: ngay khi ALU hoàn thành phép tính, tín hiệu được chuyển tắt trực tiếp...", "Tại chu kỳ 3, ô màu hồng này khựng lại vì dữ liệu chưa sẵn sàng...", "Mũi tên màu xanh neon này là đường bypass truyền tắt kết quả..."
      * SAI: "CPU thực hiện các lệnh liên tục với tốc độ cao." (quá chung chung, không ăn nhập hình vẽ).
    - visual_prompt vẽ cái gì thì narration phải gọi tên đúng màu sắc, vị trí, hoặc trạng thái đó!
+
+4. GIẢI THÍCH BẰNG PSEUDOCODE / PYTHON ĐƠN GIẢN (KHÔNG GIẢI THÍCH CODE):
+   - Khi dùng visual_type "code": PHẢI là PSEUDOCODE hoặc Python CỰC ĐƠN GIẢN để người không chuyên cũng hiểu CƠ CHẾ.
+   - TUYỆT ĐỐI KHÔNG: Giải thích từng dòng code chi tiết như tutorial lập trình.
+   - ĐÚNG: Mã giả nắm bắt tư tưởng thuật toán (FOR/WHILE/IF ngắn gọn, 6-10 dòng tối đa).
+   - SAI: Copy-paste code library 50 dòng hay giải thích "dòng 3 khai báo biến x".
 
 CẤU TRÚC 5 PHA BẮT BUỘC:
 
@@ -150,7 +157,23 @@ Mỗi scene có một "visual_type", chọn loại phù hợp nội dung:
 - "title": scene mở đầu, chỉ có heading lớn.
 - "bullets": liệt kê ý (2-4 gạch đầu dòng ngắn gọn).
 - "chart": biểu đồ dữ liệu. Cần "chart": {{"kind": "bar|line|pie", "labels": [...], "values": [...]}}.
-- "code": đoạn code minh họa. Đặt các dòng code vào "bullets", set "code_language".
+- "code": PSEUDOCODE hoặc Python đơn giản ĐỂ GIẢI THÍCH CÁCH HOẠT ĐỘNG (KHÔNG phải code thực thi, KHÔNG phải giải thích dòng code).
+  * ĐÚNG: Dùng pseudocode/Python CỰC ĐƠN GIẢN để người không code cũng hiểu cơ chế.
+    Ví dụ tốt:
+      # Attention mechanism (Transformer)
+      Q, K, V = split(input)           # Tạo 3 vector từ input
+      score = dot(Q, K) / sqrt(d_k)   # Độ tương đồng
+      weights = softmax(score)         # Chuẩn hóa thành xác suất
+      output = weights @ V             # Tổng hợp có trọng số
+    Ví dụ tốt nữa (mã giả):
+      FOR mỗi node trong graph:
+          dist[node] = vô cực
+      dist[start] = 0
+      WHILE còn node chưa thăm:
+          node = node có dist nhỏ nhất
+          CẬP NHẬT các hàng xóm
+  * SAI: Dán code thực tế 50 dòng không ai hiểu, hay giải thích từng dòng code.
+  * Đặt các dòng pseudocode vào "bullets", set "code_language": "python" (hoặc "pseudocode").
 - "algorithm": mô phỏng thuật toán. Set "algorithm" 1 trong: "sorting", "search", "graph", "neural_network".
 - "diagram": sơ đồ luồng/quy trình. Đặt 3-5 bước ngắn vào "bullets" (mỗi bullet 1 bước).
 - "quote": một câu chốt/ấn tượng, đặt câu đó vào bullets[0].

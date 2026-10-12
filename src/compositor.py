@@ -172,10 +172,11 @@ def _ken_burns_clip(image_path: Path, duration: float):
             spr = dot_sprites[pt["sprite_idx"]]
             frame_pil.paste(spr, (px, py), spr)
 
-        # 2. Watermark thương hiệu (góc trên bên phải)
+        # 2. Watermark thương hiệu (góc trên bên phải, có safe zone cho video dọc)
         if wm_sprite is not None:
             wm_x = W - wm_sprite.width - 32
-            frame_pil.paste(wm_sprite, (wm_x, 32), wm_sprite)
+            wm_y = 120 if H > W else 32
+            frame_pil.paste(wm_sprite, (wm_x, wm_y), wm_sprite)
 
         # 3. Quét tia scanline holographic dịu mắt (chu kỳ 5 giây)
         arr = np.asarray(frame_pil.convert("RGB")).copy()
@@ -467,11 +468,14 @@ def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) 
 
     if srt_path is not None:
         srt_arg = str(srt_path).replace("\\", "/").replace(":", "\\:")
-        # Font Việt đậm, viền đen, nền mờ bán trong suốt, sát đáy (MarginV) dễ đọc mọi nền.
+        is_vert = _H() > _W()
+        font_size = 38 if is_vert else 24
+        margin_v = 320 if is_vert else 60
+        # Font Việt đậm, viền đen, nền mờ bán trong suốt, an toàn trên Shorts/TikTok và video ngang.
         style = (
-            "FontName=Be Vietnam Pro,Fontsize=24,Bold=1,"
+            f"FontName=Be Vietnam Pro,Fontsize={font_size},Bold=1,"
             "PrimaryColour=&H00FFFFFF,OutlineColour=&HC8000000,BackColour=&H99000000,"
-            "BorderStyle=4,Outline=2,Shadow=1,MarginV=60,Alignment=2"
+            f"BorderStyle=4,Outline=2,Shadow=1,MarginV={margin_v},Alignment=2"
         )
         # fontsdir để libass nạp font Việt cục bộ (CI không cài sẵn Be Vietnam Pro).
         fonts_dir = (Path(__file__).resolve().parent.parent / "assets" / "fonts")
