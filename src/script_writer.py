@@ -50,6 +50,7 @@ _CHART_KINDS = {"bar", "line", "pie"}
 _BASE_PRESETS = {
     "function", "neural_net", "bar_chart", "sorting", "counter", "steps", "custom", "pycode", "manim",
     "matrix_op", "visual_algo", "tree_graph", "two_pointers", "stack_queue", "dp_grid",
+    "flowchart", "system_layers", "comparison_matrix", "radar_chart",
 }
 
 _BAD_TITLE_PREFIXES = (
@@ -147,15 +148,27 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
     weights = softmax(score)        # Chuẩn hoá thành xác suất
     output = weights @ V            # Tổng hợp có trọng số
 - "algorithm": đặt "algorithm" là 1 trong: sorting | search | graph | neural_network | matrix_mult | covariance | tree | two_pointers | stack_queue | dp.
-- "diagram": 3-5 bước ngắn trong "bullets" (mỗi bullet 1 bước).
+- "diagram": SƠ ĐỒ QUY TRÌNH / LUỒNG DỮ LIỆU / KIẾN TRÚC. 3-5 bước trong "bullets" (mỗi bullet 1 bước để tự động vẽ flowchart động với hạt dữ liệu di chuyển), hoặc dùng visual_type "animation" với preset "flowchart" hoặc "system_layers".
 - "quote": câu chốt ấn tượng đặt vào bullets[0].
 - "challenge": cảnh ĐẶT BÀI TOÁN / NGHỊCH LÝ / BẾ TẮC / SAI LẦM THƯỜNG GẶP -> GIẢI PHÁP ĐỘT PHÁ. Hiển thị Animation Người Que (Stickman) bối rối trước rắc rối ('?') rồi bừng sáng ý tưởng giải cứu (bóng đèn phát sáng, dấu tích xanh) cực kỳ sinh động! "bullets" gồm 2-4 dòng (nửa đầu: vấn đề / rắc rối; nửa sau: giải pháp).
-- "animation": clip động visual thuật toán / toán học (kiểu Deep-ML / 3Blue1Brown). "animation" là object có "preset" thuộc:
-  matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
+- "animation": clip động visual thuật toán / toán học / sơ đồ / bảng biểu (kiểu Deep-ML & Tech Studio). "animation" là object có "preset" thuộc:
+  flowchart | system_layers | comparison_matrix | radar_chart | matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
-_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & 3BLUE1BROWN):
+_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & TECH STUDIO):
+  * flowchart (SƠ ĐỒ LUỒNG XỬ LÝ / PIPELINE DỮ LIỆU):
+    {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client App"}, {"id": 1, "label": "API Gateway"}, {"id": 2, "label": "Message Queue"}, {"id": 3, "label": "Worker Service"}, {"id": 4, "label": "Database Cache"}], "breadcrumb": "SYSTEM ARCHITECTURE / PIPELINE", "difficulty": "System Design", "category": "Architecture"}
+    (Minh hoạ các khối chức năng nối bằng mũi tên phát sáng, hạt dữ liệu photon di chuyển qua từng trạm mượt mà).
+  * system_layers (SƠ ĐỒ PHÂN TẦNG KIẾN TRÚC MULTI-TIER):
+    {"preset": "system_layers", "layers": [{"name": "Client Tier", "components": ["Web SPA", "Mobile App"]}, {"name": "Gateway Tier", "components": ["Auth", "Reverse Proxy"]}, {"name": "Service Tier", "components": ["Core Engine", "Workers"]}, {"name": "Storage Tier", "components": ["Redis", "Postgres"]}], "breadcrumb": "SYSTEM ARCHITECTURE / LAYERS", "difficulty": "Design Pattern", "category": "System Design"}
+    (Minh hoạ các tầng xếp chồng với component card bên trong và luồng dữ liệu hai chiều Request-Response).
+  * comparison_matrix (BẢNG BIỂU MA TRẬN SO SÁNH ĐẶC TÍNH & TIÊU CHÍ):
+    {"preset": "comparison_matrix", "headers": ["Tiêu chí", "Giải pháp Cũ (Naive)", "Giải pháp Mới (Modern)"], "rows": [["Độ phức tạp thời gian", "O(N²)", "O(N log N) ✔"], ["Bộ nhớ phụ trợ", "O(N)", "O(1) ✔"], ["Khả năng mở rộng", "Kém ✖", "Cực tốt ✔"], ["Độ trễ P99", "450 ms", "12 ms ✔"]], "breadcrumb": "BENCHMARK / COMPARISON MATRIX", "difficulty": "Trade-off", "category": "Analysis"}
+    (Minh hoạ bảng so sánh đa cột kỹ thuật với icon ✔, ✖, Big-O highlight cột tối ưu chiến thắng).
+  * radar_chart (BIỂU ĐỒ RADAR MẠNG NHỆN ĐÁNH GIÁ ĐA CHỈ SỐ):
+    {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"], "series": [{"name": "Truyền thống", "values": [40, 80, 45, 85, 90]}, {"name": "Hiện đại", "values": [95, 85, 90, 70, 60]}], "breadcrumb": "RADAR CHART / TRADE-OFFS", "difficulty": "Trade-off", "category": "Evaluation"}
+    (Minh hoạ phân tích sự đánh đổi qua lưới đa giác mạng nhện phát sáng 2 màu neon so sánh).
   * matrix_op (MA TRẬN & ĐẠI SỐ TUYẾN TÍNH - GIỐNG LESSON.MP4):
     {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×", "difficulty": "Easy", "category": "Linear Algebra"}
     (Minh hoạ phép nhân vô hướng với ma trận: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).

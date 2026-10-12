@@ -802,6 +802,171 @@ def _d_dp_grid(scene: Scene, lang: str) -> dict | None:
     }
 
 
+def _d_flowchart(scene: Scene, lang: str) -> dict | None:
+    vt = str(_g(scene, "visual_type", "")).lower()
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("flowchart", "flowchart_diagram", "pipeline", "pipeline_flow")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("sơ đồ", "flowchart", "pipeline", "luồng xử lý", "luồng dữ liệu", "quy trình", "data flow", "xử lý"))
+
+    if not is_explicit and vt != "diagram" and not has_kw:
+        return None
+
+    nodes = a.get("nodes")
+    connections = a.get("connections")
+    bullets = _bullets(scene, 6)
+
+    if not nodes and bullets:
+        nodes = [{"id": i, "label": _truncate(b, 35)} for i, b in enumerate(bullets[:5])]
+        connections = [[i, i + 1] for i in range(len(nodes) - 1)]
+
+    if not nodes:
+        nodes = [
+            {"id": 0, "label": "Client Request"},
+            {"id": 1, "label": "API Gateway"},
+            {"id": 2, "label": "Event Queue"},
+            {"id": 3, "label": "Worker Service"},
+            {"id": 4, "label": "Database Cache"},
+        ]
+        connections = [[0, 1], [1, 2], [2, 3], [3, 4]]
+
+    bc = a.get("breadcrumb") or "SYSTEM ARCHITECTURE / PIPELINE / DATA FLOW"
+    diff = a.get("difficulty") or "System Design"
+    cat = a.get("category") or "Architecture"
+
+    return {
+        "flowchart": {
+            "nodes": nodes,
+            "connections": connections or [[i, i + 1] for i in range(len(nodes) - 1)],
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("nodes")),
+    }
+
+
+def _d_system_layers(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("system_layers", "architecture_layers", "layers", "layer_stack")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("phân tầng", "system layers", "kiến trúc phân tầng", "multi-tier", "clean architecture", "tầng kiến trúc", "layer", "tier"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    layers = a.get("layers")
+    if not layers:
+        bullets = _bullets(scene, 4)
+        if len(bullets) >= 3:
+            layers = [{"name": _truncate(b, 25), "components": ["Core Module", "Sub-system"]} for b in bullets]
+        else:
+            layers = [
+                {"name": "Client Layer", "components": ["Web SPA", "Mobile App", "CLI"]},
+                {"name": "Gateway Tier", "components": ["Rate Limiter", "Auth Service", "Reverse Proxy"]},
+                {"name": "Core Services", "components": ["Business Logic", "Event Bus", "Workers"]},
+                {"name": "Data Storage", "components": ["Redis Cache", "PostgreSQL", "S3 Storage"]},
+            ]
+
+    bc = a.get("breadcrumb") or "SYSTEM ARCHITECTURE / MULTI-TIER LAYERS"
+    diff = a.get("difficulty") or "Design Pattern"
+    cat = a.get("category") or "System Design"
+
+    return {
+        "system_layers": {
+            "layers": layers,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("layers")),
+    }
+
+
+def _d_comparison_matrix(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = preset in ("comparison_matrix", "feature_matrix", "benchmark_table", "table")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("bảng so sánh", "ma trận", "bảng biểu", "tiêu chí", "feature matrix", "so sánh chi tiết", "đặc tính kỹ thuật", "matrix table"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    headers = a.get("headers") or (a.get("table", {}).get("headers") if isinstance(a.get("table"), dict) else None)
+    rows = a.get("rows") or (a.get("table", {}).get("rows") if isinstance(a.get("table"), dict) else None)
+
+    if not headers or not rows:
+        bullets = _bullets(scene, 5)
+        parsed_rows = []
+        for b in bullets:
+            if ":" in b:
+                parts = b.split(":", 1)
+                parsed_rows.append([parts[0].strip(), parts[1].strip(), "Tối ưu ✔"])
+        if len(parsed_rows) >= 2:
+            headers = ["Tiêu chí", "Phương pháp A", "Phương pháp B"]
+            rows = parsed_rows
+        else:
+            headers = ["Tiêu chí", "Giải pháp Cũ (Naive)", "Giải pháp Mới (Modern)"]
+            rows = [
+                ["Độ phức tạp thời gian", "O(N²)", "O(N log N) ✔"],
+                ["Bộ nhớ phụ trợ", "O(N)", "O(1) ✔"],
+                ["Khả năng mở rộng (Scale)", "Kém ✖", "Cực tốt ✔"],
+                ["Độ trễ phản hồi (P99)", "450 ms", "12 ms ✔"],
+            ]
+
+    bc = a.get("breadcrumb") or "COMPARISON MATRIX / TECHNICAL BENCHMARK"
+    diff = a.get("difficulty") or "Trade-off"
+    cat = a.get("category") or "Analysis"
+
+    return {
+        "comparison_matrix": {
+            "headers": headers,
+            "rows": rows,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("rows")),
+    }
+
+
+def _d_radar_chart(scene: Scene, lang: str) -> dict | None:
+    a = _anim(scene)
+    preset = a.get("preset")
+    chart = _chart(scene)
+    chart_kind = chart.get("kind") if chart else None
+    is_explicit = preset in ("radar_chart", "radar", "spider_chart") or chart_kind == "radar"
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("biểu đồ radar", "radar chart", "mạng nhện", "đa chiều", "trade-off", "đánh đổi đa chiều", "spider chart"))
+
+    if not is_explicit and not has_kw:
+        return None
+
+    axes = a.get("axes") or ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"]
+    series = a.get("series") or [
+        {"name": "Giải pháp A", "values": [40, 80, 45, 85, 90], "color": "#ff2bd6"},
+        {"name": "Giải pháp B", "values": [95, 85, 90, 70, 60], "color": "#00f0ff"},
+    ]
+
+    bc = a.get("breadcrumb") or "RADAR CHART / MULTI-CRITERIA EVALUATION"
+    diff = a.get("difficulty") or "Trade-off"
+    cat = a.get("category") or "Evaluation"
+
+    return {
+        "radar_chart": {
+            "axes": axes,
+            "series": series,
+            "breadcrumb": bc,
+            "difficulty": diff,
+            "category": cat,
+        },
+        "_illustrative": not bool(a.get("series")),
+    }
+
+
 def _d_story(scene: Scene, lang: str) -> dict | None:
     vt = str(_g(scene, "visual_type", "")).lower()
     items = _bullets(scene, 6) or _sentences(scene.narration, 4, 120)
@@ -865,9 +1030,18 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
                  "ví dụ đời sống", "vi du doi song", "mô hình đời thực", "metaphor", "analogy"),
     "stickman": ("nghịch lý", "nghich ly", "hỗn loạn", "hon loan", "bế tắc", "be tac",
                  "sai lầm", "sai lam", "bối rối", "boi roi", "paradox", "chaos", "mistake"),
+    "flowchart": ("sơ đồ", "so do", "flowchart", "pipeline", "luồng xử lý", "luong xu ly",
+                  "quy trình", "quy trinh", "data flow", "kiến trúc luồng", "process"),
+    "system_layers": ("phân tầng", "phan tang", "system layers", "kiến trúc phân tầng",
+                      "multi-tier", "clean architecture", "tầng kiến trúc", "layer", "tier", "layers"),
+    "comparison_matrix": ("bảng so sánh", "bang so sanh", "ma trận", "ma tran", "bảng biểu", "bang bieu",
+                          "tiêu chí", "tieu chi", "feature matrix", "so sánh chi tiết", "đặc tính kỹ thuật", "matrix table"),
+    "radar_chart": ("radar", "biểu đồ radar", "bieu do radar", "mạng nhện", "mang nhen",
+                    "spider chart", "trade-off", "đánh đổi đa chiều", "đa chiều"),
 }
 _PRIORITY = ["conclusion", "quote_card", "terminal", "matrix_op", "visual_algo", "tree_graph",
-             "two_pointers", "stack_queue", "dp_grid", "scheduler", "bar_benchmark", "github_stats",
+             "two_pointers", "stack_queue", "dp_grid", "flowchart", "system_layers",
+             "comparison_matrix", "radar_chart", "scheduler", "bar_benchmark", "github_stats",
              "algo_trace", "neural_flow", "hud", "diff_view", "cpu_scheduler", "git_flow",
              "attention_map", "comparison", "metaphor", "stickman", "architecture"]
 
@@ -904,8 +1078,19 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("stack_queue", 25)
     elif vt in ("dp_grid", "dp"):
         add("dp_grid", 25)
+    elif vt in ("flowchart", "pipeline", "diagram"):
+        add("flowchart", 26)
+    elif vt in ("system_layers", "architecture_layers", "layers"):
+        add("system_layers", 26)
+    elif vt in ("comparison_matrix", "feature_matrix", "table", "benchmark_table"):
+        add("comparison_matrix", 26)
+    elif vt in ("radar_chart", "radar", "spider_chart"):
+        add("radar_chart", 26)
     elif vt == "chart" and chart:
-        add("github_stats" if chart["kind"] == "line" else "bar_benchmark", 20)
+        if chart.get("kind") == "radar":
+            add("radar_chart", 25)
+        else:
+            add("github_stats" if chart["kind"] == "line" else "bar_benchmark", 20)
     elif vt in ("git", "git_flow"):
         add("git_flow", 20)
     elif vt in ("diff", "diff_view"):
@@ -930,8 +1115,6 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("neural_flow", 20)
     elif vt == "challenge":
         add("stickman", 25)
-    elif vt == "diagram":
-        add("architecture", 18)
 
     if preset == "matrix_op":
         add("matrix_op", 25)
@@ -945,6 +1128,14 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("stack_queue", 25)
     elif preset == "dp_grid":
         add("dp_grid", 25)
+    elif preset in ("flowchart", "pipeline", "flowchart_diagram"):
+        add("flowchart", 25)
+    elif preset in ("system_layers", "layers", "layer_stack"):
+        add("system_layers", 25)
+    elif preset in ("comparison_matrix", "feature_matrix", "table", "benchmark_table"):
+        add("comparison_matrix", 25)
+    elif preset in ("radar_chart", "radar", "spider_chart"):
+        add("radar_chart", 25)
     elif preset == "bar_chart":
         add("bar_benchmark", 15)
     elif preset == "counter":
@@ -975,6 +1166,10 @@ def _plan_scene(scene: Scene, has_image: bool, lang: str) -> dict:
         "two_pointers": lambda: _d_two_pointers(scene, lang),
         "stack_queue": lambda: _d_stack_queue(scene, lang),
         "dp_grid": lambda: _d_dp_grid(scene, lang),
+        "flowchart": lambda: _d_flowchart(scene, lang),
+        "system_layers": lambda: _d_system_layers(scene, lang),
+        "comparison_matrix": lambda: _d_comparison_matrix(scene, lang),
+        "radar_chart": lambda: _d_radar_chart(scene, lang),
         "bar_benchmark": lambda: _d_bars(scene, lang),
         "github_stats": lambda: _d_series(scene, lang),
         "algo_trace": lambda: _d_array(scene, lang),
@@ -1197,7 +1392,7 @@ function drawBackground(t) {
 let HL = null;
 function headerLayout() {
   if (HL) return HL;
-  const meta = (D.matrix_op || D.visual_algo || D.tree_graph || D.two_pointers || D.stack_queue || D.dp_grid || {});
+  const meta = (D.matrix_op || D.visual_algo || D.tree_graph || D.two_pointers || D.stack_queue || D.dp_grid || D.flowchart || D.system_layers || D.comparison_matrix || D.radar_chart || {});
   const hasMeta = !!(meta.breadcrumb || D.breadcrumb || meta.category || D.category);
   const mx = px(72);
   const top = px(IS_VERTICAL ? (hasMeta ? 130 : 96) : (hasMeta ? 78 : 48));
@@ -2459,6 +2654,400 @@ TEMPLATES.dp_grid = function (t, box) {
 
   const cf = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
   text(fitText(calcText, box.w - cbw - px(60), cf), box.x + px(35) + cbw, cardY + px(IS_VERTICAL ? 36 : 46), cf, '#ffffff');
+};
+
+// --- flowchart: Sơ đồ luồng xử lý / Data Pipeline / Request-Response Flow ---
+TEMPLATES.flowchart = function (t, box) {
+  const fc = D.flowchart; if (!fc) return TEMPLATES.architecture(t, box);
+  const nodes = fc.nodes || [
+    { id: 0, label: 'Client App' },
+    { id: 1, label: 'API Gateway' },
+    { id: 2, label: 'Event Queue' },
+    { id: 3, label: 'Worker Service' },
+    { id: 4, label: 'Storage & DB' }
+  ];
+  const conns = fc.connections || [[0, 1], [1, 2], [2, 3], [3, 4]];
+  const n = nodes.length;
+  if (!n) return TEMPLATES.architecture(t, box);
+
+  const ph = phaseOf(t, n);
+  const activeIdx = Math.min(n - 1, Math.floor(ph));
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const flowH = box.h - cardH - px(24);
+
+  const horiz = !IS_VERTICAL && n <= 5;
+  const gap = px(horiz ? 36 : 24);
+  const nodeW = horiz ? Math.min(px(240), (box.w - gap * (n - 1)) / n) : Math.min(box.w - px(60), px(550));
+  const nodeH = horiz ? Math.min(px(140), flowH * 0.5) : Math.min(px(85), (flowH - gap * (n - 1)) / n);
+
+  const totalW = horiz ? (n * nodeW + (n - 1) * gap) : nodeW;
+  const totalH = horiz ? nodeH : (n * nodeH + (n - 1) * gap);
+  const startX = box.x + (box.w - totalW) / 2;
+  const startY = box.y + (flowH - totalH) / 2;
+
+  const nodePos = i => {
+    if (horiz) return { x: startX + i * (nodeW + gap), y: startY };
+    return { x: startX, y: startY + i * (nodeH + gap) };
+  };
+
+  // 1. Mũi tên & Kết nối
+  for (const [u, v] of conns) {
+    if (u >= n || v >= n) continue;
+    const p1 = nodePos(u), p2 = nodePos(v);
+    const x1 = horiz ? p1.x + nodeW : p1.x + nodeW / 2;
+    const y1 = horiz ? p1.y + nodeH / 2 : p1.y + nodeH;
+    const x2 = horiz ? p2.x : p2.x + nodeW / 2;
+    const y2 = horiz ? p2.y + nodeH / 2 : p2.y;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+    ctx.lineWidth = px(3);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    text(horiz ? '▶' : '▼', horiz ? x2 - px(6) : x2, horiz ? y2 + px(5) : y2 - px(2), font(px(14), 'bold'), CYAN, 'center');
+    ctx.restore();
+
+    if (activeIdx === u) {
+      const stepProg = clamp(ph - u, 0, 1);
+      const packetX = lerp(x1, x2, stepProg);
+      const packetY = lerp(y1, y2, stepProg);
+      ctx.save();
+      ctx.fillStyle = YELLOW;
+      ctx.shadowColor = YELLOW;
+      ctx.shadowBlur = px(18);
+      ctx.beginPath();
+      ctx.arc(packetX, packetY, px(7), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // 2. Nodes
+  nodes.forEach((nd, i) => {
+    const p = nodePos(i);
+    const isActive = (i === activeIdx);
+    const isPast = (i < activeIdx);
+    const e = pop(t, i * 0.15, 0.5);
+
+    withScale(p.x + nodeW / 2, p.y + nodeH / 2, e, () => {
+      ctx.save();
+      ctx.globalAlpha = e;
+
+      let fill = 'rgba(15, 23, 42, 0.85)', stroke = 'rgba(100, 116, 139, 0.45)', lw = 1.5, glow = 0;
+      if (isActive) {
+        fill = 'rgba(255, 230, 0, 0.18)'; stroke = YELLOW; lw = 3; glow = px(22);
+      } else if (isPast) {
+        fill = 'rgba(20, 50, 35, 0.75)'; stroke = GREEN; lw = 2;
+      }
+
+      panel(p.x, p.y, nodeW, nodeH, { r: 14, fill, stroke, lw, glow });
+
+      const numStr = String(i + 1).padStart(2, '0');
+      const numCol = isActive ? YELLOW : (isPast ? GREEN : CYAN);
+      text(numStr, p.x + px(16), p.y + px(22), font(px(14), 'bold', MONO), numCol);
+
+      const maxL = Math.max(2, Math.floor((nodeH - px(34)) / px(horiz ? 24 : 20)));
+      const fs = px(horiz ? 22 : 20);
+      const th = tbHeight(nd.label, nodeW - px(32), fs, { weight: 'bold', maxLines: maxL });
+      tb(nd.label, p.x + px(16), p.y + px(28) + Math.max(0, (nodeH - px(36) - th) / 2), nodeW - px(32), fs, '#f1f5f9', { weight: 'bold', maxLines: maxL });
+
+      ctx.restore();
+    });
+  });
+
+  // 3. Bottom Status Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const stepBadge = `STAGE ${activeIdx + 1} / ${n}`;
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(stepBadge, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const curLabel = nodes[activeIdx] ? `Đang xử lý tại trạm: ${nodes[activeIdx].label}` : 'Dòng dữ liệu tuần tự';
+  const cf = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  text(fitText(curLabel, box.w - sbw - px(60), cf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), cf, '#ffffff');
+};
+
+// --- system_layers: Sơ đồ kiến trúc phân tầng hệ thống (Multi-Tier Architecture) ---
+TEMPLATES.system_layers = function (t, box) {
+  const sl = D.system_layers; if (!sl) return TEMPLATES.architecture(t, box);
+  const layers = sl.layers || [
+    { name: 'Presentation Tier', components: ['Web SPA', 'Mobile App', 'Public API'] },
+    { name: 'Gateway & Security', components: ['Rate Limiter', 'OAuth2 / JWT', 'Reverse Proxy'] },
+    { name: 'Application Logic', components: ['User Service', 'Order Engine', 'Worker Async'] },
+    { name: 'Data & Persistence', components: ['Redis Cache', 'PostgreSQL DB', 'Object Storage'] }
+  ];
+  const n = layers.length;
+  if (!n) return TEMPLATES.architecture(t, box);
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const areaH = box.h - cardH - px(24);
+
+  const gap = px(12);
+  const layerH = Math.min(px(IS_VERTICAL ? 90 : 105), (areaH - (n - 1) * gap) / n);
+  const totalH = n * layerH + (n - 1) * gap;
+  const startY = box.y + (areaH - totalH) / 2;
+
+  const colors = [CYAN, PURPLE, GREEN, YELLOW];
+
+  layers.forEach((lyr, i) => {
+    const y = startY + i * (layerH + gap);
+    const col = colors[i % colors.length];
+    const e = pop(t, i * 0.18, 0.5);
+
+    withScale(box.x + box.w / 2, y + layerH / 2, e, () => {
+      ctx.save();
+      ctx.globalAlpha = e;
+
+      panel(box.x, y, box.w, layerH, { r: 14, fill: 'rgba(15, 23, 42, 0.88)', stroke: col, lw: 2, glow: px(12) });
+
+      const tagW = Math.min(px(IS_VERTICAL ? 180 : 260), box.w * 0.28);
+      panel(box.x + px(10), y + px(8), tagW, layerH - px(16), { r: 10, fill: col + '22', stroke: col, lw: 1.5 });
+      text(`0${i+1}`, box.x + px(22), y + px(26), font(px(14), 'bold', MONO), col);
+      text(fitText(lyr.name, tagW - px(24), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO)), box.x + px(22), y + layerH / 2 + px(8), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO), '#ffffff');
+
+      const comps = lyr.components || [];
+      const compAreaX = box.x + tagW + px(24);
+      const compAreaW = box.w - tagW - px(34);
+      const cGap = px(10);
+      const cCount = Math.max(1, comps.length);
+      const cW = Math.min(px(IS_VERTICAL ? 150 : 220), (compAreaW - (cCount - 1) * cGap) / cCount);
+      const cH = layerH - px(20);
+
+      comps.forEach((cName, ci) => {
+        const cx = compAreaX + ci * (cW + cGap);
+        const cy = y + px(10);
+        panel(cx, cy, cW, cH, { r: 8, fill: 'rgba(30, 41, 59, 0.9)', stroke: 'rgba(148, 163, 184, 0.4)', lw: 1 });
+        text(fitText(cName, cW - px(16), font(px(IS_VERTICAL ? 14 : 17), 'bold', MONO)), cx + cW / 2, cy + cH / 2 + px(5), font(px(IS_VERTICAL ? 14 : 17), 'bold', MONO), '#cbd5e1', 'center');
+      });
+
+      ctx.restore();
+    });
+  });
+
+  // Bottom Status Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: CYAN, lw: 2, glow: px(16) });
+  const badgeText = `TIERS: ${n} LAYERS`;
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(badgeText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(0, 240, 255, 0.15)', stroke: CYAN, lw: 1.5 });
+  text(badgeText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, CYAN, 'center');
+
+  const desc = 'Kiến trúc phân tầng độc lập: Tách rời trách nhiệm (Decoupled) & Dễ mở rộng';
+  const df = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  text(fitText(desc, box.w - sbw - px(60), df), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), df, '#ffffff');
+};
+
+// --- comparison_matrix: Bảng biểu ma trận so sánh đặc tính kỹ thuật ---
+TEMPLATES.comparison_matrix = function (t, box) {
+  const cm = D.comparison_matrix; if (!cm) return TEMPLATES.architecture(t, box);
+  const headers = cm.headers || ['Tiêu chí', 'Giải pháp A (Naive)', 'Giải pháp B (Tối ưu)'];
+  const rows = cm.rows || [
+    ['Độ phức tạp thời gian', 'O(N²)', 'O(N log N) ✔'],
+    ['Bộ nhớ phụ trợ', 'O(N)', 'O(1) ✔'],
+    ['Khả năng mở rộng (Scale)', 'Kém ✖', 'Cực tốt ✔'],
+    ['Độ trễ P99', '450 ms', '12 ms ✔']
+  ];
+  const nCols = headers.length;
+  const nRows = rows.length;
+  if (!nCols || !nRows) return TEMPLATES.architecture(t, box);
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const tblAreaH = box.h - cardH - px(24);
+
+  const colGap = px(8);
+  const rowGap = px(8);
+  const colW = (box.w - (nCols - 1) * colGap) / nCols;
+  const rowH = Math.min(px(IS_VERTICAL ? 55 : 68), (tblAreaH - px(20) - nRows * rowGap) / (nRows + 1));
+
+  const startY = box.y + px(10);
+
+  // 1. Header Row
+  for (let c = 0; c < nCols; c++) {
+    const cx = box.x + c * (colW + colGap);
+    const isWinner = (c === nCols - 1 && nCols > 1);
+    const hCol = isWinner ? GREEN : CYAN;
+    panel(cx, startY, colW, rowH, { r: 10, fill: isWinner ? 'rgba(57,255,20,0.18)' : 'rgba(30,41,59,0.9)', stroke: hCol, lw: 2, glow: isWinner ? px(14) : 0 });
+    text(fitText(headers[c], colW - px(16), font(px(IS_VERTICAL ? 15 : 20), 'bold', MONO)), cx + colW / 2, startY + rowH / 2 + px(6), font(px(IS_VERTICAL ? 15 : 20), 'bold', MONO), hCol, 'center');
+  }
+
+  // 2. Data Rows
+  for (let r = 0; r < nRows; r++) {
+    const ry = startY + (r + 1) * (rowH + rowGap);
+    const rowData = rows[r] || [];
+    const e = pop(t, 0.2 + r * 0.15, 0.4);
+
+    for (let c = 0; c < nCols; c++) {
+      const cx = box.x + c * (colW + colGap);
+      const rawVal = String(rowData[c] != null ? rowData[c] : '');
+      const isWinnerCol = (c === nCols - 1 && nCols > 1);
+      const isHeaderCol = (c === 0);
+
+      const hasCheck = rawVal.includes('✔');
+      const hasCross = rawVal.includes('✖');
+
+      let textCol = '#f1f5f9';
+      let stroke = 'rgba(71, 85, 105, 0.35)';
+      let fill = isHeaderCol ? 'rgba(15, 23, 42, 0.95)' : isWinnerCol ? 'rgba(20, 50, 35, 0.55)' : 'rgba(15, 23, 42, 0.75)';
+
+      if (hasCheck) textCol = GREEN;
+      else if (hasCross) textCol = PINK;
+      else if (isWinnerCol) textCol = '#ffffff';
+      else if (isHeaderCol) textCol = '#cbd5e1';
+
+      if (isWinnerCol) stroke = 'rgba(57, 255, 20, 0.45)';
+
+      ctx.save();
+      ctx.globalAlpha = e;
+      panel(cx, ry, colW, rowH, { r: 8, fill, stroke, lw: isWinnerCol ? 1.5 : 1 });
+      text(fitText(rawVal, colW - px(16), font(px(IS_VERTICAL ? 14 : 18), 'bold', MONO)), cx + colW / 2, ry + rowH / 2 + px(6), font(px(IS_VERTICAL ? 14 : 18), 'bold', MONO), textCol, 'center');
+      ctx.restore();
+    }
+  }
+
+  // 3. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: GREEN, lw: 2, glow: px(16) });
+  const bText = 'BENCHMARK SUMMARY';
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(bText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, GREEN, 'center');
+
+  const winnerName = headers[headers.length - 1] || 'Giải pháp đề xuất';
+  const note = `Đánh giá tổng quan: ${winnerName} vượt trội về hiệu năng và khả năng mở rộng.`;
+  const nf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(note, box.w - sbw - px(60), nf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), nf, '#ffffff');
+};
+
+// --- radar_chart: Biểu đồ Radar mạng nhện so sánh đa tiêu chí (Trade-off Analysis) ---
+TEMPLATES.radar_chart = function (t, box) {
+  const rc = D.radar_chart; if (!rc) return TEMPLATES.architecture(t, box);
+  const axes = rc.axes || ['Tốc độ', 'Bộ nhớ', 'Mở rộng', 'Tin cậy', 'Chi phí'];
+  const series = rc.series || [
+    { name: 'Truyền thống', values: [40, 80, 45, 85, 90], color: PINK },
+    { name: 'Hiện đại', values: [95, 85, 90, 70, 60], color: CYAN }
+  ];
+  const numAxes = axes.length;
+  if (numAxes < 3) return TEMPLATES.architecture(t, box);
+
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const radarH = box.h - cardH - px(24);
+
+  const cx = box.x + box.w / 2;
+  const cy = box.y + radarH / 2;
+  const maxR = Math.min(box.w * 0.38, radarH * 0.40);
+
+  const angleStep = (Math.PI * 2) / numAxes;
+
+  // 1. Vòng lưới đa giác đồng tâm (Concentric Grid)
+  const gridLevels = [0.25, 0.50, 0.75, 1.0];
+  ctx.save();
+  gridLevels.forEach(lvl => {
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.3)';
+    ctx.lineWidth = px(1);
+    ctx.beginPath();
+    for (let i = 0; i < numAxes; i++) {
+      const a = i * angleStep - Math.PI / 2;
+      const x = cx + Math.cos(a) * maxR * lvl;
+      const y = cy + Math.sin(a) * maxR * lvl;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  });
+
+  // 2. Các tia trục nối từ tâm & Nhãn tiêu chí
+  for (let i = 0; i < numAxes; i++) {
+    const a = i * angleStep - Math.PI / 2;
+    const ax = cx + Math.cos(a) * maxR;
+    const ay = cy + Math.sin(a) * maxR;
+
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)';
+    ctx.lineWidth = px(1.5);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ax, ay);
+    ctx.stroke();
+
+    const labelDist = maxR + px(IS_VERTICAL ? 28 : 36);
+    const lx = cx + Math.cos(a) * labelDist;
+    const ly = cy + Math.sin(a) * labelDist + px(6);
+    const af = font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO);
+    text(axes[i], lx, ly, af, '#cbd5e1', 'center');
+  }
+  ctx.restore();
+
+  // 3. Đa giác dữ liệu Series
+  series.forEach((s, sIdx) => {
+    const sColor = s.color || (sIdx === 0 ? PINK : CYAN);
+    const vals = s.values || [];
+    const animProg = easeOutExpo(clamp((t - 0.3 - sIdx * 0.3) / 1.0, 0, 1));
+
+    ctx.save();
+    ctx.beginPath();
+    for (let i = 0; i < numAxes; i++) {
+      const a = i * angleStep - Math.PI / 2;
+      const val = (vals[i] != null ? vals[i] : 50) / 100;
+      const r = maxR * val * animProg;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = sColor + '28';
+    ctx.fill();
+    ctx.strokeStyle = sColor;
+    ctx.lineWidth = px(2.5);
+    ctx.shadowColor = sColor;
+    ctx.shadowBlur = px(12);
+    ctx.stroke();
+
+    for (let i = 0; i < numAxes; i++) {
+      const a = i * angleStep - Math.PI / 2;
+      const val = (vals[i] != null ? vals[i] : 50) / 100;
+      const r = maxR * val * animProg;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      ctx.beginPath();
+      ctx.arc(x, y, px(5), 0, Math.PI * 2);
+      ctx.fillStyle = sColor;
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // 4. Legend
+  const legY = box.y + px(10);
+  let legX = box.x + px(20);
+  series.forEach((s, sIdx) => {
+    const sColor = s.color || (sIdx === 0 ? PINK : CYAN);
+    const lf = font(px(16), 'bold', MONO);
+    const lw = measure(s.name, lf) + px(40);
+    panel(legX, legY, lw, px(28), { r: 14, fill: sColor + '18', stroke: sColor, lw: 1.5 });
+    ctx.fillStyle = sColor; ctx.beginPath(); ctx.arc(legX + px(14), legY + px(14), px(5), 0, Math.PI * 2); ctx.fill();
+    text(s.name, legX + px(26), legY + px(20), lf, '#ffffff');
+    legX += lw + px(12);
+  });
+
+  // 5. Bottom Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
+  const bText = 'TRADE-OFF RADAR';
+  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbw = measure(bText, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
+
+  const tradeOffMsg = 'Không có giải pháp hoàn hảo: Luôn là sự đánh đổi giữa các tiêu chí.';
+  const tf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  text(fitText(tradeOffMsg, box.w - sbw - px(60), tf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), tf, '#ffffff');
 };
 
 // ---------- điều phối ----------
