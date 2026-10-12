@@ -158,81 +158,62 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
 _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & TECH STUDIO & 3BLUE1BROWN):
-  * linear_transform (BIẾN ĐỔI TUYẾN TÍNH 2D / BIẾN DẠNG LƯỚI KHÔNG GIAN - ĐẶC TRƯNG 3BLUE1BROWN):
-    {"preset": "linear_transform", "matrix": [[2, 1], [0.5, 1.5]], "det_label": "det(A) = 2.5 (Diện tích dãn 2.5×)", "vector_i": "î = [2, 0.5]ᵀ (Xanh lá)", "vector_j": "ĵ = [1, 1.5]ᵀ (Hồng tím)", "breadcrumb": "ESSENCE OF LINEAR ALGEBRA / 2D TRANSFORMATION", "difficulty": "3B1B Core", "category": "Geometry"}
-    (Minh hoạ kinh điển 3Blue1Brown: lưới toạ độ Cartesian biến dạng mượt mà theo ma trận, vector cơ sở î và ĵ chuyển động và kéo giãn diện tích det(A)).
-  * calculus_curve (GIẢI TÍCH ĐẠO HÀM / TIẾP TUYẾN TRƯỢT TRÊN ĐƯỜNG CONG - KIỂU 3BLUE1BROWN):
-    {"preset": "calculus_curve", "func_name": "f(x) = x³ - 3x + 2", "derivative_name": "f'(x) = 3x² - 3", "x0": 1.2, "tangent_slope": "f'(1.2) = 1.32", "insight": "Đạo hàm là hệ số góc tức thời của đường tiếp tuyến tại tiếp điểm", "breadcrumb": "ESSENCE OF CALCULUS / INSTANTANEOUS RATE OF CHANGE", "difficulty": "Calculus", "category": "Analysis"}
-    (Minh hoạ kinh điển 3Blue1Brown: đường cong hàm số mượt mà, tiếp điểm P trượt dọc đồ thị, tiếp tuyến xoay theo hệ số góc f'(x)).
-  * math_equation (CÔNG THỨC TOÁN HỌC & BÓC TÁCH MÀU SẮC - KIỂU 3BLUE1BROWN):
-    {"preset": "math_equation", "title": "Cơ Chế Scaled Dot-Product Attention", "latex": "Attention(Q, K, V) = softmax(Q·Kᵀ / √dₖ) · V", "parts": [{"symbol": "Q · Kᵀ", "name": "Độ tương quan", "desc": "Tích vô hướng đo tương đồng Query và Key", "color": "#ffe600"}, {"symbol": "/ √dₖ", "name": "Hệ số co giãn", "desc": "Ổn định phương sai, chống bão hoà Softmax", "color": "#00f0ff"}, {"symbol": "softmax(...)", "name": "Xác suất chuẩn hoá", "desc": "Chuẩn hoá tổng trọng số chú ý về 1.0", "color": "#ff2bd6"}, {"symbol": "· V", "name": "Tổng hợp giá trị", "desc": "Nhân với Value để lấy ngữ cảnh quan trọng", "color": "#39ff14"}], "insight": "Bản chất là phép tra cứu mềm (Soft Lookup) theo mức độ liên quan ngữ nghĩa.", "breadcrumb": "MATHEMATICS OF DEEP LEARNING / ATTENTION", "difficulty": "Advanced", "category": "Linear Algebra"}
-    (Minh hoạ công thức toán học trung tâm nổi bật, 4 card bóc tách từng ký hiệu bằng màu sắc tương ứng, kèm card bản chất chiều sâu).
-  * trie_tree (CÂY TIỀN TỐ PREFIX TREE / TRIE & TÌM KIẾM CHUỖI):
-    {"preset": "trie_tree", "words": ["CAT", "CAR", "CARD", "DO", "DOG"], "query": "CAR", "breadcrumb": "DEEP-ML / PROBLEM 16 / PREFIX TREE (TRIE)", "difficulty": "Medium", "category": "Data Structures"}
-    (Minh hoạ cấu trúc cây tiền tố nhiều tầng, đường duyệt từng ký tự sáng vàng neon và thông báo kết quả tìm thấy xanh lá).
-  * graph_network (ĐỒ THỊ TRỌNG SỐ & ĐƯỜNG ĐI NGẮN NHẤT DIJKSTRA):
-    {"preset": "graph_network", "nodes": [{"id": "A", "label": "Start A"}, {"id": "B", "label": "Node B"}, {"id": "C", "label": "Node C"}, {"id": "D", "label": "Target D"}], "edges": [{"from": "A", "to": "B", "weight": 4}, {"from": "A", "to": "C", "weight": 2}, {"from": "C", "to": "B", "weight": 1}, {"from": "B", "to": "D", "weight": 5}, {"from": "C", "to": "D", "weight": 8}], "path": ["A", "C", "B", "D"], "breadcrumb": "ALGORITHMS / DIJKSTRA SHORTEST PATH", "difficulty": "Hard", "category": "Graph Theory"}
-    (Minh hoạ đồ thị mạng lưới trọng số, đường đi ngắn nhất phát sáng cyan viền vàng, hộp tóm tắt tổng trọng số min-cost).
-  * donut_chart (BIỂU ĐỒ DONUT / TỶ TRỌNG CƠ CẤU VỚI SLICE BUNG NỔ):
-    {"preset": "donut_chart", "slices": [{"label": "Transformer Attention", "value": 55, "color": "#00f0ff"}, {"label": "FFN Layers", "value": 25, "color": "#ffe600"}, {"label": "Embedding", "value": 12, "color": "#ff2bd6"}, {"label": "Norm & Residual", "value": 8, "color": "#39ff14"}], "center_label": "ATTENTION 55%", "breadcrumb": "MODEL PROFILE / COMPUTE BREAKDOWN", "difficulty": "Analysis", "category": "Deep Learning"}
-    (Minh hoạ lát cắt phần trăm phát quang dạng vòng tròn donut neon, lát lớn nhất bung tách ra ngoài, bộ đếm phần trăm chạy ở tâm, bảng ghi chú bên phải).
-  * flowchart (SƠ ĐỒ LUỒNG XỬ LÝ / PIPELINE DỮ LIỆU):
-    {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client App"}, {"id": 1, "label": "API Gateway"}, {"id": 2, "label": "Message Queue"}, {"id": 3, "label": "Worker Service"}, {"id": 4, "label": "Database Cache"}], "breadcrumb": "SYSTEM ARCHITECTURE / PIPELINE", "difficulty": "System Design", "category": "Architecture"}
-    (Minh hoạ các khối chức năng nối bằng mũi tên phát sáng, hạt dữ liệu photon di chuyển qua từng trạm mượt mà).
-  * system_layers (SƠ ĐỒ PHÂN TẦNG KIẾN TRÚC MULTI-TIER):
-    {"preset": "system_layers", "layers": [{"name": "Client Tier", "components": ["Web SPA", "Mobile App"]}, {"name": "Gateway Tier", "components": ["Auth", "Reverse Proxy"]}, {"name": "Service Tier", "components": ["Core Engine", "Workers"]}, {"name": "Storage Tier", "components": ["Redis", "Postgres"]}], "breadcrumb": "SYSTEM ARCHITECTURE / LAYERS", "difficulty": "Design Pattern", "category": "System Design"}
-    (Minh hoạ các tầng xếp chồng với component card bên trong và luồng dữ liệu hai chiều Request-Response).
-  * comparison_matrix (BẢNG BIỂU MA TRẬN SO SÁNH ĐẶC TÍNH & TIÊU CHÍ):
-    {"preset": "comparison_matrix", "headers": ["Tiêu chí", "Giải pháp Cũ (Naive)", "Giải pháp Mới (Modern)"], "rows": [["Độ phức tạp thời gian", "O(N²)", "O(N log N) ✔"], ["Bộ nhớ phụ trợ", "O(N)", "O(1) ✔"], ["Khả năng mở rộng", "Kém ✖", "Cực tốt ✔"], ["Độ trễ P99", "450 ms", "12 ms ✔"]], "breadcrumb": "BENCHMARK / COMPARISON MATRIX", "difficulty": "Trade-off", "category": "Analysis"}
-    (Minh hoạ bảng so sánh đa cột kỹ thuật với icon ✔, ✖, Big-O highlight cột tối ưu chiến thắng).
-  * radar_chart (BIỂU ĐỒ RADAR MẠNG NHỆN ĐÁNH GIÁ ĐA CHỈ SỐ):
-    {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"], "series": [{"name": "Truyền thống", "values": [40, 80, 45, 85, 90]}, {"name": "Hiện đại", "values": [95, 85, 90, 70, 60]}], "breadcrumb": "RADAR CHART / TRADE-OFFS", "difficulty": "Trade-off", "category": "Evaluation"}
-    (Minh hoạ phân tích sự đánh đổi qua lưới đa giác mạng nhện phát sáng 2 màu neon so sánh).
-  * matrix_op (MA TRẬN & ĐẠI SỐ TUYẾN TÍNH - GIỐNG LESSON.MP4):
-    {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×", "difficulty": "Easy", "category": "Linear Algebra"}
-    (Minh hoạ phép nhân vô hướng với ma trận: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
-  * visual_algo (BẢNG TÍNH / THỐNG KÊ TỪNG BƯỚC - GIỐNG LESSON (1).MP4):
-    {"preset": "visual_algo", "table": {"headers": ["Ngày", "Nắng (X)", "Kem (Y)", "dx", "dy", "Tích dx*dy"], "rows": [[1, 2, 4, -2, -2, 4], [2, 4, 6, 0, 0, 0], [3, 6, 8, 2, 2, 4]]}, "formula": "Cov(X, Y) = Σ(dx · dy) / (N - 1) = 8 / 2 = 4", "difficulty": "Easy", "category": "Statistics"}
-  * tree_graph (CÂY NHỊ PHÂN BST / ĐỒ THỊ / DUYỆT CÂY):
-    {"preset": "tree_graph", "target": 12, "breadcrumb": "DEEP-ML / PROBLEM 08 / BINARY SEARCH TREE", "difficulty": "Medium", "category": "Data Structures"}
-    (Minh hoạ cây nhị phân tìm kiếm BST hoặc đồ thị: node đang xét sáng vàng neon, đường đi traversal sáng cyan, node tìm thấy sáng xanh lá).
-  * two_pointers (HAI CON TRỎ / SLIDING WINDOW / MẢNG):
-    {"preset": "two_pointers", "data": [2, 3, 5, 7, 11, 15], "target": 16, "breadcrumb": "DEEP-ML / PROBLEM 03 / TWO POINTERS", "difficulty": "Easy", "category": "Algorithms"}
-    (Minh hoạ mảng 1D với con trỏ L và R di chuyển, khung cửa sổ sáng vàng neon và công thức điều kiện kiểm tra bên dưới).
-  * stack_queue (NGĂN XẾP STACK LIFO / HÀNG ĐỢI QUEUE FIFO):
-    {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "PUSH 17", "POP -> 17", "PUSH 99"], "breadcrumb": "DEEP-ML / PROBLEM 04 / STACK (LIFO)", "difficulty": "Easy", "category": "Data Structures"}
-    (Minh hoạ ngăn xếp hoặc hàng đợi với các phần tử push rơi vào và pop nảy ra trực quan).
-  * dp_grid (QUY HOẠCH ĐỘNG / MA TRẬN 2D DP TABLE):
-    {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]", "breadcrumb": "DEEP-ML / PROBLEM 12 / DYNAMIC PROGRAMMING", "difficulty": "Medium", "category": "Algorithms"}
-    (Minh hoạ bảng DP 2D: ô đang tính sáng vàng neon, mũi tên nhận giá trị từ ô phụ thuộc, công thức truy hồi ở bên dưới).
+  * linear_transform (Biến đổi tuyến tính 2D / Không gian lưới 3Blue1Brown):
+    {"preset": "linear_transform", "matrix": [[2, 1], [0.5, 1.5]], "det_label": "det(A) = 2.5", "vector_i": "î = [2, 0.5]ᵀ (Xanh lá)", "vector_j": "ĵ = [1, 1.5]ᵀ (Hồng tím)"}
+    (Kinh điển 3Blue1Brown: lưới toạ độ Cartesian biến dạng mượt, vector cơ sở î và ĵ chuyển động và kéo giãn diện tích det(A)).
+  * calculus_curve (Giải tích đạo hàm / Tiếp tuyến trượt 3Blue1Brown):
+    {"preset": "calculus_curve", "func_name": "f(x) = x³ - 3x + 2", "derivative_name": "f'(x) = 3x² - 3", "x0": 1.2, "tangent_slope": "f'(1.2) = 1.32", "insight": "Đạo hàm là hệ số góc tức thời của tiếp tuyến"}
+    (Kinh điển 3Blue1Brown: đường cong hàm số mượt, tiếp điểm P trượt dọc đồ thị, tiếp tuyến xoay theo hệ số góc f'(x)).
+  * math_equation (Công thức bóc tách 4 màu neon 3Blue1Brown):
+    {"preset": "math_equation", "title": "Scaled Dot-Product Attention", "latex": "Attention(Q, K, V) = softmax(Q·Kᵀ / √dₖ) · V", "parts": [{"symbol": "Q · Kᵀ", "name": "Độ tương quan", "desc": "Tích vô hướng Query và Key", "color": "#ffe600"}, {"symbol": "/ √dₖ", "name": "Co giãn", "desc": "Ổn định phương sai", "color": "#00f0ff"}, {"symbol": "softmax(...)", "name": "Xác suất", "desc": "Chuẩn hoá tổng trọng số về 1.0", "color": "#ff2bd6"}, {"symbol": "· V", "name": "Tổng hợp", "desc": "Nhân với Value lấy ngữ cảnh quan trọng", "color": "#39ff14"}], "insight": "Bản chất là phép tra cứu mềm (Soft Lookup)"}
+    (Công thức trung tâm nổi bật, 4 card bóc tách từng ký hiệu bằng màu neon tương ứng).
+  * trie_tree (Cây tiền tố Trie & Tìm kiếm chuỗi):
+    {"preset": "trie_tree", "words": ["CAT", "CAR", "CARD", "DO", "DOG"], "query": "CAR"}
+    (Cây tiền tố nhiều tầng, đường duyệt từng ký tự sáng vàng neon, kết quả tìm thấy sáng xanh lá).
+  * graph_network (Đồ thị trọng số & Dijkstra Shortest Path):
+    {"preset": "graph_network", "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}, {"id": "D"}], "edges": [{"from": "A", "to": "B", "weight": 4}, {"from": "A", "to": "C", "weight": 2}, {"from": "C", "to": "B", "weight": 1}, {"from": "B", "to": "D", "weight": 5}], "path": ["A", "C", "B", "D"]}
+    (Đồ thị mạng lưới trọng số, đường đi ngắn nhất phát sáng cyan viền vàng).
+  * donut_chart (Biểu đồ Donut bung nổ neon):
+    {"preset": "donut_chart", "slices": [{"label": "Attention", "value": 55, "color": "#00f0ff"}, {"label": "FFN", "value": 25, "color": "#ffe600"}, {"label": "Embedding", "value": 20, "color": "#ff2bd6"}], "center_label": "ATTENTION 55%"}
+    (Lát cắt phần trăm phát quang dạng vòng tròn donut neon, lát lớn nhất bung tách ra ngoài).
+  * flowchart (Sơ đồ luồng Pipeline xử lý dữ liệu):
+    {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client App"}, {"id": 1, "label": "API Gateway"}, {"id": 2, "label": "Message Queue"}, {"id": 3, "label": "Worker Service"}, {"id": 4, "label": "Database Cache"}]}
+    (Khối chức năng nối bằng mũi tên phát sáng, hạt dữ liệu photon di chuyển qua từng trạm).
+  * system_layers (Sơ đồ phân tầng kiến trúc Multi-Tier):
+    {"preset": "system_layers", "layers": [{"name": "Client Tier", "components": ["Web SPA", "Mobile App"]}, {"name": "Service Tier", "components": ["Core Engine", "Workers"]}, {"name": "Storage Tier", "components": ["WAL Log", "Postgres"]}]}
+    (Các tầng kiến trúc xếp chồng với luồng dữ liệu hai chiều Request-Response).
+  * comparison_matrix (Bảng ma trận so sánh tiêu chí & Big-O):
+    {"preset": "comparison_matrix", "headers": ["Tiêu chí", "Giải pháp Cũ (Naive)", "Giải pháp Mới (Optimal)"], "rows": [["Độ phức tạp thời gian", "O(N²)", "O(N log N) ✔"], ["Bộ nhớ phụ trợ", "O(N)", "O(1) ✔"], ["Khả năng mất điện", "Mất toàn bộ ✖", "Bất tử với WAL ✔"]]}
+    (Bảng so sánh đa cột kỹ thuật với icon ✔, ✖ highlight cột tối ưu chiến thắng).
+  * radar_chart (Mạng nhện đánh giá đa chỉ số Trade-offs):
+    {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"], "series": [{"name": "Truyền thống", "values": [40, 80, 45, 85, 90]}, {"name": "Hiện đại", "values": [95, 85, 90, 95, 60]}]}
+    (Lưới đa giác mạng nhện phát sáng 2 màu neon so sánh sự đánh đổi trade-offs).
+  * matrix_op (Ma trận & Đại số tuyến tính - Giống Lesson.mp4):
+    {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×"}
+    (Phép toán ma trận: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
+  * visual_algo (Bảng tính vi mô từng bước - Giống Lesson (1).mp4):
+    {"preset": "visual_algo", "table": {"headers": ["Ngày", "X", "Y", "dx", "dy", "Tích dx*dy"], "rows": [[1, 2, 4, -2, -2, 4], [2, 4, 6, 0, 0, 0]]}, "formula": "Cov(X, Y) = Σ(dx · dy) / (N - 1) = 4"}
+    (Bảng tính từng bước khớp deictic narration).
+  * tree_graph (Cây nhị phân BST / Duyệt cây):
+    {"preset": "tree_graph", "target": 12}
+    (Cây BST: node đang xét sáng vàng neon, đường traversal sáng cyan, node tìm thấy sáng xanh lá).
+  * two_pointers (Hai con trỏ / Sliding Window):
+    {"preset": "two_pointers", "data": [2, 3, 5, 7, 11, 15], "target": 16}
+    (Mảng 1D, con trỏ L và R di chuyển, khung cửa sổ sáng vàng neon).
+  * stack_queue (Ngăn xếp Stack LIFO / Hàng đợi Queue FIFO):
+    {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "PUSH 17", "POP -> 17", "PUSH 99"]}
+    (Phần tử push rơi vào và pop nảy ra trực quan sinh động).
+  * dp_grid (Bảng Quy hoạch động 2D DP Table):
+    {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]"}
+    (Bảng DP 2D: ô đang tính sáng vàng, mũi tên nhận giá trị từ ô phụ thuộc).
   * function : {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
-    (expr chỉ dùng x và các hàm sin,cos,tan,exp,log,sqrt,abs,tanh, toán tử + - * / ^, hằng pi,e)
   * neural_net: {"preset": "neural_net", "layers": [3, 5, 4, 2]}
-  * bar_chart : {"preset": "bar_chart", "values": [3,7,5,9], "labels": ["A","B","C","D"]}
-  * sorting   : {"preset": "sorting", "data": [5,2,8,1,9,3]}
-  * counter   : {"preset": "counter", "to_value": 1000000, "unit": "người dùng"}
+  * bar_chart : {"preset": "bar_chart", "values": [3, 7, 5, 9], "labels": ["A", "B", "C", "D"]}
+  * sorting   : {"preset": "sorting", "data": [5, 2, 8, 1, 9, 3]}
+  * counter   : {"preset": "counter", "to_value": 1000000, "unit": "ops/s"}
   * steps     : {"preset": "steps", "steps": ["Bước 1", "Bước 2", "Bước 3"]}
-  * custom (TỰ THIẾT KẾ kiểu 3Blue1Brown, ƯU TIÊN khi cần minh hoạ phong phú):
-    {"preset": "custom", "objects": [...], "timeline": [...]}
-    - "objects": mỗi phần tử có "id" (duy nhất) + "type":
-      · text      : {"id":"t1","type":"text","text":"E=mc^2","x":"0.5W","y":160,"size":72,"color":"accent","bold":true,"anchor":"mm"}
-      · axes      : {"id":"ax","type":"axes","x0":"0.14W","y0":320,"x1":"0.86W","y1":"0.85H","x_range":[-6.28,6.28],"y_range":[-1.4,1.4]}
-      · graph     : {"id":"g","type":"graph","axes":"ax","expr":"sin(x)","color":"c1","glow":0.6}
-      · parametric: {"id":"p","type":"parametric","axes":"ax","expr_x":"cos(t)","expr_y":"sin(t)","t_range":[0,6.28],"color":"c2","glow":0.6}
-      · formula   : {"id":"f","type":"formula","text":"\\frac{d}{dx}e^x = e^x","x":"0.5W","y":180,"size":72,"color":"accent"}
-      · rect      : {"id":"b","type":"rect","x0":"0.3W","y0":500,"x1":"0.7W","y1":620,"fill":"panel","outline":"accent","radius":16}
-      · circle    : {"id":"c","type":"circle","x":"0.5W","y":"0.5H","radius":80,"outline":"accent"}
-      · polygon   : {"id":"pg","type":"polygon","points":[["0.4W",400],["0.6W",400],["0.5W",600]],"outline":"accent","fill":"panel","glow":0.5}
-      · line/arrow: {"id":"ar","type":"arrow","x1":"0.5W","y1":640,"x2":"0.5W","y2":760,"color":"muted"}
-      · dot       : {"id":"d","type":"dot","x":"0.5W","y":"0.5H","radius":12,"color":"c3"}
-      · neural_net: {"id":"nn","type":"neural_net","layers":[3,5,4,2],"x0":"0.2W","y0":320,"x1":"0.8W","y1":"0.85H"}
-      · bar_chart : {"id":"bc","type":"bar_chart","values":[3,7,5],"labels":["A","B","C"],"x0":"0.16W","y0":340,"x1":"0.84W","y1":"0.85H"}
-    - Toạ độ: số px (khung 1920x1080) hoặc chuỗi "0.5W"/"0.85H". Màu: hex, tên theme (accent/text/muted/panel/grid) hoặc "c0".."c6".
-    - "timeline": danh sách bước, mỗi bước là {"play": [{"anim":"write","target":"t1","run_time":1.0}, ...]} (chạy song song) hoặc {"wait": 0.5}.
-      anim hợp lệ: fade_in, fade_out, write, draw, grow, move(dx,dy), count_up(from,to,fmt), pulse(amount,cycles), signal(neural_net),
-      camera ({"anim":"camera","cx":"0.5W","cy":"0.5H","run_time":1.2}; KHÔNG zoom), transform/morph (cần "to" là id đích),
-      move_along ({"anim":"move_along","target":"d","path":"p","trace":true,"run_time":2.0}),
-      vmorph ({"anim":"vmorph","target":"pg","from":"c","to":"b","run_time":1.5}; target phải là polygon)."""
+  * custom    : {"preset": "custom", "objects": [{"id":"t1","type":"text","text":"E=mc²","x":"0.5W","y":160,"color":"accent"}, {"id":"ax","type":"axes","x_range":[-6,6],"y_range":[-2,2]}], "timeline": [{"play": [{"anim":"write","target":"t1","run_time":1.0}]}]}
+    (objects: text, axes, graph, formula, rect, circle, arrow, dot; anims: fade_in, fade_out, write, draw, grow, move, camera, transform)."""
 
 _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" hoặc "challenge" do AI vẽ.
@@ -817,7 +798,7 @@ def _research_block(research: str) -> str:
     text = (research or "").strip()
     if not text:
         return ""
-    limit = _int_cfg("research_max_chars", 5000, 500, 30000)
+    limit = _int_cfg("research_max_chars", 3000, 500, 30000)
     if len(text) > limit:
         text = text[:limit]
         cut = text.rfind("\n")

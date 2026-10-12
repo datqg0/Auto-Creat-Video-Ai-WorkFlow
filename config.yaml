@@ -94,27 +94,27 @@ llm:
       api_key_env: GEMINI_API_KEY
       timeout: 120
 
-    # Tier 2.1 — Groq LPU (Llama 3.3 70B Versatile: 12,000 TPM limit — Siêu tốc độ, context dài)
+    # Tier 2.1 — Groq LPU (Các model khả dụng trên tài khoản: gpt-oss-120b, qwen3.8-27b, gpt-oss-20b — Giới hạn 8K TPM)
     - name: groq
       type: groq
-      model: llama-3.3-70b-versatile
+      model: openai/gpt-oss-120b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 8192
+      max_output_tokens: 4096
       timeout: 60
 
     - name: groq_fast
       type: groq
-      model: llama-3.1-8b-instant
+      model: qwen/qwen3.8-27b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 8192
+      max_output_tokens: 4096
       timeout: 45
 
-    - name: groq_oss
+    - name: groq_20b
       type: groq
-      model: openai/gpt-oss-120b
+      model: openai/gpt-oss-20b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 16384
-      timeout: 60
+      max_output_tokens: 4096
+      timeout: 45
 
     # Tier 2.2 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
     - name: cerebras
