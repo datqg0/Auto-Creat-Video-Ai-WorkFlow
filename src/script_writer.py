@@ -157,28 +157,63 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
-_CUSTOM_ANIMATION_SPEC = r"""PRESET ANIMATION (CHUẨN DEEP-ML & 3BLUE1BROWN):
-  * linear_transform: {"preset": "linear_transform", "matrix": [[2, 1], [0.5, 1.5]], "det_label": "det(A) = 2.5", "vector_i": "î = [2, 0.5]ᵀ", "vector_j": "ĵ = [1, 1.5]ᵀ"} (3B1B: biến dạng lưới toạ độ + vector cơ sở î, ĵ kéo dãn diện tích det)
-  * calculus_curve: {"preset": "calculus_curve", "func_name": "f(x) = x³ - 3x + 2", "derivative_name": "f'(x) = 3x² - 3", "x0": 1.2, "tangent_slope": "f'(1.2) = 1.32"} (3B1B: đường cong mượt + tiếp tuyến trượt theo hệ số góc đạo hàm)
-  * math_equation: {"preset": "math_equation", "title": "Scaled Dot-Product Attention", "latex": "Attention(Q, K, V) = softmax(Q·Kᵀ / √dₖ) · V", "parts": [{"symbol": "Q·Kᵀ", "name": "Độ tương quan", "desc": "Tích vô hướng", "color": "#ffe600"}, {"symbol": "/√dₖ", "name": "Co giãn", "desc": "Ổn định phương sai", "color": "#00f0ff"}, {"symbol": "softmax", "name": "Xác suất", "desc": "Chuẩn hoá tổng 1.0", "color": "#ff2bd6"}, {"symbol": "·V", "name": "Tổng hợp", "desc": "Nhân Value", "color": "#39ff14"}], "insight": "Tra cứu mềm theo tương đồng ngữ nghĩa"} (3B1B: công thức trung tâm bóc tách 4 màu neon)
-  * trie_tree: {"preset": "trie_tree", "words": ["CAT", "CAR", "CARD"], "query": "CAR"} (Cây tiền tố Trie duyệt từng chữ cái)
-  * graph_network: {"preset": "graph_network", "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}], "edges": [{"from": "A", "to": "B", "weight": 4}], "path": ["A", "B"]} (Đồ thị trọng số + Dijkstra shortest path)
-  * donut_chart: {"preset": "donut_chart", "slices": [{"label": "Attention", "value": 55, "color": "#00f0ff"}, {"label": "FFN", "value": 45, "color": "#ffe600"}], "center_label": "55%"} (Biểu đồ tròn donut neon + lát lớn nhất bung nổ)
-  * flowchart: {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client"}, {"id": 1, "label": "Gateway"}, {"id": 2, "label": "Worker"}]} (Sơ đồ luồng pipeline nối mũi tên phát sáng)
-  * system_layers: {"preset": "system_layers", "layers": [{"name": "Client", "components": ["Web SPA"]}, {"name": "Service", "components": ["API", "Workers"]}]} (Phân tầng kiến trúc)
-  * comparison_matrix: {"preset": "comparison_matrix", "headers": ["Tiêu chí", "Naive", "Optimal"], "rows": [["Thời gian", "O(N²)", "O(N log N) ✔"]]} (Bảng ma trận so sánh cột tối ưu)
-  * radar_chart: {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng"], "series": [{"name": "Cũ", "values": [40, 80, 50]}, {"name": "Mới", "values": [90, 85, 90]}]} (Mạng nhện đánh giá đa chỉ số)
-  * matrix_op: {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5], [4, 0]], "op": "×"} (Ma trận Deep-ML: ô đang tính sáng vàng, kết quả sáng xanh)
-  * visual_algo: {"preset": "visual_algo", "table": {"headers": ["X", "Y", "dx"], "rows": [[2, 4, -2]]}, "formula": "Cov(X, Y) = 4"} (Bảng tính vi mô từng bước)
-  * tree_graph: {"preset": "tree_graph", "target": 12} (Cây nhị phân BST duyệt node)
-  * two_pointers: {"preset": "two_pointers", "data": [2, 3, 5, 7], "target": 10} (Hai con trỏ L & R)
-  * stack_queue: {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "POP -> 42"]} (Ngăn xếp/Hàng đợi)
-  * dp_grid: {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]"} (Bảng quy hoạch động 2D)
-  * function: {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28]}
-  * neural_net: {"preset": "neural_net", "layers": [3, 5, 2]}
-  * bar_chart: {"preset": "bar_chart", "values": [3, 7, 5], "labels": ["A", "B", "C"]}
-  * sorting: {"preset": "sorting", "data": [5, 2, 8, 1]}
-  * custom: {"preset": "custom", "objects": [...], "timeline": [...]}
+_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & TECH STUDIO & 3BLUE1BROWN):
+  * linear_transform (BIẾN ĐỔI TUYẾN TÍNH 2D / BIẾN DẠNG LƯỚI KHÔNG GIAN - ĐẶC TRƯNG 3BLUE1BROWN):
+    {"preset": "linear_transform", "matrix": [[2, 1], [0.5, 1.5]], "det_label": "det(A) = 2.5 (Diện tích dãn 2.5×)", "vector_i": "î = [2, 0.5]ᵀ (Xanh lá)", "vector_j": "ĵ = [1, 1.5]ᵀ (Hồng tím)", "breadcrumb": "ESSENCE OF LINEAR ALGEBRA / 2D TRANSFORMATION", "difficulty": "3B1B Core", "category": "Geometry"}
+    (Minh hoạ kinh điển 3Blue1Brown: lưới toạ độ Cartesian biến dạng mượt mà theo ma trận, vector cơ sở î và ĵ chuyển động và kéo giãn diện tích det(A)).
+  * calculus_curve (GIẢI TÍCH ĐẠO HÀM / TIẾP TUYẾN TRƯỢT TRÊN ĐƯỜNG CONG - KIỂU 3BLUE1BROWN):
+    {"preset": "calculus_curve", "func_name": "f(x) = x³ - 3x + 2", "derivative_name": "f'(x) = 3x² - 3", "x0": 1.2, "tangent_slope": "f'(1.2) = 1.32", "insight": "Đạo hàm là hệ số góc tức thời của đường tiếp tuyến tại tiếp điểm", "breadcrumb": "ESSENCE OF CALCULUS / INSTANTANEOUS RATE OF CHANGE", "difficulty": "Calculus", "category": "Analysis"}
+    (Minh hoạ kinh điển 3Blue1Brown: đường cong hàm số mượt mà, tiếp điểm P trượt dọc đồ thị, tiếp tuyến xoay theo hệ số góc f'(x)).
+  * math_equation (CÔNG THỨC TOÁN HỌC & BÓC TÁCH MÀU SẮC - KIỂU 3BLUE1BROWN):
+    {"preset": "math_equation", "title": "Cơ Chế Scaled Dot-Product Attention", "latex": "Attention(Q, K, V) = softmax(Q·Kᵀ / √dₖ) · V", "parts": [{"symbol": "Q · Kᵀ", "name": "Độ tương quan", "desc": "Tích vô hướng đo tương đồng Query và Key", "color": "#ffe600"}, {"symbol": "/ √dₖ", "name": "Hệ số co giãn", "desc": "Ổn định phương sai, chống bão hoà Softmax", "color": "#00f0ff"}, {"symbol": "softmax(...)", "name": "Xác suất chuẩn hoá", "desc": "Chuẩn hoá tổng trọng số chú ý về 1.0", "color": "#ff2bd6"}, {"symbol": "· V", "name": "Tổng hợp giá trị", "desc": "Nhân với Value để lấy ngữ cảnh quan trọng", "color": "#39ff14"}], "insight": "Bản chất là phép tra cứu mềm (Soft Lookup) theo mức độ liên quan ngữ nghĩa.", "breadcrumb": "MATHEMATICS OF DEEP LEARNING / ATTENTION", "difficulty": "Advanced", "category": "Linear Algebra"}
+    (Minh hoạ công thức toán học trung tâm nổi bật, 4 card bóc tách từng ký hiệu bằng màu sắc tương ứng, kèm card bản chất chiều sâu).
+  * trie_tree (CÂY TIỀN TỐ PREFIX TREE / TRIE & TÌM KIẾM CHUỖI):
+    {"preset": "trie_tree", "words": ["CAT", "CAR", "CARD", "DO", "DOG"], "query": "CAR", "breadcrumb": "DEEP-ML / PROBLEM 16 / PREFIX TREE (TRIE)", "difficulty": "Medium", "category": "Data Structures"}
+    (Minh hoạ cấu trúc cây tiền tố nhiều tầng, đường duyệt từng ký tự sáng vàng neon và thông báo kết quả tìm thấy xanh lá).
+  * graph_network (ĐỒ THỊ TRỌNG SỐ & ĐƯỜNG ĐI NGẮN NHẤT DIJKSTRA):
+    {"preset": "graph_network", "nodes": [{"id": "A", "label": "Start A"}, {"id": "B", "label": "Node B"}, {"id": "C", "label": "Node C"}, {"id": "D", "label": "Target D"}], "edges": [{"from": "A", "to": "B", "weight": 4}, {"from": "A", "to": "C", "weight": 2}, {"from": "C", "to": "B", "weight": 1}, {"from": "B", "to": "D", "weight": 5}, {"from": "C", "to": "D", "weight": 8}], "path": ["A", "C", "B", "D"], "breadcrumb": "ALGORITHMS / DIJKSTRA SHORTEST PATH", "difficulty": "Hard", "category": "Graph Theory"}
+    (Minh hoạ đồ thị mạng lưới trọng số, đường đi ngắn nhất phát sáng cyan viền vàng, hộp tóm tắt tổng trọng số min-cost).
+  * donut_chart (BIỂU ĐỒ DONUT / TỶ TRỌNG CƠ CẤU VỚI SLICE BUNG NỔ):
+    {"preset": "donut_chart", "slices": [{"label": "Transformer Attention", "value": 55, "color": "#00f0ff"}, {"label": "FFN Layers", "value": 25, "color": "#ffe600"}, {"label": "Embedding", "value": 12, "color": "#ff2bd6"}, {"label": "Norm & Residual", "value": 8, "color": "#39ff14"}], "center_label": "ATTENTION 55%", "breadcrumb": "MODEL PROFILE / COMPUTE BREAKDOWN", "difficulty": "Analysis", "category": "Deep Learning"}
+    (Minh hoạ lát cắt phần trăm phát quang dạng vòng tròn donut neon, lát lớn nhất bung tách ra ngoài, bộ đếm phần trăm chạy ở tâm, bảng ghi chú bên phải).
+  * flowchart (SƠ ĐỒ LUỒNG XỬ LÝ / PIPELINE DỮ LIỆU):
+    {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client App"}, {"id": 1, "label": "API Gateway"}, {"id": 2, "label": "Message Queue"}, {"id": 3, "label": "Worker Service"}, {"id": 4, "label": "Database Cache"}], "breadcrumb": "SYSTEM ARCHITECTURE / PIPELINE", "difficulty": "System Design", "category": "Architecture"}
+    (Minh hoạ các khối chức năng nối bằng mũi tên phát sáng, hạt dữ liệu photon di chuyển qua từng trạm mượt mà).
+  * system_layers (SƠ ĐỒ PHÂN TẦNG KIẾN TRÚC MULTI-TIER):
+    {"preset": "system_layers", "layers": [{"name": "Client Tier", "components": ["Web SPA", "Mobile App"]}, {"name": "Gateway Tier", "components": ["Auth", "Reverse Proxy"]}, {"name": "Service Tier", "components": ["Core Engine", "Workers"]}, {"name": "Storage Tier", "components": ["Redis", "Postgres"]}], "breadcrumb": "SYSTEM ARCHITECTURE / LAYERS", "difficulty": "Design Pattern", "category": "System Design"}
+    (Minh hoạ các tầng xếp chồng với component card bên trong và luồng dữ liệu hai chiều Request-Response).
+  * comparison_matrix (BẢNG BIỂU MA TRẬN SO SÁNH ĐẶC TÍNH & TIÊU CHÍ):
+    {"preset": "comparison_matrix", "headers": ["Tiêu chí", "Giải pháp Cũ (Naive)", "Giải pháp Mới (Modern)"], "rows": [["Độ phức tạp thời gian", "O(N²)", "O(N log N) ✔"], ["Bộ nhớ phụ trợ", "O(N)", "O(1) ✔"], ["Khả năng mở rộng", "Kém ✖", "Cực tốt ✔"], ["Độ trễ P99", "450 ms", "12 ms ✔"]], "breadcrumb": "BENCHMARK / COMPARISON MATRIX", "difficulty": "Trade-off", "category": "Analysis"}
+    (Minh hoạ bảng so sánh đa cột kỹ thuật với icon ✔, ✖, Big-O highlight cột tối ưu chiến thắng).
+  * radar_chart (BIỂU ĐỒ RADAR MẠNG NHỆN ĐÁNH GIÁ ĐA CHỈ SỐ):
+    {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"], "series": [{"name": "Truyền thống", "values": [40, 80, 45, 85, 90]}, {"name": "Hiện đại", "values": [95, 85, 90, 70, 60]}], "breadcrumb": "RADAR CHART / TRADE-OFFS", "difficulty": "Trade-off", "category": "Evaluation"}
+    (Minh hoạ phân tích sự đánh đổi qua lưới đa giác mạng nhện phát sáng 2 màu neon so sánh).
+  * matrix_op (MA TRẬN & ĐẠI SỐ TUYẾN TÍNH - GIỐNG LESSON.MP4):
+    {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×", "difficulty": "Easy", "category": "Linear Algebra"}
+    (Minh hoạ phép nhân vô hướng với ma trận: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
+  * visual_algo (BẢNG TÍNH / THỐNG KÊ TỪNG BƯỚC - GIỐNG LESSON (1).MP4):
+    {"preset": "visual_algo", "table": {"headers": ["Ngày", "Nắng (X)", "Kem (Y)", "dx", "dy", "Tích dx*dy"], "rows": [[1, 2, 4, -2, -2, 4], [2, 4, 6, 0, 0, 0], [3, 6, 8, 2, 2, 4]]}, "formula": "Cov(X, Y) = Σ(dx · dy) / (N - 1) = 8 / 2 = 4", "difficulty": "Easy", "category": "Statistics"}
+  * tree_graph (CÂY NHỊ PHÂN BST / ĐỒ THỊ / DUYỆT CÂY):
+    {"preset": "tree_graph", "target": 12, "breadcrumb": "DEEP-ML / PROBLEM 08 / BINARY SEARCH TREE", "difficulty": "Medium", "category": "Data Structures"}
+    (Minh hoạ cây nhị phân tìm kiếm BST hoặc đồ thị: node đang xét sáng vàng neon, đường đi traversal sáng cyan, node tìm thấy sáng xanh lá).
+  * two_pointers (HAI CON TRỎ / SLIDING WINDOW / MẢNG):
+    {"preset": "two_pointers", "data": [2, 3, 5, 7, 11, 15], "target": 16, "breadcrumb": "DEEP-ML / PROBLEM 03 / TWO POINTERS", "difficulty": "Easy", "category": "Algorithms"}
+    (Minh hoạ mảng 1D với con trỏ L và R di chuyển, khung cửa sổ sáng vàng neon và công thức điều kiện kiểm tra bên dưới).
+  * stack_queue (NGĂN XẾP STACK LIFO / HÀNG ĐỢI QUEUE FIFO):
+    {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "PUSH 17", "POP -> 17", "PUSH 99"], "breadcrumb": "DEEP-ML / PROBLEM 04 / STACK (LIFO)", "difficulty": "Easy", "category": "Data Structures"}
+    (Minh hoạ ngăn xếp hoặc hàng đợi với các phần tử push rơi vào và pop nảy ra trực quan).
+  * dp_grid (QUY HOẠCH ĐỘNG / MA TRẬN 2D DP TABLE):
+    {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]", "breadcrumb": "DEEP-ML / PROBLEM 12 / DYNAMIC PROGRAMMING", "difficulty": "Medium", "category": "Algorithms"}
+    (Minh hoạ bảng DP 2D: ô đang tính sáng vàng neon, mũi tên nhận giá trị từ ô phụ thuộc, công thức truy hồi ở bên dưới).
+  * function : {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
+    (expr chỉ dùng x và các hàm sin,cos,tan,exp,log,sqrt,abs,tanh, toán tử + - * / ^, hằng pi,e)
+  * neural_net: {"preset": "neural_net", "layers": [3, 5, 4, 2]}
+  * bar_chart : {"preset": "bar_chart", "values": [3,7,5,9], "labels": ["A","B","C","D"]}
+  * sorting   : {"preset": "sorting", "data": [5,2,8,1,9,3]}
+  * counter   : {"preset": "counter", "to_value": 1000000, "unit": "người dùng"}
+  * steps     : {"preset": "steps", "steps": ["Bước 1", "Bước 2", "Bước 3"]}
+  * custom (TỰ THIẾT KẾ kiểu 3Blue1Brown, ƯU TIÊN khi cần minh hoạ phong phú):
+    {"preset": "custom", "objects": [...], "timeline": [...]}
     - "objects": mỗi phần tử có "id" (duy nhất) + "type":
       · text      : {"id":"t1","type":"text","text":"E=mc^2","x":"0.5W","y":160,"size":72,"color":"accent","bold":true,"anchor":"mm"}
       · axes      : {"id":"ax","type":"axes","x0":"0.14W","y0":320,"x1":"0.86W","y1":"0.85H","x_range":[-6.28,6.28],"y_range":[-1.4,1.4]}
@@ -782,7 +817,7 @@ def _research_block(research: str) -> str:
     text = (research or "").strip()
     if not text:
         return ""
-    limit = _int_cfg("research_max_chars", 3000, 500, 30000)
+    limit = _int_cfg("research_max_chars", 5000, 500, 30000)
     if len(text) > limit:
         text = text[:limit]
         cut = text.rfind("\n")
@@ -902,6 +937,143 @@ BÀI TẬP: mảng "exercises" gồm ĐÚNG 1 bài toán/tình huống THỰC T�
 Lưu ý tiêu đề:
 {_TITLE_RULES}
 - Chỉ trả JSON, không markdown, không ```."""
+
+
+def _build_long_part1_prompt(
+    s: _Settings, topic: str, research: str, series: dict | None,
+    n_p1_min: int, n_p1_max: int, words_p1: int,
+) -> str:
+    schema = json.dumps({
+        "title": "tiêu đề gây tò mò mạnh, dưới 70 ký tự",
+        "description": "mô tả 3-4 câu cho YouTube, có hashtag ở cuối",
+        "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+        "running_case": {
+            "setup": "MỘT ca cụ thể xuyên suốt với số liệu/dữ liệu thực tế (3 lệnh CPU / mảng số / chuỗi gói tin / bản ghi DB...)",
+            "conflict": "điểm nghẽn, xung đột hoặc nguy cơ mất dữ liệu/treo máy xảy ra ở đâu trong ca đó",
+            "fix": "ý tưởng cú hack giải cứu sẽ triển khai ở nửa sau",
+        },
+        "part1_summary": "tóm tắt ngắn gọn 2-3 câu về những gì nửa đầu đã trình bày và trạng thái nghẽn hiện tại",
+        "scenes": [_scene_example(
+            "lời đọc tự nhiên, câu ngắn, có deictic narration chỉ rõ vào hình vẽ",
+            "tiêu đề ngắn hiển thị trên màn hình",
+            "mô tả chi tiết dữ liệu, màu sắc và chuyển động từng bước để AI vẽ animation khớp lời đọc",
+        )],
+    }, ensure_ascii=False, indent=2)
+
+    return f"""Viết NỬA ĐẦU KỊCH BẢN (PHẦN 1: MỞ ĐẦU, MENTAL MODEL & BẮT ĐẦU MỔ XẺ XUNG ĐỘT) cho video YouTube chuyên sâu (~{s.minutes} phút) về chủ đề:
+"{topic}"
+{_research_block(research)}{_series_block(series, prev=True, nxt=False)}
+Ngôn ngữ đầu ra: {s.lang_name}. (image_query và video_query luôn bằng tiếng Anh.)
+
+YÊU CẦU NỬA ĐẦU (PHẦN 1):
+1. Tiêu đề ("title"), mô tả ("description"), từ khoá ("tags").
+2. Thiết kế MỘT Running Case Study xuyên suốt video ("running_case" gồm setup, conflict, fix) với số liệu cụ thể.
+3. Viết ĐÚNG {n_p1_min}-{n_p1_max} scene cho nửa đầu theo trình tự 3 pha đầu:
+   - PHA 1: MỞ MÀN & NGHỊCH LÝ BẾ TẮC (1-2 scene):
+     * Scene 1 BẮT BUỘC visual_type "animation" hoặc "challenge" (Người Que - Stickman bối rối trước rắc rối).
+     * ƯU TIÊN 1 scene "challenge" (Người Que) khi đặt nghịch lý/bế tắc để tạo cảm xúc cuốn hút.
+     * Cú sốc/nghịch lý phản trực giác: tại sao cách làm tự nhiên lại chậm chạp hoặc thất bại khi có sự cố?
+   - PHA 2: MENTAL MODEL & ẨN DỤ ĐỜI THƯỜNG (1-2 scene):
+     * 1 ẩn dụ đời thực cực đắt (cuốn sổ nhật ký thu ngân, thủ thư đánh số ngăn kéo, cao tốc phân luồng...) để người xem cảm nhận bằng trực giác.
+   - PHA 3 (GIAI ĐOẠN 1): MỔ XẺ VI MÔ & BẮT ĐẦU TRACE CA CỤ THỂ (2-3 scene):
+     * Áp dụng triệt để DEICTIC NARRATION chỉ vào hình vẽ.
+     * Cho dữ liệu trong running case chạy qua các bước bình thường -> Gặp điểm nghẽn/xung đột/nguy cơ hỏng dữ liệu (dừng lại ngay trước khi tung cú hack giải cứu).
+4. Tổng lời đọc nửa đầu mục tiêu: ~{words_p1} từ (tối thiểu {int(words_p1 * 0.75)} từ).
+5. "part1_summary": tóm tắt ngắn gọn 2-3 câu về những gì nửa đầu đã truyền tải và trạng thái bế tắc đang chờ giải cứu ở nửa sau.
+
+{_PEDAGOGY}
+
+{_NARRATION_RULES}
+
+{_VISUAL_TYPES_SPEC}
+
+{_CUSTOM_ANIMATION_SPEC}
+
+{_ANIMATION_RULES}
+
+Trả về DUY NHẤT một object JSON theo schema (mảng "scenes" gồm {n_p1_min}-{n_p1_max} scene):
+{schema}
+
+Lưu ý tiêu đề:
+{_TITLE_RULES}
+Chỉ trả JSON thuần, không markdown, không ```."""
+
+
+def _build_long_part2_prompt(
+    s: _Settings, topic: str, research: str, series: dict | None,
+    part1_data: dict, n_p2_min: int, n_p2_max: int, words_p2: int, start_idx: int,
+) -> str:
+    title = part1_data.get("title") or topic
+    running_case = part1_data.get("running_case") or {}
+    p1_summary = part1_data.get("part1_summary") or ""
+    scenes_p1 = part1_data.get("scenes") or []
+
+    prev_scenes_lines = []
+    for i, sc in enumerate(scenes_p1, 1):
+        if isinstance(sc, dict):
+            h = sc.get("heading") or f"Scene {i}"
+            vt = sc.get("visual_type") or "animation"
+            narr = sc.get("narration") or ""
+            brief = narr[:70] + ("..." if len(narr) > 70 else "")
+            prev_scenes_lines.append(f"- Scene {i} [{vt}]: {h} (Lời đọc: {brief})")
+
+    prev_scenes_text = "\n".join(prev_scenes_lines)
+
+    schema = json.dumps({
+        "scenes": [_scene_example(
+            "lời đọc tiếp nối deictic narration, chỉ rõ vào cú hack giải cứu và số liệu định lượng...",
+            "tiêu đề ngắn hiển thị",
+            "mô tả chi tiết chuyển động tháo gỡ điểm nghẽn và kết quả tối ưu...",
+        )],
+        "exercises": [{
+            "question": "một bài toán/tình huống THỰC TẾ với số liệu cụ thể để người xem tự tính toán",
+            "hint": "gợi ý ngắn",
+            "answer": "đáp án và cách giải ngắn gọn",
+        }],
+    }, ensure_ascii=False, indent=2)
+
+    return f"""Viết TIẾP NỬA SAU KỊCH BẢN (PHẦN 2: CÚ HACK GIẢI CỨU, ĐÁNH ĐỔI THỰC CHIẾN & TỔNG KẾT) cho video:
+"{title}" (Chủ đề: {topic})
+{_research_block(research)}{_series_block(series, prev=False, nxt=True)}
+Ngôn ngữ đầu ra: {s.lang_name}. (image_query và video_query luôn bằng tiếng Anh.)
+
+NGỮ CẢNH TỪ NỬA ĐẦU (PHẦN 1 ĐÃ HOÀN THÀNH):
+- Running Case Study:
+  * Setup: {running_case.get('setup', '')}
+  * Conflict: {running_case.get('conflict', '')}
+  * Fix: {running_case.get('fix', '')}
+- Tóm tắt nửa đầu: {p1_summary}
+- Các scene nửa đầu đã sản xuất ({len(scenes_p1)} scene):
+{prev_scenes_text}
+
+YÊU CẦU NỬA SAU (PHẦN 2 - BẮT ĐẦU TỪ SCENE {start_idx}):
+1. Viết ĐÚNG {n_p2_min}-{n_p2_max} scene nối tiếp mượt mà từ nửa đầu theo trình tự:
+   - PHA 3 (GIAI ĐOẠN 2 - CÚ HACK GIẢI CỨU): (2-3 scene tiếp theo):
+     * Tung ra giải pháp đột phá tháo gỡ điểm nghẽn (Bypass/WAL Append-only/Indexing/Tree Rebalance...).
+     * Trace tiếp running case study với số liệu định lượng (ví dụ: giảm từ 12ms xuống 0.2ms, throughput tăng 50×, an toàn 100% khi mất điện).
+     * 100% scene là "animation" ("matrix_op", "visual_algo", "flowchart", "pycode" hoặc "manim"), áp dụng triệt để DEICTIC NARRATION.
+   - PHA 4: ỨNG DỤNG THỰC CHIẾN & ĐÁNH ĐỔI (1-2 scene):
+     * Cái giá phải trả (bộ nhớ, độ trễ, tài nguyên...) và cách hệ thống lớn (Linux, Postgres, Intel, V8...) xử lý đánh đổi.
+     * Ưu tiên preset "comparison_matrix" hoặc "radar_chart".
+   - PHA 5: KẾT LUẬN & KÊU GỌI (2 scene cuối, BẮT BUỘC):
+     * Scene TỔNG KẾT: heading "{_T[s.lang]['conclusion_heading']}", visual_type "bullets" với 3 ý: (1) bản chất cốt lõi; (2) khi nào NÊN dùng; (3) khi nào KHÔNG NÊN dùng/cạm bẫy.
+     * Scene OUTRO: 1 câu châm ngôn tâm đắc, gợi mở bài toán tập sau, kêu gọi Like và Đăng ký kênh.
+2. BÀI TẬP: mảng "exercises" gồm ĐÚNG 1 bài toán THỰC TẾ tiêu biểu có số liệu và đáp án thật.
+3. Tổng lời đọc nửa sau mục tiêu: ~{words_p2} từ (tối thiểu {int(words_p2 * 0.75)} từ).
+
+{_PEDAGOGY}
+
+{_NARRATION_RULES}
+
+{_VISUAL_TYPES_SPEC}
+
+{_CUSTOM_ANIMATION_SPEC}
+
+{_ANIMATION_RULES}
+
+Trả về DUY NHẤT một object JSON theo schema (mảng "scenes" gồm {n_p2_min}-{n_p2_max} scene):
+{schema}
+Chỉ trả JSON thuần, không markdown, không ```."""
 
 
 def _build_short_prompt(s: _Settings, topic: str, research: str, series: dict | None) -> str:
@@ -1116,8 +1288,101 @@ def _enforce_animation_ratio(script: Script, s: _Settings) -> Script:
 
 
 # --------------------------------------------------------------------------------------
-# Standard / Short
+# Standard / Short / Two-Part Long
 # --------------------------------------------------------------------------------------
+
+def _write_two_part_script(
+    topic: str, s: _Settings, research: str, series: dict | None
+) -> Script:
+    """Chia đôi kịch bản cho video dài (long ~300s):
+    - Phần 1: Title, Description, Running Case Study, Pha 1 (Mở màn), Pha 2 (Mental Model), Pha 3 đầu (Bắt đầu trace & xung đột).
+    - Phần 2: Pha 3 sau (Cú hack giải cứu & trace định lượng), Pha 4 (Đánh đổi thực chiến), Pha 5 (Tổng kết & Outro), Bài tập.
+    Lợi ích: Giữ trọn vẹn đặc tả animation 3B1B & tư liệu research sâu sắc; token mỗi lần chỉ ~3.5k nên không bao giờ nghẽn 413/504.
+    """
+    log.info("Bắt đầu sinh kịch bản 2 phần (Two-Part Script) cho '%s' (~%ds, ~%d từ)...", topic, s.duration, s.approx_words)
+    total_scenes_target = s.n_scenes_min
+    n_p1_min = max(total_scenes_target // 2, 4)
+    n_p1_max = max(s.n_scenes_max // 2, n_p1_min + 2)
+    words_p1 = max(s.approx_words // 2, 350)
+    attempts = _int_cfg("script_max_attempts", 2, 1, 4)
+
+    # --- BƯỚC 1: VIẾT NỬA ĐẦU (PART 1) ---
+    p1_prompt = _build_long_part1_prompt(s, topic, research, series, n_p1_min, n_p1_max, words_p1)
+    p1_data: dict | None = None
+    scenes_p1: list[Scene] = []
+    note_p1 = ""
+    for attempt in range(1, attempts + 1):
+        raw_p1: str | None = None
+        try:
+            log.info("Part 1/2: Lập khung & viết nửa đầu (Lần %d)...", attempt)
+            raw_p1 = generate(p1_prompt + note_p1, system=_system(s), task="script")
+            data = _extract_json(raw_p1)
+            parsed = _parse_scenes(data.get("scenes"), topic, s)
+            if parsed and len(parsed) >= 3:
+                p1_data = data
+                scenes_p1 = parsed
+                break
+        except Exception as e:
+            log.warning("Part 1 lần %d lỗi: %s", attempt, e)
+            _dump_debug(f"part1_fail_{attempt}", raw_p1)
+            note_p1 = _retry_note(["Output phải là đúng 1 JSON object chứa 'title', 'running_case' và 'scenes'."])
+
+    if not p1_data or not scenes_p1:
+        raise RuntimeError("Không sinh được nửa đầu kịch bản Part 1")
+
+    log.info("✓ Part 1 hoàn thành: %d scene, title: '%s'", len(scenes_p1), p1_data.get("title", topic))
+
+    # --- BƯỚC 2: VIẾT NỬA SAU (PART 2) ---
+    words_p1_actual = _count_words(scenes_p1)
+    words_p2 = max(s.approx_words - words_p1_actual, 350)
+    n_p2_min = max(s.n_scenes_min - len(scenes_p1), 4)
+    n_p2_max = max(s.n_scenes_max - len(scenes_p1), n_p2_min + 2)
+    start_idx = len(scenes_p1) + 1
+
+    p2_prompt = _build_long_part2_prompt(
+        s, topic, research, series, p1_data, n_p2_min, n_p2_max, words_p2, start_idx
+    )
+    p2_data: dict | None = None
+    scenes_p2: list[Scene] = []
+    note_p2 = ""
+    for attempt in range(1, attempts + 1):
+        raw_p2: str | None = None
+        try:
+            log.info("Part 2/2: Viết tiếp nửa sau & tổng kết (Lần %d)...", attempt)
+            raw_p2 = generate(p2_prompt + note_p2, system=_system(s), task="script")
+            data = _extract_json(raw_p2)
+            parsed = _parse_scenes(data.get("scenes"), topic, s)
+            if parsed and len(parsed) >= 3:
+                p2_data = data
+                scenes_p2 = parsed
+                break
+        except Exception as e:
+            log.warning("Part 2 lần %d lỗi: %s", attempt, e)
+            _dump_debug(f"part2_fail_{attempt}", raw_p2)
+            note_p2 = _retry_note(["Output phải là đúng 1 JSON object chứa 'scenes' và 'exercises'."])
+
+    if not p2_data or not scenes_p2:
+        raise RuntimeError("Không sinh được nửa sau kịch bản Part 2")
+
+    log.info("✓ Part 2 hoàn thành: %d scene", len(scenes_p2))
+
+    # --- BƯỚC 3: GHÉP NỐI TOÀN BỘ KỊCH BẢN ---
+    all_scenes = scenes_p1 + scenes_p2
+    exercises = _parse_exercises(p2_data.get("exercises"))
+
+    title = _finalize_title(p1_data.get("title") or topic, topic, s)
+    desc = str(p1_data.get("description") or "").strip()
+    tags = _clean_tags(p1_data.get("tags"), s)
+
+    return Script(
+        topic=topic,
+        title=title,
+        description=desc,
+        tags=tags,
+        scenes=all_scenes,
+        exercises=exercises,
+    )
+
 
 def _write_standard_script(
     topic: str, s: _Settings, research: str, series: dict | None
@@ -1439,6 +1704,16 @@ def write_script(topic: str, series_context: dict | None = None) -> Script:
 
     if s.is_mega:
         script = _write_mega_script(topic, s, research, series)
+    elif not s.is_short and _int_cfg("script_split_parts", 1, 0, 1) == 1:
+        # Tự động chia đôi kịch bản cho video dài (long ~300s):
+        # 1. Giữ trọn vẹn đặc tả animation 3B1B & tư liệu research sâu sắc ("đang hay mà").
+        # 2. Không bao giờ vượt quá TPM limit (413) hay bị timeout (504).
+        # 3. Kịch bản sâu sắc, mỗi scene có đủ lời đọc và minh hoạ chi tiết.
+        try:
+            script = _write_two_part_script(topic, s, research, series)
+        except Exception as e:
+            log.warning("Viết kịch bản 2 phần lỗi (%s), fallback sang single-pass standard", e)
+            script = _write_standard_script(topic, s, research, series)
     else:
         script = _write_standard_script(topic, s, research, series)
 
