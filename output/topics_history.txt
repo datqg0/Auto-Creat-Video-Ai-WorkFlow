@@ -22,3 +22,4 @@
 2026-10-12T07:25:03.204612	FFT
 2026-10-12T09:40:13.498215	Write-Ahead Logging (WAL): Bí thuật giúp Database 'bất tử' trước sự cố mất điện
 2026-10-12T10:23:36.292904	LSM-Tree: Vũ khí của các Database Big Data xử lý hàng triệu lượt ghi mỗi giây
+2026-10-12T12:30:11.418247	Consistent Hashing: Nghệ thuật chia tải Petabyte dữ liệu mà không gây tắc nghẽn
