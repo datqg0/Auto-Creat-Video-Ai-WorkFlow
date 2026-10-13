@@ -249,12 +249,12 @@ animation:
   min_animation_ratio: 0.70    # Tối thiểu 70% số scene dùng animation
   motion_graphics_enabled: true # Bật engine Motion Graphics HTML5/Canvas qua Edge Headless (chuẩn Tech Studio)
   manim_enabled: true          # Bật Manim cho các scene thuật toán sâu (chuẩn 3Blue1Brown)
-  # Chất lượng render manim: low_quality|medium_quality|high_quality|production_quality
-  manim_quality: "medium_quality"
-  # FPS riêng cho manim (30 fps đồng bộ visual.fps để render nhanh hơn trên CI).
+  # Chất lượng render manim: high_quality cho độ nét 1080p tối đa
+  manim_quality: "high_quality"
+  # FPS riêng cho manim (30 fps đồng bộ visual.fps để render mượt mà trên CI).
   manim_fps: 30
-  # Timeout cứng cho 1 lần render manim (giây); vượt -> bỏ, fallback.
-  manim_timeout: 300
+  # Timeout cứng cho 1 lần render manim (giây); nâng lên 480s để scene phức tạp render trọn vẹn.
+  manim_timeout: 480
 
 # ---- Ảnh minh họa (Tự tìm & AI sinh) ----
 images:
@@ -272,7 +272,7 @@ videos:
   # làm nền động + chữ overlay -> trực quan, sinh động hơn ảnh tĩnh.
   # CẦN PEXELS_API_KEY (không có key -> tự động fallback về ảnh tĩnh/AI video).
   enabled: true
-  max_per_video: 6        # số scene tối đa dùng b-roll trong 1 video
+  max_per_video: 10       # mở rộng số scene tối đa dùng b-roll trong 1 video (từ 6 lên 10)
 
 # ---- Video AI sinh (Tối đa 1 clip/video) ----
 ai_video:
@@ -307,7 +307,7 @@ thumbnail:
 subtitles:
   enabled: true
   whisper_model: "base"   # (chỉ dùng khi fallback Whisper) tiny|base|small|medium
-  burn_in: false          # false: video sạch, upload file srt lên YouTube để người dùng bật CC nếu cần
+  burn_in: true           # true: in phụ đề chữ to rõ trực tiếp lên video (an toàn cho Shorts/TikTok & YouTube)
 
 # ---- Nhạc nền ----
 music:

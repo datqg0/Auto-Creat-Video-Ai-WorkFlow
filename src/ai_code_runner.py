@@ -574,7 +574,8 @@ def run_manim_code(
         cmd = [
             sys.executable, "-m", "manim", "render",
             "-a", "--format", "mp4",
-            f"--quality={_MANIM_QUALITY_FLAG.get(quality, 'm')}",
+            "-r", f"{int(width)},{int(height)}",
+            "--fps", str(int(fps)),
             "--media_dir", str(media),
             script.name,
         ]

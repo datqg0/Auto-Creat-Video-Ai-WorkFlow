@@ -424,8 +424,8 @@ def compose(
         codec="libx264",
         audio_codec="aac",
         fps=_FPS(),
-        threads=4,
-        preset="slow",
+        threads=os.cpu_count() or 4,
+        preset="medium",
         # CRF 18 = gần lossless, hết banding vùng gradient/chữ; yuv420p cho YouTube.
         ffmpeg_params=["-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart"],
         logger=None,
@@ -440,7 +440,8 @@ def compose(
     video.close()
 
     # Burn phụ đề + chuẩn hóa âm lượng giọng (loudnorm) + trộn nhạc ducking ở pass cuối.
-    burn = bool(srt_path and CONFIG["subtitles"].get("burn_in") and srt_path.exists())
+    # Short luôn burn-in (vì màn hình dọc người xem tắt tiếng nhiều), long theo cấu hình.
+    burn = bool(srt_path and (CONFIG.get("subtitles", {}).get("burn_in") or CONFIG.get("active_mode") == "short") and srt_path.exists())
     return _finalize(out_path, srt_path if burn else None, music_path)
 
 
@@ -495,7 +496,7 @@ def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) 
         fonts_dir = (Path(__file__).resolve().parent.parent / "assets" / "fonts")
         fdir_arg = str(fonts_dir).replace("\\", "/").replace(":", "\\:")
         vf = f"subtitles='{srt_arg}':fontsdir='{fdir_arg}':force_style='{style}'"
-        video_enc = ["-vf", vf, "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-pix_fmt", "yuv420p"]
+        video_enc = ["-vf", vf, "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-threads", "0", "-pix_fmt", "yuv420p"]
     else:
         video_enc = ["-c:v", "copy"]
 

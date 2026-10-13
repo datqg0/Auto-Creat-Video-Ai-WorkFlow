@@ -66,10 +66,10 @@ jobs:
           sudo swapon /mnt/ci-swapfile
           free -h
 
-      - name: Cài ffmpeg
+      - name: Cài ffmpeg & dependencies hệ thống
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-freefont-ttf fonts-liberation fonts-noto-core
           # Phụ thuộc cho manim: cairo/pango để render + LaTeX đầy đủ cho MathTex (toán học, font vector cm-super).
           sudo apt-get install -y \
             libcairo2-dev libpango1.0-dev pkg-config \
@@ -140,6 +140,12 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+          # Khai thác tối đa 100% công suất CPU runner (đa luồng ONNX, PyTorch, NumPy, FFmpeg)
+          OMP_NUM_THREADS: "4"
+          MKL_NUM_THREADS: "4"
+          OPENBLAS_NUM_THREADS: "4"
+          NUMEXPR_NUM_THREADS: "4"
+          PYTHONUNBUFFERED: "1"
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
           CMD=("python" "-m" "src.pipeline" "--mode" "$MODE")
