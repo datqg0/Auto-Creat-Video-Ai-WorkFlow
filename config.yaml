@@ -347,25 +347,32 @@ youtube:
 topics:
   # Lĩnh vực để AI chọn chủ đề (tránh lan man)
   domains:
-    - "trí tuệ nhân tạo và machine learning"
-    - "thuật toán và cấu trúc dữ liệu"
-    - "kiến trúc hệ thống và distributed systems"
-    - "ngôn ngữ lập trình và paradigm"
-    - "an ninh mạng và mã hóa"
-    - "blockchain và cryptography"
-    - "phần cứng, GPU, kiến trúc máy tính"
-    - "database và big data"
-    # --- NHÓM ƯU TIÊN: GitHub Repos nổi tiếng, Open-Source đột phá, AI/ML cutting-edge ---
+    # --- NHÓM 1: KIẾN THỨC IT CĂN BẢN & KHOA HỌC MÁY TÍNH (Dễ hiểu, trực quan, nền tảng) ---
+    - "kiến thức IT căn bản: Bộ nhớ máy tính (Stack vs Heap, Con trỏ Pointer, Virtual Memory, RAM)"
+    - "kiến thức IT căn bản: Mạng máy tính & Internet (TCP/IP 3-way handshake, UDP, DNS, cách gói tin di chuyển, HTTP vs HTTPS)"
+    - "kiến thức IT căn bản: Hệ điều hành & Đa nhiệm (Process vs Thread, Concurrency vs Parallelism, Deadlock, Race Condition)"
+    - "kiến thức IT căn bản: Cấu trúc dữ liệu vỡ lòng (Array vs Linked List, Hash Table, Stack, Queue, Độ phức tạp Big-O)"
+    - "kiến thức IT căn bản: Nền tảng Web & API (Client-Server model, Cookie vs Session vs JWT, RESTful API, WebSocket)"
+
+    # --- NHÓM 2: KIẾN TRÚC HỆ THỐNG, DATABASE & PHẦN CỨNG ---
+    - "kiến trúc hệ thống và distributed systems (Microservices, Load Balancing, Message Queue, Sharding)"
+    - "database và big data: SQL vs NoSQL, Index B-Tree, ACID transaction, WAL"
+    - "phần cứng, CPU, GPU và kiến trúc máy tính: ALU, Cache L1/L2/L3, CPU Pipeline, Bus"
+    - "an ninh mạng và mã hóa: Public-Private Key, RSA, Diffie-Hellman, Hashing vs Encryption"
+
+    # --- NHÓM 3: GITHUB REPOSITORIES NỔI TIẾNG & TRENDING OPEN-SOURCE ---
     - "Phân tích mã nguồn và kiến trúc GitHub Repositories nổi tiếng (llama.cpp, vLLM, Karpathy llm.c, Ollama, ComfyUI, BitNet, DeepSeek)"
     - "GitHub Trending repositories và các dự án mã nguồn mở bùng nổ gần đây"
     - "GitHub open-source projects và repo nổi tiếng (llm.c, transformer, diffusion, RLHF)"
+
+    # --- NHÓM 4: THUẬT TOÁN AI & MACHINE LEARNING TIÊN TIẾN ---
     - "thuật toán AI và ML: backpropagation, attention mechanism, RLHF, diffusion models"
     - "GitHub repositories và công cụ dev nổi bật: tool hữu ích cho lập trình viên"
   # So ngay tranh lap lai chu de da dung
   dedup_days: 30
-  # Đảm bảo >= 1/2 số video về GitHub repos / thuật toán AI / ML / Open-source
-  priority_domains_every_n: 2   # Cứ 2 video thì 1 video bắt buộc rơi vào nhóm GitHub Repo / AI
-  priority_domain_indices: [8, 9, 10, 11, 12]  # index các domain GitHub / AI bên trên
+  # Đảm bảo luân phiên các nhóm trọng tâm: IT Căn bản, GitHub Repos, Thuật toán AI
+  priority_domains_every_n: 2   # Cứ 2 video thì 1 video rơi vào nhóm trọng điểm
+  priority_domain_indices: [0, 1, 2, 3, 9, 10, 12]  # Vòng xoay ưu tiên: IT căn bản (0,1,2,3), GitHub Repo (9,10), AI (12)
 
 # ---- Trending signals ----
 trend:

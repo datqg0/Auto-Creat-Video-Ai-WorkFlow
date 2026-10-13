@@ -93,6 +93,12 @@ def pick_topic() -> str:
                 "\n- Why algorithm X works and why traditional approaches fail"
                 "\n- Step-by-step trace of computations with concrete matrices/tensors (not just formulas)"
             )
+        elif any(k in domain.lower() for k in ("căn bản", "can ban", "fundamentals", "basics", "mạng", "bộ nhớ", "hệ điều hành", "cấu trúc dữ liệu")):
+            github_hint = (
+                "\n\nCS/IT FUNDAMENTALS HINTS (priority):"
+                "\n- Explain classic, fundamental IT concepts every developer needs to know (Stack vs Heap, Pointer, TCP 3-way handshake, Process vs Thread, Hash Table collision, DNS resolution...)"
+                "\n- Frame as an intuitive, visual walkthrough solving a clear problem."
+            )
 
         prompt = f"""You are an editor for a tech YouTube channel specializing in visual explanations (visualization).
 Propose ONE specific, engaging video topic in the field: {domain}.
@@ -129,6 +135,18 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
                 "\n- Cơ chế toán học đằng sau: attention/transformer, backprop, diffusion, RLHF"
                 "\n- Tại sao thuật toán X hoạt động và tại sao cách truyền thống thất bại"
                 "\n- Trace từng bước tính toán với ma trận/tensor cụ thể (không chỉ công thức)"
+            )
+        elif any(k in domain.lower() for k in ("căn bản", "can ban", "fundamentals", "mạng", "bộ nhớ", "hệ điều hành", "cấu trúc dữ liệu", "web")):
+            github_hint = (
+                "\n\nGỢI Ý CHỦ ĐỀ KIẾN THỨC IT CĂN BẢN (Nền tảng Khoa học máy tính):"
+                "\n- Giải thích những khái niệm kinh điển mà mọi lập trình viên/dân IT đều cần hiểu sâu sắc nhưng thường thấy mơ hồ:"
+                "\n  + 'Stack vs Heap: Bản đồ vùng nhớ máy tính hoạt động thế nào?'"
+                "\n  + 'Bắt tay 3 bước TCP: Bí quyết Internet truyền dữ liệu không rơi rớt'"
+                "\n  + 'Con trỏ (Pointer) trong bộ nhớ: Biến số thực sự nằm ở đâu trong RAM?'"
+                "\n  + 'Process vs Thread: Đa nhiệm trên CPU thực sự diễn ra thế nào?'"
+                "\n  + 'Hash Table: Cách tra cứu O(1) và giải quyết đụng độ băm'"
+                "\n  + 'DNS hoạt động ra sao: 4 trạm dừng biến tên miền thành địa chỉ IP'"
+                "\n- Phong cách: Đặt câu hỏi kích thích tò mò, trực quan hóa đường đi của dữ liệu, ô nhớ RAM và luồng tín hiệu."
             )
 
         prompt = f"""Bạn là biên tập viên kênh YouTube về công nghệ theo phong cách giải thích trực quan (visualization).
