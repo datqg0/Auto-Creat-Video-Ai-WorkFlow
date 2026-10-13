@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import random
+import subprocess
 import zlib
 from pathlib import Path
 
@@ -459,8 +461,6 @@ def _get_ffmpeg() -> str:
 
 def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) -> Path:
     """Pass ffmpeg cuối: loudnorm giọng (-14 LUFS) + ducking nhạc nền + burn phụ đề."""
-    import subprocess
-
     out = video_path.with_name(video_path.stem + "_final.mp4")
     music_vol = float(CONFIG.get("music", {}).get("volume", 0.12))
 
