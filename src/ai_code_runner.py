@@ -320,7 +320,8 @@ def generate_manim_from_prompt(
         f"     * neon(mob, color=CY, width=3, layers=4, fill=0.0): multi-layer glow + white core on any VMobject.\n"
         f"     * NeonDot(color=PK, radius=0.08): glowing point.\n"
         f"     * neon_trail(get_point, color=PK, time=0.9): glowing tail behind a moving point.\n"
-        f"     * sym(s, color=CY, size=22): short symbols / numbers only (Text-based, NO LaTeX).\n"
+        f"     * sym(s, color=CY, size=22): short text labels / numbers (Text-based).\n"
+        f"     * tex_math(expr, color=CY, size=28) or MathTex(r'...'): LaTeX formulas (fractions, roots, integrals, exponents, Greek symbols).\n"
         f"     * neon_box(label, color=CY, w=1.6, h=0.9, pos=ORIGIN): node with 1-3 char label.\n"
         f"     * curve(xs, ys): smooth VMobject from numpy arrays.\n"
         f"     * make_grid(): faint dark neon background grid.\n"
@@ -495,6 +496,12 @@ def sym(s, color=CY, size=22):
         t = Text(str(s), font_size=size, color=color)
     t.set_stroke(color, width=4, opacity=0.25, background=True)
     return t
+
+def tex_math(expr, color=CY, size=28):
+    try:
+        return MathTex(str(expr), color=color, font_size=size)
+    except Exception:
+        return sym(str(expr), color=color, size=size)
 
 def neon_box(label, color=CY, w=1.6, h=0.9, pos=ORIGIN):
     box = neon(RoundedRectangle(corner_radius=0.2, width=w, height=h).move_to(pos),
