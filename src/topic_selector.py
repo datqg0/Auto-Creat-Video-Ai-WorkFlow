@@ -93,11 +93,12 @@ def pick_topic() -> str:
                 "\n- Why algorithm X works and why traditional approaches fail"
                 "\n- Step-by-step trace of computations with concrete matrices/tensors (not just formulas)"
             )
-        elif any(k in domain.lower() for k in ("toán", "math", "đại số", "algebra", "giải tích", "calculus", "xác suất", "probability", "fourier")):
+        elif any(k in domain.lower() for k in ("toán", "math", "grade", "school", "cấp 1", "cấp 2", "cấp 3", "algebra", "calculus", "geometry", "probability", "fourier")):
             github_hint = (
-                "\n\nFOUNDATIONAL MATH VISUALIZATION HINTS (3Blue1Brown style, priority):"
-                "\n- Geometric intuition behind classic math: Linear transformations, Determinants, Eigenvectors, Derivative as slope/zoom, Integral as accumulation, Bayes' Theorem, Fourier Transform, Complex numbers rotation."
-                "\n- Frame as an intuitive visual revelation answering: 'What is the true geometric meaning of X?'"
+                "\n\nSCHOOL MATH & REAL-WORLD APPLICATIONS (Elementary -> Middle -> High School, 3Blue1Brown style):"
+                "\n- Core principle: Reveal the intuitive geometric essence and its concrete real-world application (3D Games, GPS, Rocketry, Finance, AI)."
+                "\n- Elementary/Middle School: Multiplication as pixel area grid, Pythagoras theorem in 3D gaming & GPS, Parabola trajectory in ballistics & satellite dishes, Trigonometry for astronomical distances."
+                "\n- High School: Derivatives in business optimization & AI backprop, Integrals for vehicle odometry, Logarithms in compound interest & Richter scale, Combinatorics in cryptography & lottery odds, Matrices as spatial transformation."
             )
         elif any(k in domain.lower() for k in ("căn bản", "can ban", "fundamentals", "basics", "mạng", "bộ nhớ", "hệ điều hành", "cấu trúc dữ liệu")):
             github_hint = (
@@ -135,18 +136,26 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
                 " 'Giải mã repo BitNet của Microsoft: Kỷ nguyên LLM 1-bit...')"
                 "\n- Đi sâu vào kiến trúc code, thuật toán hoặc kỹ thuật tối ưu cốt lõi làm nên sức mạnh của repo đó."
             )
-        elif any(k in domain.lower() for k in ("toán", "math", "đại số", "algebra", "giải tích", "calculus", "xác suất", "probability", "fourier")):
+        elif any(k in domain.lower() for k in ("toán", "math", "cấp 1", "cấp 2", "cấp 3", "đại số", "algebra", "giải tích", "calculus", "lượng giác", "xác suất", "fourier")):
             github_hint = (
-                "\n\nGỢI Ý CHỦ ĐỀ TOÁN HỌC CĂN BẢN (Phong cách 3Blue1Brown & Manim trực quan):"
-                "\n- Khai thác trực quan hình học đằng sau các khái niệm toán học kinh điển, biến công thức trừu tượng thành chuyển động trực giác:"
-                "\n  + 'Bản chất hình học của Ma trận: Phép kéo giãn và biến hình không gian'"
-                "\n  + 'Định thức (Determinant) là gì: Hệ số co giãn diện tích mà SGK chưa nói'"
-                "\n  + 'Eigenvector & Eigenvalue: Những chiếc trục bất động khi không gian bị kéo giãn'"
-                "\n  + 'Đạo hàm dưới kính lúp hình học: Phóng to đến vô cùng để tìm độ nghiêng tức thời'"
-                "\n  + 'Định lý Bayes: Công thức toán học của niềm tin và trực giác con người'"
-                "\n  + 'Biến đổi Fourier: Chiếc lăng kính chia tách mọi âm thanh thành sóng sin'"
-                "\n  + 'Số ảo i và công thức Euler: Chiếc chìa khóa xoay tròn 90 độ trong không gian 2D'"
-                "\n- Phong cách: Trả lời câu hỏi 'Bản chất thực sự của nó là gì?', cực kỳ phù hợp để vẽ Manim/LaTeX động."
+                "\n\nGỢI Ý CHỦ ĐỀ TOÁN HỌC (CẤP 1 -> CẤP 2 -> CẤP 3) & ỨNG DỤNG THỰC TẾ (Phong cách 3Blue1Brown trực quan):"
+                "\n- CỐT LÕI: Luôn trả lời: 'Bản chất hình học là gì?' và 'Toán này ứng dụng thực tế ngoài đời vào đâu?' (Game 3D, GPS, Tên lửa, Tài chính, AI, Màn hình...)"
+                "\n- Toán Cấp 1 (Tiểu học & Ứng dụng):"
+                "\n  + 'Bản chất phép nhân: Lưới diện tích hình học và cách màn hình hiển thị pixel'"
+                "\n  + 'Số Pi là gì: Vì sao bánh xe luôn tròn và cách người xưa đo chu vi Trái Đất'"
+                "\n  + 'Hệ thập phân vs Hệ nhị phân: Tại sao máy tính chỉ hiểu 0 và 1?'"
+                "\n- Toán Cấp 2 (THCS & Ứng dụng):"
+                "\n  + 'Định lý Pythagoras: Vũ khí tính khoảng cách trong Game 3D và định vị vệ tinh GPS'"
+                "\n  + 'Phương trình bậc 2 & Parabol: Quỹ đạo ném bóng rổ và chảo bắt sóng vệ tinh'"
+                "\n  + 'Lượng giác sin/cos: Cách đo chiều cao Kim Tự Tháp và khoảng cách đến Mặt Trăng'"
+                "\n  + 'Tỷ lệ vàng và Fibonacci: Bí mật vẻ đẹp thiên nhiên và thiết kế đồ họa'"
+                "\n- Toán Cấp 3 & Cao cấp (THPT & Ứng dụng):"
+                "\n  + 'Đạo hàm: Ứng dụng tối ưu hóa kinh doanh và Gradient Descent trong AI'"
+                "\n  + 'Tích phân: Cách đồng hồ ô tô đo quãng đường và tính dung tích vật thể uốn lượn'"
+                "\n  + 'Logarit & Hàm mũ: Sức mạnh lãi kép tài chính và thang đo động đất Richter'"
+                "\n  + 'Tổ hợp & Xác suất: Vì sao bạn gần như không bao giờ trúng độc đắc Vietlott?'"
+                "\n  + 'Ma trận & Không gian vector: Phép biến hình không gian đằng sau đồ họa 3D'"
+                "\n- Phong cách: Đặt câu hỏi thực tế lôi cuốn, sinh code Manim/LaTeX để trực quan hóa chuyển động sống động."
             )
         elif any(k in domain.lower() for k in ("thuật toán ai", "thuat toan ai", "algorithm", "ml", "ai")):
             github_hint = (

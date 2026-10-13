@@ -369,16 +369,17 @@ topics:
     - "thuật toán AI và ML: backpropagation, attention mechanism, RLHF, diffusion models"
     - "GitHub repositories và công cụ dev nổi bật: tool hữu ích cho lập trình viên"
 
-    # --- NHÓM 5: TOÁN HỌC CĂN BẢN & TRỰC QUAN HÌNH HỌC (Phong cách 3Blue1Brown, Manim & LaTeX) ---
-    - "toán học căn bản: Đại số tuyến tính trực quan (Vector, Ma trận là phép biến hình không gian, Định thức Determinant, Eigenvector)"
-    - "toán học căn bản: Giải tích trực quan (Bản chất hình học của Đạo hàm, Tích phân chia nhỏ vô hạn, Gradient chiều dốc nhất)"
-    - "toán học căn bản: Xác suất & Thống kê (Định lý Bayes cập nhật niềm tin, Phân phối chuẩn hình chuông Gauss, Nghịch lý ngày sinh nhật)"
-    - "toán học căn bản: Biến đổi Fourier & Số ảo (Số phức là phép quay 2D, Tách sóng âm phức tạp thành sóng sin)"
+    # --- NHÓM 5: TOÁN CẤP 1 -> CẤP 2 -> CẤP 3 & ỨNG DỤNG THỰC TẾ (Trực quan hóa Manim) ---
+    - "toán cấp 1 và ứng dụng thực tế: Bản chất hình học của phép nhân (lưới pixel), phân số & tỷ lệ, hệ thập phân vs nhị phân máy tính, số Pi"
+    - "toán cấp 2 và ứng dụng thực tế: Định lý Pythagoras trong Game 3D & GPS, Parabol quỹ đạo ném bóng & chảo vệ tinh, Lượng giác sin cos đo thiên văn, Tỷ lệ vàng"
+    - "toán cấp 3 và ứng dụng thực tế: Đạo hàm tối ưu hóa kinh doanh & Gradient Descent AI, Tích phân đo thể tích & quãng đường, Logarit lãi kép & thang Richter, Xác suất trúng vé số"
+    - "toán học trực quan cấp cao: Đại số tuyến tính (Vector, Ma trận biến hình không gian, Định thức Determinant, Eigenvector)"
+    - "toán học trực quan cấp cao: Giải tích, Xác suất Bayes cập nhật niềm tin, Biến đổi Fourier & Số ảo i"
   # So ngay tranh lap lai chu de da dung
   dedup_days: 30
-  # Đảm bảo luân phiên các nhóm trọng tâm: IT Căn bản, Toán học trực quan, GitHub Repos, Thuật toán AI
+  # Đảm bảo luân phiên các nhóm trọng tâm: Toán học phổ thông & thực tế, IT Căn bản, GitHub Repos, Thuật toán AI
   priority_domains_every_n: 2   # Cứ 2 video thì 1 video rơi vào nhóm trọng điểm
-  priority_domain_indices: [0, 1, 2, 3, 9, 10, 12, 14, 15, 16]  # Vòng xoay ưu tiên: IT căn bản, GitHub Repo, AI, Toán học căn bản
+  priority_domain_indices: [0, 1, 2, 9, 10, 12, 14, 15, 16, 17]  # Vòng xoay ưu tiên: IT căn bản, GitHub Repo, AI, Toán Cấp 1-2-3 thực tế
 
 # ---- Trending signals ----
 trend:
