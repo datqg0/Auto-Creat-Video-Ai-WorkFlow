@@ -355,16 +355,17 @@ topics:
     - "blockchain và cryptography"
     - "phần cứng, GPU, kiến trúc máy tính"
     - "database và big data"
-    # --- NHÓM ƯU TIÊN: GitHub repos nổi tiếng, thuật toán kinh điển, AI/ML cutting-edge ---
+    # --- NHÓM ƯU TIÊN: GitHub Repos nổi tiếng, Open-Source đột phá, AI/ML cutting-edge ---
+    - "Phân tích mã nguồn và kiến trúc GitHub Repositories nổi tiếng (llama.cpp, vLLM, Karpathy llm.c, Ollama, ComfyUI, BitNet, DeepSeek)"
+    - "GitHub Trending repositories và các dự án mã nguồn mở bùng nổ gần đây"
     - "GitHub open-source projects và repo nổi tiếng (llm.c, transformer, diffusion, RLHF)"
     - "thuật toán AI và ML: backpropagation, attention mechanism, RLHF, diffusion models"
     - "GitHub repositories và công cụ dev nổi bật: tool hữu ích cho lập trình viên"
   # So ngay tranh lap lai chu de da dung
   dedup_days: 30
-  # Đảm bảo >=1/3 số video về GitHub repos / thuật toán AI / ML
-  # Các domain index 8,9,10 (0-indexed) được ưu tiên chọn theo vòng xoay
-  priority_domains_every_n: 3   # cứ N video thì 1 video bắt buộc từ priority domain
-  priority_domain_indices: [8, 9, 10]  # index trong danh sách domains bên trên
+  # Đảm bảo >= 1/2 số video về GitHub repos / thuật toán AI / ML / Open-source
+  priority_domains_every_n: 2   # Cứ 2 video thì 1 video bắt buộc rơi vào nhóm GitHub Repo / AI
+  priority_domain_indices: [8, 9, 10, 11, 12]  # index các domain GitHub / AI bên trên
 
 # ---- Trending signals ----
 trend:

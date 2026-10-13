@@ -77,14 +77,14 @@ def pick_topic() -> str:
         )
 
         github_hint = ""
-        if "github" in domain.lower() or "open-source" in domain.lower():
+        if any(k in domain.lower() for k in ("github", "open-source", "repo")):
             github_hint = (
                 "\n\nGITHUB/OPEN-SOURCE TOPIC HINTS (priority):"
-                "\n- Technical analysis of a famous GitHub repo (e.g., Karpathy's llm.c,"
-                " whisper, stable-diffusion, transformers, langchain, vllm, llama.cpp, comfyui...)"
-                "\n- Explain how a popular open-source tool works internally"
-                "\n- How to read and understand source code of a notable ML/AI project"
-                "\nNOTE: Focus on ONE specific repo, analyze down to the algorithm/architecture level."
+                "\n- Technical deep-dive into a specific GitHub repo (e.g., Karpathy's llm.c,"
+                " llama.cpp, vllm, BitNet, Ollama, ComfyUI, whisper.cpp, open-webui, airllm, deepseek-v3...)"
+                "\n- REQUIREMENT: Explicitly mention the specific repo name in the title"
+                " (e.g., 'Inside llama.cpp: Running LLMs on Pure CPU', 'Microsoft BitNet Explained: The 1-Bit LLM Architecture')"
+                "\n- Analyze the core architectural breakthrough or algorithmic trick inside the repo."
             )
         elif any(k in domain.lower() for k in ("thuật toán ai", "thuat toan ai", "algorithm", "ml", "ai")):
             github_hint = (
@@ -114,14 +114,14 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
         )
 
         github_hint = ""
-        if "github" in domain.lower() or "open-source" in domain.lower():
+        if any(k in domain.lower() for k in ("github", "open-source", "repo")):
             github_hint = (
                 "\n\nGỢI Ý CHỦ ĐỀ GITHUB/OPEN-SOURCE (ưu tiên):"
-                "\n- Phân tích kỹ thuật của một repo GitHub nổi tiếng (ví dụ: llm.c của Karpathy,"
-                " whisper, stable-diffusion, transformers, langchain, vllm, llama.cpp, comfyui...)"
-                "\n- Giải thích cách hoạt động bên trong của một open-source tool phổ biến"
-                "\n- Cách đọc và hiểu source code của một dự án ML/AI nổi tiếng"
-                "\nCHÚ Ý: Tập trung vào MỘT repo cụ thể, phân tích đến tầng thuật toán/kiến trúc."
+                "\n- Phân tích kỹ thuật của một repo GitHub cụ thể (ví dụ: llama.cpp, vLLM, llm.c của Karpathy,"
+                " BitNet, Ollama, ComfyUI, whisper.cpp, open-webui, airllm, deepseek-v3...)"
+                "\n- BẮT BUỘC: Đưa tên Repo cụ thể vào tiêu đề video (ví dụ: 'Bên trong repo llama.cpp: Bí quyết chạy LLM không cần GPU',"
+                " 'Giải mã repo BitNet của Microsoft: Kỷ nguyên LLM 1-bit...')"
+                "\n- Đi sâu vào kiến trúc code, thuật toán hoặc kỹ thuật tối ưu cốt lõi làm nên sức mạnh của repo đó."
             )
         elif any(k in domain.lower() for k in ("thuật toán ai", "thuat toan ai", "algorithm", "ml", "ai")):
             github_hint = (

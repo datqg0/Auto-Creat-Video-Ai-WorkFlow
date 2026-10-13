@@ -118,6 +118,41 @@ def _google_trends(geo: str = "VN", n: int = 10) -> list[str]:
         return []
 
 
+def _github_trending(limit: int = 10) -> list[str]:
+    """Cao truc tiep repository dang trending tren GitHub (100% free, khong can API key)."""
+    try:
+        import re
+        url = "https://github.com/trending"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+        r = _req.Request(url, headers=headers)
+        with _req.urlopen(r, timeout=8) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+
+        repos = re.findall(r"/([a-zA-Z0-9_\-\.]+/[a-zA-Z0-9_\-\.]+)/stargazers", html)
+        if not repos:
+            repos = re.findall(r'href="/([a-zA-Z0-9_\-\.]+/[a-zA-Z0-9_\-\.]+)"[^>]*class="[^"]*Link', html)
+
+        seen = set()
+        cleaned = []
+        for repo in repos:
+            rc = repo.strip("/")
+            if rc and rc not in seen and "/" in rc:
+                part0 = rc.split("/")[0].lower()
+                if part0 not in ("features", "topics", "collections", "events", "sponsors", "about"):
+                    seen.add(rc)
+                    cleaned.append(rc)
+                    if len(cleaned) >= limit:
+                        break
+        log.debug("GitHub Trending truc tiep: %d repos", len(cleaned))
+        return cleaned
+    except Exception as e:
+        log.warning("Cao GitHub Trending loi: %s", e)
+        return []
+
+
 def fetch_trends(force_refresh: bool = False) -> dict[str, list[str]]:
     """Tong hop trending signals tu tat ca nguon. Cache theo config cache_hours."""
     cfg = _cfg()
@@ -131,7 +166,7 @@ def fetch_trends(force_refresh: bool = False) -> dict[str, list[str]]:
             log.info("Dung trend cache (con han)")
             return {k: v for k, v in cached.items() if k != "_ts"}
 
-    log.info("Lay trend moi tu HackerNews / Reddit / Google Trends...")
+    log.info("Lay trend moi tu HackerNews / Reddit / Google Trends / GitHub...")
     src = _sources()
     result: dict[str, list[str]] = {}
     if src.get("hacker_news", True):
@@ -141,15 +176,18 @@ def fetch_trends(force_refresh: bool = False) -> dict[str, list[str]]:
     if src.get("google_trends", True):
         result["google_trends"] = _google_trends("VN", 10)
     if src.get("github_trending", True):
+        gh = []
         try:
             from .tinyfish_client import is_available, fetch_github_trending
 
             if is_available():
-                gh = fetch_github_trending(limit=6)
-                if gh:
-                    result["github_trending"] = gh
+                gh = fetch_github_trending(limit=6) or []
         except Exception as e:  # noqa: BLE001
             log.debug("TinyFish github trending loi: %s", e)
+        if not gh:
+            gh = _github_trending(limit=8)
+        if gh:
+            result["github_trending"] = gh
 
     total = sum(len(v) for v in result.values())
     log.info("Trends: %d tin hieu (%s)", total, ", ".join(f"{k}={len(v)}" for k, v in result.items()))
