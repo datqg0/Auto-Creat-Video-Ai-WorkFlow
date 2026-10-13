@@ -137,6 +137,8 @@ def _is_rate_limit(e: Exception) -> bool:
 def _api_key(provider: dict, default_env: str) -> str:
     key_env = provider.get("api_key_env", default_env)
     val = env(key_env)
+    if not val and key_env in ("GH_MODELS_TOKEN", "GITHUB_MODELS_TOKEN"):
+        val = env("GH_MODELS_TOKEN") or env("GITHUB_MODELS_TOKEN") or env("GH_TOKEN")
     if not val:
         raise LLMError(f"Thiếu {key_env}")
     return val

@@ -185,7 +185,7 @@ llm:
       type: openai
       model: gpt-4o-mini
       base_url: https://models.inference.ai.azure.com
-      api_key_env: GITHUB_MODELS_TOKEN
+      api_key_env: GH_MODELS_TOKEN
       max_output_tokens: 16384
     - name: sambanova
       type: openai
