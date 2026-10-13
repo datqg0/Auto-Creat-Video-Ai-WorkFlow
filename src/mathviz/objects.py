@@ -859,3 +859,64 @@ class Group(Drawable):
             c.dx = orig_dx
             c.dy = orig_dy
 
+
+# ---------------------------------------------------------------- Mascot
+class Mascot(Drawable):
+    """Linh vật động vật cute (Rubber Duck, Cat, Dog, Bird) cho MathViz."""
+
+    def __init__(
+        self,
+        center: tuple[float, float],
+        kind: str = "duck",
+        size: float = 120,
+    ) -> None:
+        super().__init__()
+        self.center = center
+        self.kind = kind
+        self.size = size
+
+    def bounds_center(self) -> tuple[float, float]:
+        cx, cy = self.center
+        return (cx + self.dx, cy + self.dy)
+
+    def draw(self, canvas: Canvas) -> None:
+        cx, cy = self.bounds_center()
+        a = int(255 * self.opacity)
+        s = self.scale * (self.size / 100)
+        if a <= 0 or s <= 0:
+            return
+
+        # Bóng đổ
+        canvas.circle((cx, cy + 50 * s), 40 * s, fill="#161b22", alpha=int(a * 0.4))
+
+        k = self.kind.lower()
+        if "cat" in k or "meo" in k:
+            # Mèo cute
+            canvas.circle((cx, cy + 10 * s), 32 * s, fill="#f1f5f9", outline="#cbd5e1", width=2, alpha=a)
+            canvas.circle((cx, cy - 20 * s), 28 * s, fill="#f1f5f9", outline="#cbd5e1", width=2, alpha=a)
+            # Tai mèo
+            canvas.polygon([(cx - 22 * s, cy - 35 * s), (cx - 26 * s, cy - 55 * s), (cx - 8 * s, cy - 42 * s)], fill="#f1f5f9", outline="#cbd5e1", alpha=a)
+            canvas.polygon([(cx + 22 * s, cy - 35 * s), (cx + 26 * s, cy - 55 * s), (cx + 8 * s, cy - 42 * s)], fill="#f1f5f9", outline="#cbd5e1", alpha=a)
+            # Mắt & Mũi
+            canvas.circle((cx - 10 * s, cy - 22 * s), 5 * s, fill="#06b6d4", alpha=a)
+            canvas.circle((cx + 10 * s, cy - 22 * s), 5 * s, fill="#06b6d4", alpha=a)
+            canvas.circle((cx, cy - 14 * s), 2.5 * s, fill="#f472b6", alpha=a)
+        elif "dog" in k or "cho" in k or "shiba" in k:
+            # Chó Shiba cute
+            canvas.circle((cx, cy + 10 * s), 34 * s, fill="#f59e0b", outline="#d97706", width=2, alpha=a)
+            canvas.circle((cx, cy - 20 * s), 30 * s, fill="#f59e0b", outline="#d97706", width=2, alpha=a)
+            canvas.circle((cx - 12 * s, cy - 14 * s), 14 * s, fill="#ffffff", alpha=a)
+            canvas.circle((cx + 12 * s, cy - 14 * s), 14 * s, fill="#ffffff", alpha=a)
+            # Mắt & Mũi
+            canvas.circle((cx - 10 * s, cy - 20 * s), 4.5 * s, fill="#0f172a", alpha=a)
+            canvas.circle((cx + 10 * s, cy - 20 * s), 4.5 * s, fill="#0f172a", alpha=a)
+            canvas.circle((cx, cy - 12 * s), 3.5 * s, fill="#0f172a", alpha=a)
+        else:
+            # Rubber Duck vịt vàng
+            canvas.circle((cx - 5 * s, cy + 12 * s), 34 * s, fill="#fbbf24", outline="#f59e0b", width=2.5, alpha=a)
+            canvas.circle((cx + 12 * s, cy - 24 * s), 24 * s, fill="#fbbf24", outline="#f59e0b", width=2.5, alpha=a)
+            canvas.circle((cx + 18 * s, cy - 28 * s), 5 * s, fill="#0f172a", alpha=a)
+            canvas.circle((cx + 20 * s, cy - 30 * s), 1.8 * s, fill="#ffffff", alpha=a)
+            canvas.polygon([(cx + 30 * s, cy - 24 * s), (cx + 46 * s, cy - 20 * s), (cx + 28 * s, cy - 14 * s)], fill="#f97316", outline="#ea580c", alpha=a)
+            canvas.circle((cx - 8 * s, cy + 12 * s), 18 * s, fill="#f59e0b", alpha=a)
+

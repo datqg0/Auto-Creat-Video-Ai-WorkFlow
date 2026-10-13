@@ -51,6 +51,8 @@ __all__ = [
     "render_preview_png",
 ]
 
+_ROOT = Path(__file__).resolve().parent.parent
+
 # ---------------------------------------------------------------------------
 # Trình duyệt headless & FFmpeg
 # ---------------------------------------------------------------------------
@@ -1081,20 +1083,24 @@ def _d_donut_chart(scene: Scene, lang: str) -> dict | None:
 def _d_math_equation(scene: Scene, lang: str) -> dict | None:
     a = _anim(scene)
     preset = a.get("preset")
-    is_explicit = preset in ("math_equation", "equation", "formula_breakdown")
+    is_explicit = preset in ("math_equation", "equation", "formula_breakdown", "formula")
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
-    has_kw = any(w in corpus for w in ("công thức toán", "phương trình", "bản chất công thức", "attention mechanism", "bayes", "gradient descent", "loss function", "định lý"))
+    has_kw = any(w in corpus for w in ("công thức toán", "phương trình", "bản chất công thức", "attention mechanism", "bayes", "gradient descent", "loss function", "định lý", "latex", "formula"))
 
     if not is_explicit and not has_kw:
         return None
 
-    name = a.get("name") or (scene.heading or "Transformer Attention")
-    formula = a.get("formula") or "Attention(Q, K, V) = Softmax( (Q · K^T) / √d_k ) · V"
+    name = a.get("name") or a.get("title") or (scene.heading or "Transformer Attention")
+    formula = (
+        a.get("latex")
+        or a.get("formula")
+        or r"\text{Attention}(Q, K, V) = \text{Softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V"
+    )
     parts = a.get("parts") or [
-        {"symbol": "Q · K^T", "name": "Độ tương đồng (Score)", "desc": "Tích vô hướng đo tương quan", "color": "#00f0ff"},
-        {"symbol": "√d_k", "name": "Scaling Factor", "desc": "Ổn định gradient khi chiều lớn", "color": "#ffe600"},
-        {"symbol": "Softmax", "name": "Chuẩn hoá xác suất", "desc": "Chuyển điểm số về tổng 1.0", "color": "#ff2bd6"},
-        {"symbol": "V", "name": "Value Matrix", "desc": "Tổng hợp ngữ nghĩa có trọng số", "color": "#39ff14"},
+        {"symbol": r"QK^T", "name": "Độ tương đồng (Score)", "desc": "Tích vô hướng đo tương quan", "color": "#00f0ff"},
+        {"symbol": r"\sqrt{d_k}", "name": "Scaling Factor", "desc": "Ổn định gradient khi chiều lớn", "color": "#ffe600"},
+        {"symbol": r"\text{Softmax}", "name": "Chuẩn hoá xác suất", "desc": "Chuyển điểm số về tổng 1.0", "color": "#ff2bd6"},
+        {"symbol": r"V", "name": "Value Matrix", "desc": "Tổng hợp ngữ nghĩa có trọng số", "color": "#39ff14"},
     ]
     bc = a.get("breadcrumb") or "MATHEMATICAL ESSENCE / EQUATION BREAKDOWN"
     diff = a.get("difficulty") or "Core Theory"
@@ -1173,6 +1179,25 @@ def _d_calculus_curve(scene: Scene, lang: str) -> dict | None:
     }
 
 
+def _pick_mascot(scene: Scene) -> str:
+    """Tự động chọn linh vật cute phù hợp với nội dung scene."""
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''}".lower()
+    if any(w in corpus for w in ("duck", "vịt", "vit", "rubber duck", "debug", "bọ", "bug")):
+        return "duck"
+    if any(w in corpus for w in ("cat", "mèo", "meo", "neko", "kitten")):
+        return "cat"
+    if any(w in corpus for w in ("dog", "chó", "cho", "shiba", "corgi", "puppy")):
+        return "dog"
+    if any(w in corpus for w in ("bird", "chim", "kurzgesagt", "kurz")):
+        return "bird"
+    if any(w in corpus for w in ("bot", "robot", "ai", "trợ lý", "agent", "assistant")):
+        return "bot"
+    choices = ["duck", "cat", "dog", "bird", "bot"]
+    seed_str = (scene.heading or "") + (scene.narration or "")
+    idx = sum(ord(c) for c in seed_str) % len(choices)
+    return choices[idx]
+
+
 def _d_story(scene: Scene, lang: str) -> dict | None:
     vt = str(_g(scene, "visual_type", "")).lower()
     items = _bullets(scene, 6) or _sentences(scene.narration, 4, 120)
@@ -1182,13 +1207,46 @@ def _d_story(scene: Scene, lang: str) -> dict | None:
             items = [h]
     if not items and vt != "challenge":
         return None
+    mascot = _pick_mascot(scene)
     if len(items) <= 1:
         prob = [items[0]] if items else ["Vấn đề kỹ thuật gặp phải"]
         sol = [_sentences(scene.narration, 1, 100)[0]] if _sentences(scene.narration, 1) else [_LABELS[lang]["solution"]]
-        return {"story": {"problem": prob, "solution": sol}}
+        return {"story": {"problem": prob, "solution": sol, "mascot": mascot}}
     k = math.ceil(len(items) / 2)
     return {"story": {"problem": [_truncate(x, 100) for x in items[:k][:3]],
-                      "solution": [_truncate(x, 100) for x in items[k:][:3]]}}
+                      "solution": [_truncate(x, 100) for x in items[k:][:3]],
+                      "mascot": mascot}}
+
+
+def _d_mascot_tip(scene: Scene, lang: str) -> dict | None:
+    vt = str(_g(scene, "visual_type", "")).lower()
+    a = _anim(scene)
+    preset = a.get("preset")
+    is_explicit = vt in ("mascot_tip", "mascot", "tip", "pro_tip") or preset in ("mascot_tip", "mascot", "tip")
+    corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
+    has_kw = any(w in corpus for w in ("pro-tip", "pro tip", "mẹo", "lời khuyên", "best practice", "chú ý", "lưu ý", "quy tắc vàng", "bí kíp", "kinh nghiệm", "tip hay"))
+    if not is_explicit and not has_kw:
+        return None
+    bullets = _bullets(scene, 4) or _sentences(scene.narration, 3, 110)
+    if not bullets:
+        return None
+    mascot = _pick_mascot(scene)
+    mascot_names = {
+        "duck": "Chú Vịt Coder",
+        "cat": "Mèo Tech Coder",
+        "dog": "Cún Shiba",
+        "bird": "Chim Kurzgesagt",
+        "bot": "Cyber Bot",
+    }
+    title = scene.heading or f"Lời khuyên hữu ích từ {mascot_names.get(mascot, 'Linh vật')}"
+    return {
+        "mascot_tip": {
+            "title": title,
+            "tips": [_truncate(b, 110) for b in bullets[:3]],
+            "mascot": mascot,
+            "badge": "PRO-TIP & BEST PRACTICE",
+        }
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1255,13 +1313,15 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
                          "định thức", "determinant", "uốn cong lưới", "basis vectors", "ma trận biến đổi"),
     "calculus_curve": ("đạo hàm", "tiếp tuyến", "tích phân", "calculus", "derivative", "tangent",
                       "hệ số góc", "giải tích", "riemann", "diện tích dưới đường cong"),
+    "mascot_tip": ("pro-tip", "pro tip", "mẹo", "lời khuyên", "best practice", "chú ý", "lưu ý",
+                   "quy tắc vàng", "bí kíp", "kinh nghiệm", "tip hay", "linh vật", "mascot"),
 }
 _PRIORITY = ["conclusion", "quote_card", "terminal", "matrix_op", "visual_algo", "tree_graph",
              "two_pointers", "stack_queue", "dp_grid", "math_equation", "linear_transform",
              "calculus_curve", "flowchart", "system_layers", "comparison_matrix", "radar_chart",
              "trie_tree", "graph_network", "donut_chart", "scheduler", "bar_benchmark", "github_stats",
              "algo_trace", "neural_flow", "hud", "diff_view", "cpu_scheduler", "git_flow",
-             "attention_map", "comparison", "metaphor", "stickman", "architecture"]
+             "attention_map", "comparison", "mascot_tip", "metaphor", "stickman", "architecture"]
 
 
 def _kw_hits(text: str, kws: tuple[str, ...]) -> int:
@@ -1351,6 +1411,8 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("neural_flow", 20)
     elif vt == "challenge":
         add("stickman", 25)
+    elif vt in ("mascot_tip", "mascot", "tip", "pro_tip"):
+        add("mascot_tip", 25)
 
     if preset == "matrix_op":
         add("matrix_op", 25)
@@ -1384,6 +1446,8 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("comparison_matrix", 25)
     elif preset in ("radar_chart", "radar", "spider_chart"):
         add("radar_chart", 25)
+    elif preset in ("mascot_tip", "mascot", "tip"):
+        add("mascot_tip", 25)
     elif preset == "bar_chart":
         add("bar_benchmark", 15)
     elif preset == "counter":
@@ -1436,6 +1500,7 @@ def _plan_scene(scene: Scene, has_image: bool, lang: str) -> dict:
         "diff_view": lambda: _d_diff(scene, lang),
         "comparison": lambda: _d_compare(scene, lang),
         "metaphor": lambda: _d_metaphor(scene, lang, has_image),
+        "mascot_tip": lambda: _d_mascot_tip(scene, lang),
         "stickman": lambda: _d_story(scene, lang),
     }
 
@@ -1488,6 +1553,13 @@ __FONTFACE__
   html, body { width: __WIDTH__px; height: __HEIGHT__px; background: #060a14; overflow: hidden; }
   #canvas { display: block; width: __WIDTH__px; height: __HEIGHT__px; }
 </style>
+<script>
+window.MathJax = {
+  svg: { fontCache: 'none' },
+  startup: { typeset: false }
+};
+</script>
+__MATHJAX_SCRIPT__
 </head>
 <body>
 <canvas id="canvas" width="__WIDTH__" height="__HEIGHT__"></canvas>
@@ -1520,8 +1592,8 @@ const CYAN = '#00f0ff', PINK = '#ff2bd6', GREEN = '#39ff14', YELLOW = '#ffe600',
       ORANGE = '#ff6b35', BLUE = '#3b82f6', RED = '#ef4444', BG = '#060a14';
 const BORDER = 'rgba(56,189,248,0.35)', CARD = 'rgba(12,20,40,0.92)', MUTED = '#94a3b8', DIM = '#64748b';
 const PALETTE = [CYAN, PINK, GREEN, YELLOW, PURPLE, ORANGE, BLUE];
-const FONT = "'MGFont','Noto Sans','Segoe UI','Be Vietnam Pro',Roboto,'Helvetica Neue',Arial,sans-serif";
-const MONO = "'JetBrains Mono','Cascadia Mono',Consolas,'DejaVu Sans Mono','Noto Sans Mono',monospace";
+const FONT = "'MGFont','Be Vietnam Pro','Noto Sans','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+const MONO = "'JetBrains Mono','Cascadia Mono','MGFont','Be Vietnam Pro',Consolas,'DejaVu Sans Mono','Noto Sans Mono',monospace";
 
 // ---------- easing / math ----------
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -1632,6 +1704,71 @@ function icon(name, cx, cy, s, color) {
   ctx.restore();
 }
 
+// ---------- render toán học KaTeX / MathJax (Option 2) ----------
+const MATH_CACHE = new Map();
+async function getMathImage(latex, color = '#ffffff') {
+  if (!latex || !window.MathJax || !MathJax.tex2svg) return null;
+  const raw = String(latex).trim();
+  if (!raw) return null;
+  const key = color + '::' + raw;
+  if (MATH_CACHE.has(key)) return MATH_CACHE.get(key);
+  try {
+    const node = MathJax.tex2svg(raw, { display: true });
+    const svg = node.querySelector('svg');
+    if (!svg) return null;
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('color', color);
+    svg.style.color = color;
+    const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml;charset=utf-8' });
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    await new Promise((res, rej) => {
+      img.onload = () => { URL.revokeObjectURL(url); res(); };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(); };
+      img.src = url;
+    });
+    MATH_CACHE.set(key, img);
+    return img;
+  } catch (e) {
+    return null;
+  }
+}
+
+function drawMath(latex, cx, cy, maxW, maxH, color = '#ffffff', opts = {}) {
+  if (!latex) return false;
+  const raw = String(latex).trim();
+  const key = color + '::' + raw;
+  const img = MATH_CACHE.get(key) || MATH_CACHE.get('#ffffff::' + raw);
+  if (!img || !img.naturalWidth || !img.naturalHeight) return false;
+
+  const natW = img.naturalWidth, natH = img.naturalHeight;
+  let drawW, drawH;
+  if (opts.targetH) {
+    drawH = Math.min(opts.targetH, maxH);
+    drawW = (drawH / natH) * natW;
+    if (drawW > maxW) {
+      drawW = maxW;
+      drawH = (drawW / natW) * natH;
+    }
+  } else {
+    const scale = Math.min(maxW / natW, maxH / natH, 3.0);
+    drawW = natW * scale;
+    drawH = natH * scale;
+  }
+
+  const x = opts.align === 'left' ? cx : (opts.align === 'right' ? cx - drawW : cx - drawW / 2);
+  const y = cy - drawH / 2;
+
+  ctx.save();
+  if (opts.glow) {
+    ctx.shadowColor = opts.glowColor || color;
+    ctx.shadowBlur = opts.glow;
+  }
+  ctx.drawImage(img, x, y, drawW, drawH);
+  ctx.restore();
+  return true;
+}
+
 // ---------- nền / header / bố cục ----------
 function drawBackground(t) {
   ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H);
@@ -1650,11 +1787,11 @@ function headerLayout() {
   const hasMeta = !!(meta.breadcrumb || D.breadcrumb || meta.category || D.category);
   const mx = px(72);
   const top = px(IS_VERTICAL ? (hasMeta ? 130 : 96) : (hasMeta ? 78 : 48));
-  const tSize = px(IS_VERTICAL ? 48 : 52);
+  const tSize = px(IS_VERTICAL ? 52 : 56);
   const maxW = W - mx * 2 - px(26);
   const tLines = wrapLines(CFG.title, maxW, font(tSize, 'bold'), 2);
   const lh = tSize * 1.2;
-  const sSize = px(IS_VERTICAL ? 24 : 26);
+  const sSize = px(IS_VERTICAL ? 26 : 30);
   const sLines = CFG.subtitle ? wrapLines(CFG.subtitle, maxW, font(sSize), 2) : [];
   const sLh = sSize * 1.35;
   const bottom = top + tLines.length * lh + (sLines.length ? px(10) + sLines.length * sLh : 0);
@@ -1675,27 +1812,27 @@ function drawHeader(t) {
   if (h.hasMeta) {
     const topBarY = h.top - px(22);
     if (bc) {
-      text(String(bc), h.mx, topBarY, font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO), '#94a3b8');
+      text(String(bc), h.mx, topBarY, font(px(IS_VERTICAL ? 18 : 22), 'bold', FONT), '#94a3b8');
     }
     // Draw pills on right
     let pillRight = W - h.mx;
     if (cat) {
       const catText = String(cat);
-      const catF = font(px(14), 'bold', MONO);
+      const catF = font(px(16), 'bold', FONT);
       ctx.font = catF;
-      const catW = ctx.measureText(catText).width + px(22);
+      const catW = ctx.measureText(catText).width + px(24);
       pillRight -= catW;
-      panel(pillRight, topBarY - px(17), catW, px(24), { r: 12, fill: 'rgba(168,85,247,0.18)', stroke: PURPLE, lw: 1.5 });
+      panel(pillRight, topBarY - px(19), catW, px(28), { r: 14, fill: 'rgba(168,85,247,0.18)', stroke: PURPLE, lw: 1.5 });
       text(catText, pillRight + catW / 2, topBarY - px(2), catF, PURPLE, 'center');
       pillRight -= px(10);
     }
     if (diff) {
       const diffText = '● ' + String(diff);
-      const diffF = font(px(14), 'bold', MONO);
+      const diffF = font(px(16), 'bold', FONT);
       ctx.font = diffF;
-      const diffW = ctx.measureText(diffText).width + px(22);
+      const diffW = ctx.measureText(diffText).width + px(24);
       pillRight -= diffW;
-      panel(pillRight, topBarY - px(17), diffW, px(24), { r: 12, fill: 'rgba(57,255,20,0.18)', stroke: GREEN, lw: 1.5 });
+      panel(pillRight, topBarY - px(19), diffW, px(28), { r: 14, fill: 'rgba(57,255,20,0.18)', stroke: GREEN, lw: 1.5 });
       text(diffText, pillRight + diffW / 2, topBarY - px(2), diffF, GREEN, 'center');
     }
   }
@@ -1713,9 +1850,9 @@ function contentBox(bottom) {
   return { x: mx, y, w: W - 2 * mx, h: Math.max(px(200), H - y - pad) };
 }
 function drawBadge(box) {
-  const f = font(px(20), 'bold', MONO), tw = measure(L.illustrative, f) + px(28);
-  panel(box.x + box.w - tw, box.y - px(34), tw, px(30), { r: 15, fill: 'rgba(255,230,0,0.10)', stroke: YELLOW, lw: 1.5 });
-  text(L.illustrative, box.x + box.w - tw / 2, box.y - px(13), f, YELLOW, 'center');
+  const f = font(px(20), 'bold', FONT), tw = measure(L.illustrative, f) + px(32);
+  panel(box.x + box.w - tw, box.y - px(34), tw, px(32), { r: 16, fill: 'rgba(255,230,0,0.10)', stroke: YELLOW, lw: 1.5 });
+  text(L.illustrative, box.x + box.w - tw / 2, box.y - px(12), f, YELLOW, 'center');
 }
 function drawBrackets(x, y, w, h, col) {
   const arm = px(12), lw = px(3);
@@ -1729,7 +1866,7 @@ function drawBrackets(x, y, w, h, col) {
   ctx.restore();
 }
 
-// ---------- Người que ----------
+// ---------- Người que & Kho Linh Vật Động Vật Cute ----------
 function drawStickman(x, groundY, sc, pose, t, color) {
   const headR = 24, spine = 65;
   let tilt = 0, la = 0.5, ra = -0.5, lf = 0.8, rf = -0.8, ll = 0.25, rl = -0.25, jump = 0;
@@ -1767,6 +1904,378 @@ function drawStickman(x, groundY, sc, pose, t, color) {
   limb(la, lf, 30, 26, 0, sh); limb(ra, rf, 30, 26, 0, sh);
   [ll, rl].forEach(a => { const kx = Math.sin(a) * 34, ky = hip + Math.cos(a) * 34; ctx.beginPath(); ctx.moveTo(0, hip); ctx.lineTo(kx, ky); ctx.lineTo(kx, ky + 30); ctx.stroke(); });
   ctx.restore(); ctx.restore();
+}
+
+// 1. Chú Vịt Vàng Coder (Rubber Duck Debugging Mascot)
+function drawCuteDuck(x, groundY, sc, pose, t, color) {
+  const oy = groundY - 110 * sc;
+  const bob = Math.sin(t * 6) * 3;
+  ctx.save(); ctx.translate(x, oy + bob); ctx.scale(sc, sc);
+
+  // Bóng đổ dưới đất
+  ctx.save(); ctx.fillStyle = 'rgba(251, 191, 36, 0.22)';
+  ctx.beginPath(); ctx.ellipse(0, 110 - bob / sc, 42, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+  // Thân vịt bầu dục vàng ấm
+  ctx.save();
+  ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(-4, 38, 38, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  // Đuôi vịt vểnh lên
+  ctx.beginPath(); ctx.moveTo(-36, 32); ctx.quadraticCurveTo(-54, 18, -48, 10); ctx.quadraticCurveTo(-38, 22, -26, 26);
+  ctx.fillStyle = '#fbbf24'; ctx.fill(); ctx.stroke();
+
+  // Cánh vịt (vỗ nhẹ)
+  const wingAngle = Math.sin(t * 8) * 0.12 + (pose === 'idea' ? -0.3 : 0);
+  ctx.save(); ctx.translate(-2, 36); ctx.rotate(wingAngle);
+  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.ellipse(0, 0, 20, 14, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore(); ctx.restore();
+
+  // Đầu vịt tròn xoe
+  ctx.save();
+  ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(14, -8, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  // Má hồng dễ thương
+  ctx.fillStyle = 'rgba(244, 63, 94, 0.45)';
+  ctx.beginPath(); ctx.ellipse(14, 3, 7, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Mắt vịt to tròn chớp mắt
+  const isBlink = (Math.sin(t * 3.5) > 0.94);
+  if (isBlink) {
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(22, -12, 6, 0.2, Math.PI - 0.2); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(22, -12, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(24, -14, 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(20.5, -9.5, 1.2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Mỏ vịt cam tươi
+  ctx.fillStyle = '#f97316'; ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(34, -6); ctx.quadraticCurveTo(52, -4, 46, 4); ctx.quadraticCurveTo(34, 6, 30, 2); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // Pose effects
+  if (pose === 'confused') {
+    for (let q = 0; q < 3; q++) {
+      const p = (t * 0.5 + q * 0.33) % 1, qa = Math.sin(p * Math.PI);
+      ctx.save(); ctx.fillStyle = `rgba(255,230,0,${qa})`; ctx.font = font(26, 'bold'); ctx.textAlign = 'center';
+      ctx.shadowColor = YELLOW; ctx.shadowBlur = 14;
+      ctx.fillText('?', (q - 1) * 22 + Math.sin(t * 3 + q) * 10 + 14, -38 - p * 50); ctx.restore();
+    }
+  } else if (pose === 'idea') {
+    ctx.save();
+    // Nón Beret lập trình viên
+    ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.ellipse(12, -32, 22, 8, -0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(26, -34, 3, 0, Math.PI * 2); ctx.fill();
+    // Bóng đèn sáng
+    ctx.translate(14, -65);
+    const rays = 8, rl = 16 + Math.sin(t * 8) * 5;
+    ctx.strokeStyle = YELLOW; ctx.lineWidth = 2.5; ctx.shadowColor = YELLOW; ctx.shadowBlur = 18;
+    for (let i = 0; i < rays; i++) {
+      const a = i * Math.PI * 2 / rays + t * 0.6;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * 18, Math.sin(a) * 18);
+      ctx.lineTo(Math.cos(a) * (18 + rl), Math.sin(a) * (18 + rl)); ctx.stroke();
+    }
+    ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(-2, -3, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// 2. Chú Mèo Công Nghệ (Cyber Neko Coder)
+function drawCuteCat(x, groundY, sc, pose, t, color) {
+  const oy = groundY - 110 * sc;
+  const bob = Math.sin(t * 5) * 2.5;
+  ctx.save(); ctx.translate(x, oy + bob); ctx.scale(sc, sc);
+
+  // Bóng đổ
+  ctx.save(); ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
+  ctx.beginPath(); ctx.ellipse(0, 110 - bob / sc, 40, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+  // Đuôi mèo ve vẩy
+  ctx.save();
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  const tailWave = Math.sin(t * 3.5) * 18;
+  ctx.beginPath(); ctx.moveTo(-22, 42); ctx.bezierCurveTo(-46, 35, -50 + tailWave, 10, -42 + tailWave, -4); ctx.stroke();
+  ctx.restore();
+
+  // Thân mèo mập tròn
+  ctx.save();
+  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(0, 36, 32, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, 36, 20, 20, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Đầu mèo bo tròn
+  ctx.save();
+  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(0, -10, 30, 25, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  // Tai nhọn có bên trong hồng
+  const earTwitch = Math.sin(t * 5) * 0.08;
+  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-24, -24); ctx.lineTo(-28 + earTwitch * 10, -46); ctx.lineTo(-10, -32); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#f472b6';
+  ctx.beginPath(); ctx.moveTo(-21, -26); ctx.lineTo(-24 + earTwitch * 8, -40); ctx.lineTo(-12, -31); ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(10, -32); ctx.lineTo(28 - earTwitch * 10, -46); ctx.lineTo(24, -24); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#f472b6';
+  ctx.beginPath(); ctx.moveTo(12, -31); ctx.lineTo(24 - earTwitch * 8, -40); ctx.lineTo(21, -26); ctx.closePath(); ctx.fill();
+
+  // Má hồng
+  ctx.fillStyle = 'rgba(244, 114, 182, 0.55)';
+  ctx.beginPath(); ctx.ellipse(-18, -2, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(18, -2, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Mắt mèo to tròn
+  const isBlink = (Math.sin(t * 3.2) > 0.94);
+  if (isBlink) {
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(-11, -12, 6, 0.2, Math.PI - 0.2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(11, -12, 6, 0.2, Math.PI - 0.2); ctx.stroke();
+  } else {
+    [-11, 11].forEach((mx, i) => {
+      ctx.fillStyle = '#06b6d4'; ctx.beginPath(); ctx.arc(mx, -12, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(mx, -12, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(mx + (i ? 2 : -2), -14, 2.4, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
+  // Mũi tam giác & miệng :3
+  ctx.fillStyle = '#f472b6';
+  ctx.beginPath(); ctx.moveTo(-2.5, -4); ctx.lineTo(2.5, -4); ctx.lineTo(0, -1.5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(-3.5, 2, 4, Math.PI, 0, true); ctx.stroke();
+  ctx.beginPath(); ctx.arc(3.5, 2, 4, Math.PI, 0, true); ctx.stroke();
+
+  // Râu mèo
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-20, -4); ctx.lineTo(-38, -8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-20, 1); ctx.lineTo(-40, 3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20, -4); ctx.lineTo(38, -8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20, 1); ctx.lineTo(40, 3); ctx.stroke();
+  ctx.restore();
+
+  // Laptop mini & Chân gõ phím
+  ctx.save();
+  panel(-17, 42, 34, 18, { r: 4, fill: '#0f172a', stroke: CYAN, lw: 1.5, glow: px(10) });
+  const pawOffset = Math.sin(t * 12) * 2;
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(-10, 42 + pawOffset, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(10, 42 - pawOffset, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  if (pose === 'idea') {
+    const hp = (t * 0.8) % 1;
+    ctx.save(); ctx.fillStyle = PINK; ctx.font = font(22, 'bold');
+    ctx.shadowColor = PINK; ctx.shadowBlur = 12;
+    ctx.fillText('♥', Math.sin(t * 4) * 8, -48 - hp * 40); ctx.restore();
+  } else if (pose === 'confused') {
+    ctx.save(); ctx.fillStyle = YELLOW; ctx.font = font(22, 'bold');
+    ctx.shadowColor = YELLOW; ctx.shadowBlur = 12;
+    ctx.fillText('?', 18, -44); ctx.restore();
+  }
+  ctx.restore();
+}
+
+// 3. Chú Cún Shiba / Corgi Tech Mascot
+function drawCuteDog(x, groundY, sc, pose, t, color) {
+  const oy = groundY - 110 * sc;
+  const bob = Math.sin(t * 6) * 3;
+  ctx.save(); ctx.translate(x, oy + bob); ctx.scale(sc, sc);
+
+  // Bóng đổ
+  ctx.save(); ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+  ctx.beginPath(); ctx.ellipse(0, 110 - bob / sc, 42, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+  // Đuôi ngoe nguẩy tít mù
+  ctx.save();
+  const tailWag = Math.sin(t * 14) * 16;
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-24, 38); ctx.quadraticCurveTo(-46 + tailWag, 18, -38 + tailWag, -4); ctx.stroke();
+  ctx.restore();
+
+  // Thân cún
+  ctx.save();
+  ctx.fillStyle = '#f59e0b'; ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(0, 36, 34, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, 36, 22, 22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Đầu cún Shiba má trắng
+  ctx.save();
+  ctx.fillStyle = '#f59e0b'; ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(0, -10, 32, 26, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.ellipse(-14, 0, 16, 14, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(14, 0, 16, 14, -0.2, 0, Math.PI * 2); ctx.fill();
+
+  // Tai Shiba tam giác
+  ctx.fillStyle = '#f59e0b'; ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-24, -22); ctx.lineTo(-26, -46); ctx.lineTo(-10, -28); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10, -28); ctx.lineTo(26, -46); ctx.lineTo(24, -22); ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // Mắt cún
+  const isBlink = (Math.sin(t * 3.4) > 0.94);
+  if (isBlink) {
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(-12, -10, 5, 0.2, Math.PI - 0.2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(12, -10, 5, 0.2, Math.PI - 0.2); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath(); ctx.arc(-12, -10, 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(12, -10, 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(-10.5, -12, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(13.5, -12, 2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Mũi & Lưỡi thở vui vẻ
+  ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.ellipse(0, -2, 4.5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  const tonguePant = Math.sin(t * 10) * 1.5;
+  ctx.fillStyle = '#fb7185'; ctx.beginPath(); ctx.ellipse(0, 8 + tonguePant, 5.5, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(-4, 3, 4, 0, Math.PI * 0.8); ctx.stroke();
+  ctx.beginPath(); ctx.arc(4, 3, 4, Math.PI * 0.2, Math.PI); ctx.stroke();
+
+  // Vòng cổ công nghệ & Huy hiệu sao
+  panel(-18, 16, 36, 7, { r: 3.5, fill: CYAN, stroke: null });
+  ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 24, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  if (pose === 'idea') {
+    ctx.save(); ctx.fillStyle = YELLOW; ctx.font = font(24, 'bold');
+    ctx.shadowColor = YELLOW; ctx.shadowBlur = 14;
+    ctx.fillText('★', Math.sin(t * 5) * 10, -50); ctx.restore();
+  } else if (pose === 'confused') {
+    ctx.save(); ctx.fillStyle = YELLOW; ctx.font = font(24, 'bold');
+    ctx.shadowColor = YELLOW; ctx.shadowBlur = 14;
+    ctx.fillText('?', 16, -48); ctx.restore();
+  }
+  ctx.restore();
+}
+
+// 4. Chim Kurzgesagt (Kurzgesagt Duck / Bird Mascot)
+function drawKurzBird(x, groundY, sc, pose, t, color) {
+  const jump = -Math.abs(Math.sin(t * 6)) * 10;
+  const oy = groundY - 110 * sc;
+  ctx.save(); ctx.translate(x, oy + jump); ctx.scale(sc, sc);
+
+  // Bóng đổ
+  ctx.save(); ctx.fillStyle = 'rgba(2, 132, 199, 0.2)';
+  const shadowScale = clamp(1 - (-jump) / 30, 0.5, 1);
+  ctx.beginPath(); ctx.ellipse(0, 110 - jump / sc, 36 * shadowScale, 10 * shadowScale, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+  // Chân que màu cam
+  ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-8, 54); ctx.lineTo(-8, 88); ctx.lineTo(-16, 92); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8, 54); ctx.lineTo(8, 88); ctx.lineTo(16, 92); ctx.stroke();
+
+  // Thân chim quả lê mập
+  ctx.save();
+  ctx.fillStyle = '#0284c7'; ctx.strokeStyle = '#0369a1'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(0, 16, 36, 42, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.ellipse(4, 22, 24, 30, 0.1, 0, Math.PI * 2); ctx.fill();
+
+  // Cánh chim vỗ phành phạch
+  const flap = Math.sin(t * 12) * 12;
+  ctx.fillStyle = '#0369a1';
+  ctx.beginPath(); ctx.ellipse(-24, 18, 14, 20 + flap * 0.3, 0.2, 0, Math.PI * 2); ctx.fill();
+
+  // Mắt to tròn đen ngơ ngác
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(16, -4, 11, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(18, -4, 6.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(19.5, -6, 2.2, 0, Math.PI * 2); ctx.fill();
+
+  // Mỏ nhọn cam
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath(); ctx.moveTo(27, -6); ctx.lineTo(46, -1); ctx.lineTo(25, 6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  if (pose === 'idea') {
+    ctx.save(); ctx.translate(14, -40);
+    const rays = 8, rl = 14 + Math.sin(t * 8) * 5;
+    ctx.strokeStyle = YELLOW; ctx.lineWidth = 2.5; ctx.shadowColor = YELLOW; ctx.shadowBlur = 18;
+    for (let i = 0; i < rays; i++) {
+      const a = i * Math.PI * 2 / rays + t * 0.6;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * 16, Math.sin(a) * 16);
+      ctx.lineTo(Math.cos(a) * (16 + rl), Math.sin(a) * (16 + rl)); ctx.stroke();
+    }
+    ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (pose === 'confused') {
+    for (let q = 0; q < 3; q++) {
+      const p = (t * 0.5 + q * 0.33) % 1, qa = Math.sin(p * Math.PI);
+      ctx.save(); ctx.fillStyle = `rgba(255,230,0,${qa})`; ctx.font = font(24, 'bold');
+      ctx.shadowColor = YELLOW; ctx.shadowBlur = 12;
+      ctx.fillText('?', (q - 1) * 20 + 10, -28 - p * 45); ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+// 5. Robot Mini Linh Vật Công Nghệ (Cyber Bot Companion)
+function drawCyberBot(x, groundY, sc, pose, t, color) {
+  const hover = Math.sin(t * 4) * 7;
+  const oy = groundY - 100 * sc;
+  ctx.save(); ctx.translate(x, oy + hover); ctx.scale(sc, sc);
+
+  // Tia đẩy hạt ion phản lực
+  ctx.save();
+  ctx.fillStyle = CYAN; ctx.shadowColor = CYAN; ctx.shadowBlur = 16;
+  const flameH = 14 + Math.sin(t * 16) * 6;
+  ctx.beginPath(); ctx.moveTo(-10, 48); ctx.lineTo(10, 48); ctx.lineTo(0, 48 + flameH); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // Thân kim loại tròn trịa
+  panel(-32, -15, 64, 60, { r: 20, fill: 'rgba(15, 23, 42, 0.95)', stroke: CYAN, lw: 2.5, glow: px(14) });
+  // Màn hình LED mặt biểu cảm
+  panel(-24, -6, 48, 34, { r: 12, fill: '#050811', stroke: 'rgba(56, 189, 248, 0.4)', lw: 1.5 });
+
+  // Mắt LED biểu cảm
+  ctx.save();
+  ctx.fillStyle = CYAN; ctx.shadowColor = CYAN; ctx.shadowBlur = 10;
+  if (pose === 'idea') {
+    ctx.font = font(18, 'bold', MONO); ctx.textAlign = 'center'; ctx.fillText('^  ^', 0, 16);
+  } else if (pose === 'confused') {
+    ctx.font = font(16, 'bold', MONO); ctx.textAlign = 'center'; ctx.fillText('o_O', 0, 16);
+  } else {
+    ctx.beginPath(); ctx.arc(-10, 10, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(10, 10, 4.5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // Ăng-ten phát sóng xoay tròn
+  ctx.strokeStyle = CYAN; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, -32); ctx.stroke();
+  ctx.fillStyle = (Math.floor(t * 4) % 2 === 0 ? PINK : CYAN);
+  ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(0, -35, 5, 0, Math.PI * 2); ctx.fill();
+
+  // Hai tai phone bán cầu phát sáng
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.3)'; ctx.strokeStyle = CYAN; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(-33, 15, 7, Math.PI * 0.5, Math.PI * 1.5); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(33, 15, 7, -Math.PI * 0.5, Math.PI * 0.5); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+// Router điều hướng linh vật thông minh
+function drawMascot(type, x, groundY, sc, pose, t, color) {
+  const m = String(type || 'duck').toLowerCase();
+  if (m.includes('duck') || m.includes('vit')) return drawCuteDuck(x, groundY, sc, pose, t, color);
+  if (m.includes('cat') || m.includes('meo') || m.includes('neko')) return drawCuteCat(x, groundY, sc, pose, t, color);
+  if (m.includes('dog') || m.includes('cho') || m.includes('shiba') || m.includes('corgi')) return drawCuteDog(x, groundY, sc, pose, t, color);
+  if (m.includes('bird') || m.includes('chim') || m.includes('kurz')) return drawKurzBird(x, groundY, sc, pose, t, color);
+  if (m.includes('bot') || m.includes('robot') || m.includes('ai')) return drawCyberBot(x, groundY, sc, pose, t, color);
+  if (m.includes('stickman') || m.includes('human')) return drawStickman(x, groundY, sc, pose, t, color);
+  return drawCuteDuck(x, groundY, sc, pose, t, color);
 }
 
 // ================= TEMPLATES (t, box) =================
@@ -2070,7 +2579,7 @@ TEMPLATES.scheduler = function (t, box) {
     withScale(cx, y + px(26), done, () => { panel(cx - w / 2, y, w, px(52), { rr: px(26), fill: 'rgba(57,255,20,0.12)', stroke: GREEN, glow: px(16) }); text(msg, cx, y + px(36), f, GREEN, 'center'); }); }
 };
 
-// --- stickman: vấn đề -> giải pháp từ bullets/narration ---
+// --- stickman: vấn đề -> giải pháp từ bullets/narration (với mascot cute) ---
 TEMPLATES.stickman = function (t, box) {
   const s = D.story; if (!s) return;
   const tsw = DURATION > 5 ? clamp(DURATION * 0.55, 2.5, DURATION - 2.5) : DURATION * 0.55, resolved = t >= tsw && s.solution.length > 0;
@@ -2078,12 +2587,13 @@ TEMPLATES.stickman = function (t, box) {
   let pxL, pyT, pw, ph, gy, fx;
   if (IS_VERTICAL) { fx = box.x + box.w / 2; gy = box.y + px(300); pxL = box.x; pyT = gy + px(40); pw = box.w; ph = box.h - (pyT - box.y); }
   else { fx = box.x + box.w * 0.13; gy = box.y + box.h * 0.8; pxL = box.x + box.w * 0.28; pyT = box.y; pw = box.w * 0.72; ph = box.h; }
-  drawStickman(fx, gy, sc, resolved ? 'idea' : 'confused', t, col);
+  const mascotType = s.mascot || 'duck';
+  drawMascot(mascotType, fx, gy, sc, resolved ? 'idea' : 'confused', t, col);
   const items = resolved ? s.solution : s.problem, th = resolved ? GREEN : RED, title = resolved ? L.solution : L.problem;
   const flash = resolved ? 1 - progress(t, tsw, tsw + 0.5) : 0;
   panel(pxL, pyT, pw, ph, { r: 20, fill: resolved ? 'rgba(10,30,20,0.94)' : 'rgba(24,12,18,0.92)', stroke: th, lw: 3, glow: px(20) + flash * px(30) });
   const hh = px(62); roundRect(pxL, pyT, pw, hh, [px(20), px(20), 0, 0]); ctx.fillStyle = resolved ? 'rgba(16,50,28,0.95)' : 'rgba(50,14,20,0.95)'; ctx.fill();
-  icon(resolved ? 'bulb' : 'warn', pxL + px(40), pyT + hh / 2, px(30), th); text(title, pxL + px(76), pyT + hh / 2 + px(9), font(px(28), 'bold', MONO), th);
+  icon(resolved ? 'bulb' : 'warn', pxL + px(40), pyT + hh / 2, px(30), th); text(title, pxL + px(76), pyT + hh / 2 + px(9), font(px(28), 'bold', FONT), th);
   const gap = px(16), ih = Math.min(px(150), (ph - hh - px(36) - gap * 2) / Math.max(items.length, 1));
   items.forEach((it, i) => {
     const e = pop(t, (resolved ? tsw + 0.4 : 0.5) + i * 0.4, 0.5), y = pyT + hh + px(20) + i * (ih + gap); if (e <= 0) return;
@@ -2093,6 +2603,82 @@ TEMPLATES.stickman = function (t, box) {
     const fs = px(IS_VERTICAL ? 28 : 30), h2 = tbHeight(it, pw - px(150), fs, { weight: 'bold', maxLines: 3 });
     tb(it, pxL + px(92), y + (ih - h2) / 2, pw - px(150), fs, '#f8fafc', { weight: 'bold', maxLines: 3 }); ctx.restore();
   });
+};
+
+// --- mascot_tip: Linh vật chia sẻ mẹo công nghệ & Best Practice (Speech Bubble) ---
+TEMPLATES.mascot_tip = function (t, box) {
+  const mt = D.mascot_tip; if (!mt) return TEMPLATES.architecture(t, box);
+  const mascotType = mt.mascot || 'duck';
+  const tips = mt.tips || ['Chia nhỏ vấn đề thành các hàm đơn giản', 'Viết test case trước khi tối ưu', 'Đọc kỹ log lỗi thay vì đoán mò'];
+  const nTips = tips.length;
+  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardY = box.y + box.h - cardH;
+  const mainH = box.h - cardH - px(24);
+
+  const sc = (IS_VERTICAL ? 1.4 : 1.7) * U;
+  let fx, gy, bubbleX, bubbleY, bubbleW, bubbleH;
+
+  if (IS_VERTICAL) {
+    fx = box.x + box.w / 2;
+    gy = box.y + px(240);
+    bubbleX = box.x;
+    bubbleY = gy + px(35);
+    bubbleW = box.w;
+    bubbleH = mainH - (bubbleY - box.y);
+  } else {
+    fx = box.x + box.w * 0.16;
+    gy = box.y + mainH * 0.78;
+    bubbleX = box.x + box.w * 0.30;
+    bubbleY = box.y + px(10);
+    bubbleW = box.w * 0.70;
+    bubbleH = mainH - px(20);
+  }
+
+  // 1. Vẽ Mascot tương tác động
+  drawMascot(mascotType, fx, gy, sc, 'idea', t, YELLOW);
+
+  // 2. Khung thoại Speech Bubble bo cong phát sáng
+  panel(bubbleX, bubbleY, bubbleW, bubbleH, { r: 18, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2.5, glow: px(16) });
+
+  // Huy hiệu tiêu đề
+  const headH = px(56);
+  roundRect(bubbleX, bubbleY, bubbleW, headH, [px(18), px(18), 0, 0]);
+  ctx.fillStyle = 'rgba(255, 230, 0, 0.16)'; ctx.fill();
+  const bTitle = mt.badge || 'PRO-TIP & BEST PRACTICE';
+  const btf = font(px(IS_VERTICAL ? 17 : 20), 'bold', FONT);
+  text(bTitle, bubbleX + px(24), bubbleY + headH / 2 + px(7), btf, YELLOW);
+
+  // Danh sách các Tips
+  const tipGap = px(12);
+  const availTipH = bubbleH - headH - px(30);
+  const tipH = Math.min(px(100), (availTipH - (nTips - 1) * tipGap) / nTips);
+
+  tips.forEach((tipText, i) => {
+    const ty = bubbleY + headH + px(18) + i * (tipH + tipGap);
+    const e = pop(t, 0.3 + i * 0.22, 0.45);
+    if (e <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = e;
+    ctx.translate(lerp(px(24), 0, e), 0);
+    panel(bubbleX + px(18), ty, bubbleW - px(36), tipH, { r: 10, fill: 'rgba(30, 41, 59, 0.85)', stroke: 'rgba(100, 116, 139, 0.45)', lw: 1.2 });
+    icon('check', bubbleX + px(38), ty + tipH / 2, px(24), GREEN);
+    const tf = font(px(IS_VERTICAL ? 18 : 23), 'bold', FONT);
+    const th = tbHeight(tipText, bubbleW - px(100), tf, { maxLines: 2 });
+    tb(tipText, bubbleX + px(68), ty + (tipH - th) / 2, bubbleW - px(100), tf, '#f1f5f9', { maxLines: 2 });
+    ctx.restore();
+  });
+
+  // 3. Bottom Status Card
+  panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: GREEN, lw: 2, glow: px(16) });
+  const sBadge = 'KEY WISDOM';
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
+  const sbw = measure(sBadge, sbf) + px(24);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
+  text(sBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, GREEN, 'center');
+
+  const bottomMsg = mt.title || 'Áp dụng vào thực tế để tối ưu hiệu năng và code sạch.';
+  const bmf = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
+  text(fitText(bottomMsg, box.w - sbw - px(60), bmf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), bmf, '#ffffff');
 };
 
 // --- cpu_scheduler: hàng đợi tác vụ -> CPU, chạy tuần tự theo thời lượng thật ---
@@ -2440,16 +3026,16 @@ TEMPLATES.visual_algo = function (t, box) {
   const tblH = box.h - fCardH - px(24);
 
   const nCols = headers.length;
-  const colGap = px(8);
-  const rowGap = px(8);
-  const rowH = Math.min(px(IS_VERTICAL ? 54 : 64), (tblH - px(40) - nRows * rowGap) / (nRows + 1));
+  const colGap = px(10);
+  const rowGap = px(10);
+  const rowH = Math.min(px(IS_VERTICAL ? 70 : 88), (tblH - px(20) - nRows * rowGap) / (nRows + 1));
   const colW = (box.w - (nCols - 1) * colGap) / nCols;
 
   const hdrY = box.y + px(10);
   for (let c = 0; c < nCols; c++) {
     const cx = box.x + c * (colW + colGap);
-    panel(cx, hdrY, colW, rowH, { r: 8, fill: 'rgba(30, 41, 59, 0.9)', stroke: CYAN, lw: 1.5 });
-    text(fitText(headers[c], colW - px(12), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO)), cx + colW / 2, hdrY + rowH / 2 + px(6), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO), CYAN, 'center');
+    panel(cx, hdrY, colW, rowH, { r: 10, fill: 'rgba(30, 41, 59, 0.9)', stroke: CYAN, lw: 1.5 });
+    text(fitText(headers[c], colW - px(16), font(px(IS_VERTICAL ? 18 : 24), 'bold', FONT)), cx + colW / 2, hdrY + rowH / 2 + px(8), font(px(IS_VERTICAL ? 18 : 24), 'bold', FONT), CYAN, 'center');
   }
 
   for (let r = 0; r < nRows; r++) {
@@ -2466,21 +3052,21 @@ TEMPLATES.visual_algo = function (t, box) {
     for (let c = 0; c < nCols; c++) {
       const cx = box.x + c * (colW + colGap);
       const cellVal = String(rowData[c] != null ? rowData[c] : '');
-      panel(cx, ry, colW, rowH, { r: 8, fill: bgCol, stroke: strokeCol, lw: lw, glow: isActive ? px(14) : 0 });
-      text(fitText(cellVal, colW - px(10), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO)), cx + colW / 2, ry + rowH / 2 + px(6), font(px(IS_VERTICAL ? 16 : 20), 'bold', MONO), textCol, 'center');
+      panel(cx, ry, colW, rowH, { r: 10, fill: bgCol, stroke: strokeCol, lw: lw, glow: isActive ? px(14) : 0 });
+      text(fitText(cellVal, colW - px(16), font(px(IS_VERTICAL ? 18 : 23), 'bold', FONT)), cx + colW / 2, ry + rowH / 2 + px(7), font(px(IS_VERTICAL ? 18 : 23), 'bold', FONT), textCol, 'center');
     }
   }
 
   panel(box.x, fCardY, box.w, fCardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: GREEN, lw: 2, glow: px(16) });
   const rowTag = `ROW ${activeRowIdx + 1} / ${nRows}`;
-  const rtf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
-  const rtw = measure(rowTag, rtf) + px(24);
-  panel(box.x + px(20), fCardY + px(IS_VERTICAL ? 14 : 24), rtw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
-  text(rowTag, box.x + px(20) + rtw / 2, fCardY + px(IS_VERTICAL ? 35 : 45), rtf, GREEN, 'center');
+  const rtf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
+  const rtw = measure(rowTag, rtf) + px(28);
+  panel(box.x + px(20), fCardY + px(IS_VERTICAL ? 14 : 26), rtw, px(38), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
+  text(rowTag, box.x + px(20) + rtw / 2, fCardY + px(IS_VERTICAL ? 37 : 50), rtf, GREEN, 'center');
 
   const formulaText = v.formula || 'Step-by-step Evaluation';
-  const ff = font(px(IS_VERTICAL ? 20 : 28), 'bold', MONO);
-  text(formulaText, box.x + px(35) + rtw, fCardY + px(IS_VERTICAL ? 36 : 46), ff, '#ffffff');
+  const ff = font(px(IS_VERTICAL ? 22 : 30), 'bold', FONT);
+  text(formulaText, box.x + px(35) + rtw, fCardY + px(IS_VERTICAL ? 37 : 50), ff, '#ffffff');
 };
 
 // --- tree_graph: Cây nhị phân tìm kiếm BST / Cấu trúc dữ liệu cây đồ thị kiểu Deep-ML ---
@@ -2596,13 +3182,13 @@ TEMPLATES.tree_graph = function (t, box) {
   // 3. Bottom Status Panel
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
   const stepBadge = `STEP ${curStepIdx + 1} / ${nSteps}`;
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const sbw = measure(stepBadge, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
   text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
 
   const stepLabel = curStep.label || `Duyệt node ${activeNid}`;
-  const lf = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  const lf = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   const maxLabelW = box.w - sbw - px(160);
   text(fitText(stepLabel, maxLabelW, lf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), lf, '#ffffff');
 
@@ -2684,13 +3270,13 @@ TEMPLATES.two_pointers = function (t, box) {
   // 3. Bottom Action Panel
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: matchCol, lw: 2, glow: px(16) });
   const stepBadge = `STEP ${curStepIdx + 1} / ${nSteps}`;
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const sbw = measure(stepBadge, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
   text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
 
   const actionText = curStep.action || `Xét cặp con trỏ [${curStep.left}, ${curStep.right}]`;
-  const af = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  const af = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   text(fitText(actionText, box.w - sbw - px(60), af), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), af, '#ffffff');
 };
 
@@ -2801,13 +3387,13 @@ TEMPLATES.stack_queue = function (t, box) {
 
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
   const stepBadge = `STEP ${curStepIdx + 1} / ${nOps}`;
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const sbw = measure(stepBadge, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
   text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
 
   const opLabel = `Thao tác: ${curStep.op} (${curStep.val})  |  Số phần tử hiện tại: ${items.length}`;
-  const of = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  const of = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   text(fitText(opLabel, box.w - sbw - px(60), of), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), of, '#ffffff');
 };
 
@@ -2893,7 +3479,7 @@ TEMPLATES.dp_grid = function (t, box) {
   // 3. Bottom Calculation Panel
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
   const cellBadge = `CELL [${activeR}, ${activeC}]`;
-  const cbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const cbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const cbw = measure(cellBadge, cbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), cbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
   text(cellBadge, box.x + px(20) + cbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), cbf, YELLOW, 'center');
@@ -2906,7 +3492,7 @@ TEMPLATES.dp_grid = function (t, box) {
                    (activeC === 0) ? `dp[${activeR}][0] = dp[${activeR-1}][0] = ${curVal}` :
                    `dp[${activeR}][${activeC}] = ${topVal} (trên) + ${leftVal} (trái) = ${curVal}`;
 
-  const cf = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  const cf = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   text(fitText(calcText, box.w - cbw - px(60), cf), box.x + px(35) + cbw, cardY + px(IS_VERTICAL ? 36 : 46), cf, '#ffffff');
 };
 
@@ -3015,13 +3601,13 @@ TEMPLATES.flowchart = function (t, box) {
   // 3. Bottom Status Card
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
   const stepBadge = `STAGE ${activeIdx + 1} / ${n}`;
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const sbw = measure(stepBadge, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
   text(stepBadge, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
 
   const curLabel = nodes[activeIdx] ? `Đang xử lý tại trạm: ${nodes[activeIdx].label}` : 'Dòng dữ liệu tuần tự';
-  const cf = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  const cf = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   text(fitText(curLabel, box.w - sbw - px(60), cf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), cf, '#ffffff');
 };
 
@@ -3062,7 +3648,7 @@ TEMPLATES.system_layers = function (t, box) {
       const tagW = Math.min(px(IS_VERTICAL ? 180 : 260), box.w * 0.28);
       panel(box.x + px(10), y + px(8), tagW, layerH - px(16), { r: 10, fill: col + '22', stroke: col, lw: 1.5 });
       text(`0${i+1}`, box.x + px(22), y + px(26), font(px(14), 'bold', MONO), col);
-      text(fitText(lyr.name, tagW - px(24), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO)), box.x + px(22), y + layerH / 2 + px(8), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO), '#ffffff');
+      text(fitText(lyr.name, tagW - px(24), font(px(IS_VERTICAL ? 16 : 21), 'bold', FONT)), box.x + px(22), y + layerH / 2 + px(8), font(px(IS_VERTICAL ? 16 : 21), 'bold', FONT), '#ffffff');
 
       const comps = lyr.components || [];
       const compAreaX = box.x + tagW + px(24);
@@ -3076,7 +3662,7 @@ TEMPLATES.system_layers = function (t, box) {
         const cx = compAreaX + ci * (cW + cGap);
         const cy = y + px(10);
         panel(cx, cy, cW, cH, { r: 8, fill: 'rgba(30, 41, 59, 0.9)', stroke: 'rgba(148, 163, 184, 0.4)', lw: 1 });
-        text(fitText(cName, cW - px(16), font(px(IS_VERTICAL ? 14 : 17), 'bold', MONO)), cx + cW / 2, cy + cH / 2 + px(5), font(px(IS_VERTICAL ? 14 : 17), 'bold', MONO), '#cbd5e1', 'center');
+        text(fitText(cName, cW - px(16), font(px(IS_VERTICAL ? 15 : 20), 'bold', FONT)), cx + cW / 2, cy + cH / 2 + px(6), font(px(IS_VERTICAL ? 15 : 20), 'bold', FONT), '#cbd5e1', 'center');
       });
 
       ctx.restore();
@@ -3086,13 +3672,13 @@ TEMPLATES.system_layers = function (t, box) {
   // Bottom Status Card
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: CYAN, lw: 2, glow: px(16) });
   const badgeText = `TIERS: ${n} LAYERS`;
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const sbw = measure(badgeText, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(0, 240, 255, 0.15)', stroke: CYAN, lw: 1.5 });
   text(badgeText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, CYAN, 'center');
 
   const desc = 'Kiến trúc phân tầng độc lập: Tách rời trách nhiệm (Decoupled) & Dễ mở rộng';
-  const df = font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO);
+  const df = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   text(fitText(desc, box.w - sbw - px(60), df), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), df, '#ffffff');
 };
 
@@ -3110,14 +3696,15 @@ TEMPLATES.comparison_matrix = function (t, box) {
   const nRows = rows.length;
   if (!nCols || !nRows) return TEMPLATES.architecture(t, box);
 
-  const cardH = px(IS_VERTICAL ? 120 : 96);
+  const cardH = px(IS_VERTICAL ? 120 : 108);
   const cardY = box.y + box.h - cardH;
   const tblAreaH = box.h - cardH - px(24);
 
-  const colGap = px(8);
-  const rowGap = px(8);
+  const colGap = px(10);
+  const rowGap = px(10);
   const colW = (box.w - (nCols - 1) * colGap) / nCols;
-  const rowH = Math.min(px(IS_VERTICAL ? 55 : 68), (tblAreaH - px(20) - nRows * rowGap) / (nRows + 1));
+  const maxRowH = px(IS_VERTICAL ? 76 : 95);
+  const rowH = Math.min(maxRowH, Math.max(px(IS_VERTICAL ? 55 : 70), (tblAreaH - px(20) - nRows * rowGap) / (nRows + 1)));
 
   const startY = box.y + px(10);
 
@@ -3126,8 +3713,8 @@ TEMPLATES.comparison_matrix = function (t, box) {
     const cx = box.x + c * (colW + colGap);
     const isWinner = (c === nCols - 1 && nCols > 1);
     const hCol = isWinner ? GREEN : CYAN;
-    panel(cx, startY, colW, rowH, { r: 10, fill: isWinner ? 'rgba(57,255,20,0.18)' : 'rgba(30,41,59,0.9)', stroke: hCol, lw: 2, glow: isWinner ? px(14) : 0 });
-    text(fitText(headers[c], colW - px(16), font(px(IS_VERTICAL ? 15 : 20), 'bold', MONO)), cx + colW / 2, startY + rowH / 2 + px(6), font(px(IS_VERTICAL ? 15 : 20), 'bold', MONO), hCol, 'center');
+    panel(cx, startY, colW, rowH, { r: 12, fill: isWinner ? 'rgba(57,255,20,0.18)' : 'rgba(30,41,59,0.92)', stroke: hCol, lw: 2, glow: isWinner ? px(14) : 0 });
+    text(fitText(headers[c], colW - px(20), font(px(IS_VERTICAL ? 18 : 25), 'bold', FONT)), cx + colW / 2, startY + rowH / 2 + px(8), font(px(IS_VERTICAL ? 18 : 25), 'bold', FONT), hCol, 'center');
   }
 
   // 2. Data Rows
@@ -3146,20 +3733,20 @@ TEMPLATES.comparison_matrix = function (t, box) {
       const hasCross = rawVal.includes('✖');
 
       let textCol = '#f1f5f9';
-      let stroke = 'rgba(71, 85, 105, 0.35)';
-      let fill = isHeaderCol ? 'rgba(15, 23, 42, 0.95)' : isWinnerCol ? 'rgba(20, 50, 35, 0.55)' : 'rgba(15, 23, 42, 0.75)';
+      let stroke = 'rgba(71, 85, 105, 0.45)';
+      let fill = isHeaderCol ? 'rgba(15, 23, 42, 0.95)' : isWinnerCol ? 'rgba(20, 50, 35, 0.65)' : 'rgba(15, 23, 42, 0.80)';
 
       if (hasCheck) textCol = GREEN;
       else if (hasCross) textCol = PINK;
       else if (isWinnerCol) textCol = '#ffffff';
-      else if (isHeaderCol) textCol = '#cbd5e1';
+      else if (isHeaderCol) textCol = '#e2e8f0';
 
-      if (isWinnerCol) stroke = 'rgba(57, 255, 20, 0.45)';
+      if (isWinnerCol) stroke = 'rgba(57, 255, 20, 0.55)';
 
       ctx.save();
       ctx.globalAlpha = e;
-      panel(cx, ry, colW, rowH, { r: 8, fill, stroke, lw: isWinnerCol ? 1.5 : 1 });
-      text(fitText(rawVal, colW - px(16), font(px(IS_VERTICAL ? 14 : 18), 'bold', MONO)), cx + colW / 2, ry + rowH / 2 + px(6), font(px(IS_VERTICAL ? 14 : 18), 'bold', MONO), textCol, 'center');
+      panel(cx, ry, colW, rowH, { r: 10, fill, stroke, lw: isWinnerCol ? 2 : 1.2 });
+      text(fitText(rawVal, colW - px(20), font(px(IS_VERTICAL ? 17 : 23), 'bold', FONT)), cx + colW / 2, ry + rowH / 2 + px(7), font(px(IS_VERTICAL ? 17 : 23), 'bold', FONT), textCol, 'center');
       ctx.restore();
     }
   }
@@ -3167,15 +3754,15 @@ TEMPLATES.comparison_matrix = function (t, box) {
   // 3. Bottom Card
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: GREEN, lw: 2, glow: px(16) });
   const bText = 'BENCHMARK SUMMARY';
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
-  const sbw = measure(bText, sbf) + px(24);
-  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
-  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, GREEN, 'center');
+  const sbf = font(px(IS_VERTICAL ? 17 : 20), 'bold', FONT);
+  const sbw = measure(bText, sbf) + px(28);
+  panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(IS_VERTICAL ? 36 : 40), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
+  text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 37 : 49), sbf, GREEN, 'center');
 
   const winnerName = headers[headers.length - 1] || 'Giải pháp đề xuất';
   const note = `Đánh giá tổng quan: ${winnerName} vượt trội về hiệu năng và khả năng mở rộng.`;
-  const nf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
-  text(fitText(note, box.w - sbw - px(60), nf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), nf, '#ffffff');
+  const nf = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
+  text(fitText(note, box.w - sbw - px(60), nf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 37 : 49), nf, '#ffffff');
 };
 
 // --- radar_chart: Biểu đồ Radar mạng nhện so sánh đa tiêu chí (Trade-off Analysis) ---
@@ -3233,7 +3820,7 @@ TEMPLATES.radar_chart = function (t, box) {
     const labelDist = maxR + px(IS_VERTICAL ? 28 : 36);
     const lx = cx + Math.cos(a) * labelDist;
     const ly = cy + Math.sin(a) * labelDist + px(6);
-    const af = font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO);
+    const af = font(px(IS_VERTICAL ? 17 : 22), 'bold', FONT);
     text(axes[i], lx, ly, af, '#cbd5e1', 'center');
   }
   ctx.restore();
@@ -3283,24 +3870,24 @@ TEMPLATES.radar_chart = function (t, box) {
   let legX = box.x + px(20);
   series.forEach((s, sIdx) => {
     const sColor = s.color || (sIdx === 0 ? PINK : CYAN);
-    const lf = font(px(16), 'bold', MONO);
+    const lf = font(px(18), 'bold', FONT);
     const lw = measure(s.name, lf) + px(40);
-    panel(legX, legY, lw, px(28), { r: 14, fill: sColor + '18', stroke: sColor, lw: 1.5 });
-    ctx.fillStyle = sColor; ctx.beginPath(); ctx.arc(legX + px(14), legY + px(14), px(5), 0, Math.PI * 2); ctx.fill();
-    text(s.name, legX + px(26), legY + px(20), lf, '#ffffff');
+    panel(legX, legY, lw, px(30), { r: 14, fill: sColor + '18', stroke: sColor, lw: 1.5 });
+    ctx.fillStyle = sColor; ctx.beginPath(); ctx.arc(legX + px(15), legY + px(15), px(5), 0, Math.PI * 2); ctx.fill();
+    text(s.name, legX + px(28), legY + px(21), lf, '#ffffff');
     legX += lw + px(12);
   });
 
   // 5. Bottom Card
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
   const bText = 'TRADE-OFF RADAR';
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const sbw = measure(bText, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
   text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
 
   const tradeOffMsg = 'Không có giải pháp hoàn hảo: Luôn là sự đánh đổi giữa các tiêu chí.';
-  const tf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  const tf = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   text(fitText(tradeOffMsg, box.w - sbw - px(60), tf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), tf, '#ffffff');
 };
 
@@ -3633,8 +4220,15 @@ TEMPLATES.math_equation = function (t, box) {
   const fBoxY = box.y + px(16);
   panel(box.x, fBoxY, box.w, fBoxH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2.5, glow: px(20) });
 
-  const ff = font(px(IS_VERTICAL ? 22 : 36), 'bold', MONO);
-  text(fitText(formula, box.w - px(60), ff), box.x + box.w / 2, fBoxY + fBoxH / 2 + px(10), ff, '#ffffff', 'center');
+  const drawn = drawMath(formula, box.x + box.w / 2, fBoxY + fBoxH / 2, box.w - px(60), fBoxH - px(24), '#ffffff', {
+    targetH: px(IS_VERTICAL ? 55 : 75),
+    glow: px(12),
+    glowColor: 'rgba(255, 230, 0, 0.45)'
+  });
+  if (!drawn) {
+    const ff = font(px(IS_VERTICAL ? 22 : 36), 'bold', MONO);
+    text(fitText(formula, box.w - px(60), ff), box.x + box.w / 2, fBoxY + fBoxH / 2 + px(10), ff, '#ffffff', 'center');
+  }
 
   // 2. 4 thẻ giải thích từng thành phần (Callout Cards)
   const nParts = parts.length;
@@ -3658,7 +4252,13 @@ TEMPLATES.math_equation = function (t, box) {
       panel(cx, cy, cW, cH, { r: 12, fill: 'rgba(15, 23, 42, 0.90)', stroke: pCol, lw: 2, glow: px(12) });
 
       // Ký hiệu toán học lớn
-      text(p.symbol, cx + px(16), cy + px(IS_VERTICAL ? 24 : 32), font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO), pCol);
+      const mathDrawn = drawMath(p.symbol, cx + px(16), cy + px(IS_VERTICAL ? 24 : 32), cW - px(32), px(IS_VERTICAL ? 24 : 32), pCol, {
+        align: 'left',
+        targetH: px(IS_VERTICAL ? 20 : 26)
+      });
+      if (!mathDrawn) {
+        text(p.symbol, cx + px(16), cy + px(IS_VERTICAL ? 24 : 32), font(px(IS_VERTICAL ? 18 : 24), 'bold', MONO), pCol);
+      }
       // Tên đại lượng
       text(fitText(p.name, cW - px(32), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO)), cx + px(16), cy + px(IS_VERTICAL ? 46 : 64), font(px(IS_VERTICAL ? 15 : 18), 'bold', MONO), '#ffffff');
       // Mô tả bản chất
@@ -3839,13 +4439,13 @@ TEMPLATES.calculus_curve = function (t, box) {
   // 5. Bottom Card
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2, glow: px(16) });
   const bText = 'CALCULUS ESSENCE';
-  const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
+  const sbf = font(px(IS_VERTICAL ? 16 : 19), 'bold', FONT);
   const sbw = measure(bText, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(255, 230, 0, 0.15)', stroke: YELLOW, lw: 1.5 });
   text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, YELLOW, 'center');
 
   const cMsg = 'Đạo hàm: Tốc độ biến thiên tức thời là hệ số góc tiếp tuyến khi khoảng cách tiến về 0.';
-  const cf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
+  const cf = font(px(IS_VERTICAL ? 20 : 25), 'bold', FONT);
   text(fitText(cMsg, box.w - sbw - px(60), cf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), cf, '#ffffff');
 };
 
@@ -3859,8 +4459,24 @@ function renderFrameAt(f) {
 }
 function report(kind, msg) { try { return fetch('/' + kind + '?msg=' + encodeURIComponent(String(msg).slice(0, 300)), { method: 'POST' }); } catch (e) { return null; } }
 async function prepare() {
-  try { if (document.fonts) { if (CFG.custom_font) { await document.fonts.load('20px MGFont'); await document.fonts.load('bold 20px MGFont'); } await document.fonts.ready; } } catch (e) {}
+  try { if (document.fonts) { if (CFG.custom_font) { await document.fonts.load('20px MGFont'); await document.fonts.load('bold 20px MGFont'); await document.fonts.load('600 20px MGFont'); await document.fonts.load('20px "Be Vietnam Pro"'); await document.fonts.load('bold 20px "Be Vietnam Pro"'); } await document.fonts.ready; } } catch (e) {}
   if (stockImg && stockImg.decode) { try { await stockImg.decode(); } catch (e) {} }
+  try {
+    if (window.MathJax && MathJax.tex2svg) {
+      if (D.math_equation) {
+        const me = D.math_equation;
+        if (me.formula) await getMathImage(me.formula, '#ffffff');
+        if (Array.isArray(me.parts)) {
+          for (const p of me.parts) {
+            if (p.symbol) await getMathImage(p.symbol, p.color || CYAN);
+          }
+        }
+      }
+      if (D.calculus_curve && D.calculus_curve.func_str) {
+        await getMathImage(D.calculus_curve.func_str, CYAN);
+      }
+    }
+  } catch (e) {}
   HL = null;
   const probes = [0, Math.floor(TOTAL_FRAMES / 2), TOTAL_FRAMES - 1];
   for (const f of probes) {
@@ -3907,19 +4523,51 @@ if (!window.__NO_AUTOSTART__) {
 
 
 def _font_face_css() -> tuple[str, bool]:
-    path = _mg_cfg().get("font_file")
-    if not path or not os.path.exists(str(path)):
+    root = Path(__file__).resolve().parent.parent
+    fonts_dir = root / "assets" / "fonts"
+
+    def resolve(val) -> Path | None:
+        if not val:
+            return None
+        p = Path(str(val))
+        if not p.is_absolute():
+            p = root / p
+        return p if p.is_file() else None
+
+    bold_p = resolve(_mg_cfg().get("font_file")) or resolve(CONFIG.get("visual", {}).get("font")) or resolve(fonts_dir / "BeVietnamPro-Bold.ttf")
+    reg_p = resolve(CONFIG.get("visual", {}).get("font_regular")) or resolve(fonts_dir / "BeVietnamPro-Regular.ttf")
+    semi_p = resolve(fonts_dir / "BeVietnamPro-SemiBold.ttf")
+
+    if not bold_p and not reg_p and not semi_p:
         return "", False
-    try:
-        data = base64.b64encode(Path(str(path)).read_bytes()).decode("ascii")
-        ext = Path(str(path)).suffix.lower().lstrip(".")
-        fmt = {"ttf": "truetype", "otf": "opentype", "woff": "woff", "woff2": "woff2"}.get(ext, "truetype")
-        css = (f"@font-face {{ font-family: 'MGFont'; font-weight: 100 900; "
-               f"src: url(data:font/{ext};base64,{data}) format('{fmt}'); }}")
-        return css, True
-    except OSError as e:
-        log.debug("Không đọc được font_file: %s", e)
+
+    rules = []
+
+    def add_font_rule(p: Path, weight: str):
+        try:
+            data = base64.b64encode(p.read_bytes()).decode("ascii")
+            ext = p.suffix.lower().lstrip(".")
+            fmt = {"ttf": "truetype", "otf": "opentype", "woff": "woff", "woff2": "woff2"}.get(ext, "truetype")
+            for fam in ("MGFont", "Be Vietnam Pro"):
+                rules.append(
+                    f"@font-face {{ font-family: '{fam}'; font-weight: {weight}; "
+                    f"src: url(data:font/{ext};base64,{data}) format('{fmt}'); font-display: block; }}"
+                )
+        except OSError as e:
+            log.debug("Lỗi đọc font %s: %s", p, e)
+
+    if reg_p:
+        add_font_rule(reg_p, "400")
+    if semi_p:
+        add_font_rule(semi_p, "600")
+    if bold_p:
+        add_font_rule(bold_p, "700 900")
+    elif reg_p:
+        add_font_rule(reg_p, "700 900")
+
+    if not rules:
         return "", False
+    return "\n".join(rules), True
 
 
 def _read_image_data_url(image_path: Path | None) -> str:
@@ -3949,6 +4597,7 @@ def _build_motion_html(
     height: int,
     fps: int,
     image_path: Path | None = None,
+    vendor_url: str | None = None,
 ) -> str:
     """Tạo trang HTML Canvas cho 1 scene (template + dữ liệu lấy từ chính scene)."""
     lang = "vi" if str(CONFIG.get("language", "vi")).lower().startswith("vi") else "en"
@@ -3956,6 +4605,12 @@ def _build_motion_html(
     plan = _plan_scene(scene, bool(img), lang)
     subtitle_src = _sentences(scene.narration, 1, 140)
     css, custom_font = _font_face_css()
+
+    vendor_js = (_ROOT / "assets" / "vendor" / "tex-svg.js").resolve()
+    mathjax_tag = ""
+    if vendor_js.is_file():
+        v_url = vendor_url or vendor_js.as_uri()
+        mathjax_tag = f'<script src="{v_url}"></script>'
 
     cfg = {
         "width": int(width), "height": int(height), "fps": int(fps), "duration": float(duration),
@@ -3968,6 +4623,7 @@ def _build_motion_html(
             .replace("__FONTFACE__", css)
             .replace("__WIDTH__", str(int(width)))
             .replace("__HEIGHT__", str(int(height)))
+            .replace("__MATHJAX_SCRIPT__", mathjax_tag)
             .replace("__JS__", _JS)
             .replace("__CFG__", _json_for_script(cfg)))  # CFG thay SAU CÙNG: dữ liệu người dùng không bị quét lại
     return html
@@ -4050,7 +4706,9 @@ def render_motion_graphic_scene(
     frames_dir.mkdir(parents=True, exist_ok=True)
 
     total_expected = max(1, round(duration * fps))
-    html_bytes = _build_motion_html(scene, duration, width, height, fps, image_path=image_path).encode("utf-8")
+    vendor_js = (_ROOT / "assets" / "vendor" / "tex-svg.js").resolve()
+    vendor_url = "/vendor/tex-svg.js" if vendor_js.is_file() else None
+    html_bytes = _build_motion_html(scene, duration, width, height, fps, image_path=image_path, vendor_url=vendor_url).encode("utf-8")
     template = re.search(r'"template": "([a-z_]+)"', html_bytes.decode("utf-8", "ignore"))
     log.info("Motion Graphics template '%s' cho scene: %s", template.group(1) if template else "?", (scene.heading or "")[:40])
 
@@ -4076,8 +4734,15 @@ def render_motion_graphic_scene(
             self.wfile.write(body)
 
         def do_GET(self):  # noqa: N802
-            if urlparse(self.path).path in ("/", "/index.html"):
+            p = urlparse(self.path).path
+            if p in ("/", "/index.html"):
                 self._reply(200, html_bytes, "text/html; charset=utf-8")
+            elif p.startswith("/vendor/"):
+                vf = (_ROOT / "assets" / p.lstrip("/")).resolve()
+                if vf.is_file() and str(vf).startswith(str((_ROOT / "assets" / "vendor").resolve())):
+                    self._reply(200, vf.read_bytes(), "application/javascript")
+                else:
+                    self._reply(404, b"Not found")
             else:
                 self._reply(204, b"")
 
@@ -4220,7 +4885,9 @@ def render_preview_png(
     out_png.parent.mkdir(parents=True, exist_ok=True)
     profile = tempfile.mkdtemp(prefix="mg_profile_")
     page = Path(profile) / "preview.html"
-    page.write_text(_build_motion_html(scene, duration, width, height, fps, image_path=image_path), encoding="utf-8")
+    vendor_js = (_ROOT / "assets" / "vendor" / "tex-svg.js").resolve()
+    vendor_url = vendor_js.as_uri() if vendor_js.is_file() else None
+    page.write_text(_build_motion_html(scene, duration, width, height, fps, image_path=image_path, vendor_url=vendor_url), encoding="utf-8")
     cmd = _browser_cmd(browser_bin, profile, width, height, f"{page.as_uri()}#preview={t}",
                        extra=[f"--screenshot={out_png}", "--virtual-time-budget=4000"])
     proc = None

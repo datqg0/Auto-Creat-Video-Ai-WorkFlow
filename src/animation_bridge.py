@@ -178,6 +178,26 @@ def build_animation_scene(scene: ModelScene, duration: float):
                 right_items=cfg.get("right_items", ["Nhanh O(N log N)", "Tối ưu bộ nhớ"]),
                 subtitle=subtitle,
             )
+        elif preset in ("mascot", "mascot_tip"):
+            sc = mv_scenes.mascot_scene(
+                title or "Lời khuyên & Best Practice",
+                mascot=str(cfg.get("mascot", "duck")),
+                bubble_title=str(cfg.get("badge", "Pro-Tip")),
+                tips=cfg.get("tips", scene.bullets or ["Chia nhỏ vấn đề", "Tối ưu hóa logic"]),
+                subtitle=subtitle,
+            )
+        elif preset in ("math_equation", "formula", "equation"):
+            latex = (
+                cfg.get("latex")
+                or cfg.get("formula")
+                or r"\text{Attention}(Q, K, V) = \text{Softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V"
+            )
+            sc = mv_scenes.math_equation_scene(
+                title or "Công thức Toán học & Bản chất",
+                formula=latex,
+                parts=cfg.get("parts"),
+                subtitle=subtitle,
+            )
         elif preset in ("pycode", "manim", "motion_graphic"):
             # Preset animation mã code hoặc motion graphic.
             # Nếu rơi xuống đây là MathViz fallback:
@@ -252,7 +272,21 @@ def build_procedural_fallback_scene(scene: ModelScene, duration: float):
             subtitle=subtitle[:60],
         )
 
-    # 2. Phát hiện So sánh (Comparison / Trade-off)
+    # 2. Phát hiện Mascot / Linh vật cute / Mẹo lập trình
+    mascot_indicators = [
+        "mẹo", "pro-tip", "lời khuyên", "best practice", "vịt", "mèo", "chó", "duck", "mascot", "debug"
+    ]
+    if any(mi in text_corpus for mi in mascot_indicators):
+        tips = [b[:40] for b in scene.bullets[:3]] if scene.bullets else ["Chia nhỏ vấn đề để gỡ lỗi", "Kiểm tra log chi tiết", "Đơn giản hóa logic"]
+        m_kind = "duck" if any(w in text_corpus for w in ("duck", "vịt", "debug")) else "cat" if any(w in text_corpus for w in ("mèo", "cat")) else "dog"
+        return mv_scenes.mascot_scene(
+            title=title,
+            mascot=m_kind,
+            tips=tips,
+            subtitle=subtitle[:60],
+        )
+
+    # 3. Phát hiện So sánh (Comparison / Trade-off)
     comparison_indicators = [
         "so sánh", "vs", "versus", "khác biệt", "trade-off", "đánh đổi",
         "ưu điểm", "nhược điểm", "truyền thống", "tối ưu"

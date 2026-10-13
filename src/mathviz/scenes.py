@@ -419,6 +419,103 @@ def comparison_scene(
     return scene
 
 
+# --------------------------------------------------------------- mascot / cute animals
+def mascot_scene(
+    title: str,
+    mascot: str = "duck",
+    bubble_title: str = "Rubber Duck Debugging",
+    tips: Sequence[str] = ("Giải thích bài toán từng bước", "Tự nhận ra điểm vô lý trong logic", "Lỗi sẽ tự lộ ra một cách tự nhiên"),
+    subtitle: str = "",
+    duration: Optional[float] = None,
+) -> Scene:
+    """Scene linh vật động vật cute tương tác giải thích tech / best practice."""
+    from .objects import Mascot, Rect, Text
+    from .anims import FadeIn, GrowFromCenter
+
+    scene = Scene(duration=duration)
+    W, H = THEME.width, THEME.height
+    _title_block(scene, title, subtitle)
+
+    # 1. Mascot bên trái
+    mx = W * 0.22
+    my = H * 0.58
+    m = Mascot((mx, my), kind=mascot, size=150)
+    scene.add(m)
+    scene.play(GrowFromCenter(m, run_time=0.55))
+
+    # 2. Khung thoại bên phải
+    bx0 = W * 0.42
+    bx1 = W * 0.90
+    by0 = H * 0.35
+    by1 = H * 0.85
+    b_bg = Rect((bx0, by0, bx1, by1), fill="#161b22", outline="#fbbf24", width=3, radius=20)
+    b_hdr = Rect((bx0, by0, bx1, by0 + 64), fill="#fbbf24", outline="#fbbf24", width=1, radius=20)
+    b_title = Text("★  " + bubble_title, ((bx0 + bx1) / 2, by0 + 32), size=28, color="#000000", bold=True, anchor="mm")
+    b_group = Group(b_bg, b_hdr, b_title)
+    scene.add(b_group)
+    scene.play(GrowFromCenter(b_group, run_time=0.45))
+
+    ty = by0 + 104
+    for tip in list(tips)[:4]:
+        it = Text("✔  " + str(tip), (bx0 + 36, ty), size=24, color="#ffffff", anchor="lm")
+        scene.add(it)
+        scene.play(FadeIn(it, shift=12, run_time=0.25))
+        ty += 56
+
+    scene.wait(0.6)
+    return scene
+
+
+def math_equation_scene(
+    title: str,
+    formula: str,
+    parts: list[dict] | None = None,
+    subtitle: str = "",
+    duration: float = 6.0,
+) -> Scene:
+    """Scene trình bày công thức toán học sắc nét với bóc tách thành phần (3Blue1Brown)."""
+    from .anims import FadeIn, GrowFromCenter
+    from .objects import Formula, Group, Rect, Text
+
+    scene = Scene(duration=duration)
+    W, H = THEME.width, THEME.height
+    _title_block(scene, title, subtitle)
+
+    # 1. Khung công thức chính ở trên
+    fx0, fx1 = W * 0.1, W * 0.9
+    fy0, fy1 = H * 0.28, H * 0.48
+    f_bg = Rect((fx0, fy0, fx1, fy1), fill="#0d1117", outline="#fbbf24", width=3, radius=16)
+    f_obj = Formula(formula, ((fx0 + fx1) / 2, (fy0 + fy1) / 2), size=55, color="#ffffff", anchor="mm")
+    f_group = Group(f_bg, f_obj)
+    scene.add(f_group)
+    scene.play(GrowFromCenter(f_group, run_time=0.6))
+
+    # 2. Các thẻ bóc tách thành phần ở dưới
+    p_list = parts or [
+        {"symbol": "QK^T", "name": "Attention Score", "desc": "Tích vô hướng", "color": "#00f0ff"},
+        {"symbol": "\\sqrt{d_k}", "name": "Scaling Factor", "desc": "Ổn định gradient", "color": "#fbbf24"},
+        {"symbol": "V", "name": "Value Vector", "desc": "Tổng hợp ngữ nghĩa", "color": "#38ef7d"},
+    ]
+    n_p = min(len(p_list), 4)
+    if n_p > 0:
+        gap = 20
+        cw = (fx1 - fx0 - (n_p - 1) * gap) / n_p
+        cy0, cy1 = H * 0.53, H * 0.85
+        for i, p in enumerate(p_list[:n_p]):
+            cx = fx0 + i * (cw + gap)
+            col = p.get("color") or "#00f0ff"
+            p_bg = Rect((cx, cy0, cx + cw, cy1), fill="#161b22", outline=col, width=2, radius=12)
+            sym = Formula(str(p.get("symbol", "")), (cx + cw / 2, cy0 + 45), size=32, color=col, anchor="mm")
+            nm = Text(str(p.get("name", "")), (cx + cw / 2, cy0 + 95), size=19, color="#ffffff", bold=True, anchor="mm")
+            desc = Text(str(p.get("desc", "")), (cx + cw / 2, cy0 + 130), size=15, color="#94a3b8", anchor="mm")
+            p_card = Group(p_bg, sym, nm, desc)
+            scene.add(p_card)
+            scene.play(FadeIn(p_card, shift=15, run_time=0.3))
+
+    scene.wait(0.6)
+    return scene
+
+
 # preset registry để pipeline chọn theo tên
 PRESETS = {
     "function": function_scene,
@@ -432,5 +529,11 @@ PRESETS = {
     "architecture_flow": architecture_flow_scene,
     "architecture": architecture_flow_scene,
     "comparison": comparison_scene,
+    "mascot": mascot_scene,
+    "mascot_tip": mascot_scene,
+    "math_equation": math_equation_scene,
+    "formula": math_equation_scene,
+    "equation": math_equation_scene,
 }
+
 

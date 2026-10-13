@@ -483,7 +483,7 @@ def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) 
     if srt_path is not None:
         srt_arg = str(srt_path).replace("\\", "/").replace(":", "\\:")
         is_vert = _H() > _W()
-        font_size = 38 if is_vert else 24
+        font_size = 42 if is_vert else 28
         margin_v = 320 if is_vert else 60
         # Font Việt đậm, viền đen, nền mờ bán trong suốt, an toàn trên Shorts/TikTok và video ngang.
         style = (
