@@ -27,3 +27,4 @@
 2026-10-13T01:55:29.637848	Không gian ngữ nghĩa: Cách máy tính biến từng chữ cái thành tọa độ hình học nhiều chiều
 2026-10-13T03:31:52.068419	Self-Attention trực quan: Cơ chế giúp các từ 'nhìn nhau' và cân đo trọng số ngữ cảnh
 2026-10-13T03:55:40.807098	Khối kiến trúc Transformer: Giải mã cỗ máy sinh từ từng bước một
+2026-10-13T04:14:04.085625	RLHF và Alignment: Huấn luyện AI bằng phản hồi con người để uốn nắn hành vi
