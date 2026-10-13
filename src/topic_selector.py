@@ -93,6 +93,12 @@ def pick_topic() -> str:
                 "\n- Why algorithm X works and why traditional approaches fail"
                 "\n- Step-by-step trace of computations with concrete matrices/tensors (not just formulas)"
             )
+        elif any(k in domain.lower() for k in ("toán", "math", "đại số", "algebra", "giải tích", "calculus", "xác suất", "probability", "fourier")):
+            github_hint = (
+                "\n\nFOUNDATIONAL MATH VISUALIZATION HINTS (3Blue1Brown style, priority):"
+                "\n- Geometric intuition behind classic math: Linear transformations, Determinants, Eigenvectors, Derivative as slope/zoom, Integral as accumulation, Bayes' Theorem, Fourier Transform, Complex numbers rotation."
+                "\n- Frame as an intuitive visual revelation answering: 'What is the true geometric meaning of X?'"
+            )
         elif any(k in domain.lower() for k in ("căn bản", "can ban", "fundamentals", "basics", "mạng", "bộ nhớ", "hệ điều hành", "cấu trúc dữ liệu")):
             github_hint = (
                 "\n\nCS/IT FUNDAMENTALS HINTS (priority):"
@@ -128,6 +134,19 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
                 "\n- BẮT BUỘC: Đưa tên Repo cụ thể vào tiêu đề video (ví dụ: 'Bên trong repo llama.cpp: Bí quyết chạy LLM không cần GPU',"
                 " 'Giải mã repo BitNet của Microsoft: Kỷ nguyên LLM 1-bit...')"
                 "\n- Đi sâu vào kiến trúc code, thuật toán hoặc kỹ thuật tối ưu cốt lõi làm nên sức mạnh của repo đó."
+            )
+        elif any(k in domain.lower() for k in ("toán", "math", "đại số", "algebra", "giải tích", "calculus", "xác suất", "probability", "fourier")):
+            github_hint = (
+                "\n\nGỢI Ý CHỦ ĐỀ TOÁN HỌC CĂN BẢN (Phong cách 3Blue1Brown & Manim trực quan):"
+                "\n- Khai thác trực quan hình học đằng sau các khái niệm toán học kinh điển, biến công thức trừu tượng thành chuyển động trực giác:"
+                "\n  + 'Bản chất hình học của Ma trận: Phép kéo giãn và biến hình không gian'"
+                "\n  + 'Định thức (Determinant) là gì: Hệ số co giãn diện tích mà SGK chưa nói'"
+                "\n  + 'Eigenvector & Eigenvalue: Những chiếc trục bất động khi không gian bị kéo giãn'"
+                "\n  + 'Đạo hàm dưới kính lúp hình học: Phóng to đến vô cùng để tìm độ nghiêng tức thời'"
+                "\n  + 'Định lý Bayes: Công thức toán học của niềm tin và trực giác con người'"
+                "\n  + 'Biến đổi Fourier: Chiếc lăng kính chia tách mọi âm thanh thành sóng sin'"
+                "\n  + 'Số ảo i và công thức Euler: Chiếc chìa khóa xoay tròn 90 độ trong không gian 2D'"
+                "\n- Phong cách: Trả lời câu hỏi 'Bản chất thực sự của nó là gì?', cực kỳ phù hợp để vẽ Manim/LaTeX động."
             )
         elif any(k in domain.lower() for k in ("thuật toán ai", "thuat toan ai", "algorithm", "ml", "ai")):
             github_hint = (
