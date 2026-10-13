@@ -1083,6 +1083,7 @@ TRIẾT LÝ SHORT (CHIỀU SÂU & 1 AHA MOMENT):
 - Bố cục DỌC 9:16: chữ TO, RẤT ÍT chữ mỗi màn hình (trừ scene cuối: 3 bullet, mỗi bullet tối đa 6 từ).
 - KHÔNG cưỡi ngựa xem hoa: chọn ĐÚNG 1 VÍ DỤ VI MÔ CỤ THỂ (1 bài toán nghẽn -> cách giải thông minh), có số liệu thật.
 - DEICTIC NARRATION: lời thoại chỉ thẳng vào hình ("Nhìn vào con số màu đỏ này...", "Chính đường dây màu xanh này...").
+- NHỊP CHẬM ANIMATION: Mỗi scene animation PHẢI có visual_prompt mô tả nhịp CHẬM RÃI: mỗi bước dừng ≥0.8s. Tối đa 3–4 bước.
 
 CẤU TRÚC SHORT 4 PHA:
 1. MỞ MÀN (Scene 1, 0-5s): nghịch lý phản trực giác/câu hỏi gây sốc khiến người xem dừng lướt. BẮT BUỘC visual_type "animation" hoặc "challenge" (Người Que - Stickman).
@@ -1349,11 +1350,22 @@ def _write_two_part_script(
 
     # --- BƯỚC 3: GHÉP NỐI TOÀN BỘ KỊCH BẢN ---
     all_scenes = scenes_p1 + scenes_p2
-    exercises = _parse_exercises(p2_data.get("exercises"))
-
     title = _finalize_title(p1_data.get("title") or topic, topic, s)
     desc = str(p1_data.get("description") or "").strip()
     tags = _clean_tags(p1_data.get("tags"), s)
+
+    exercises = _parse_exercises(p2_data.get("exercises"))
+    if not exercises and s.n_exercises > 0:
+        log.warning("Part 2 thiếu bài tập -> gọi _generate_exercises() bổ sung...")
+        temp_script = Script(
+            topic=topic,
+            title=title,
+            description=desc,
+            tags=tags,
+            scenes=all_scenes,
+            exercises=[],
+        )
+        exercises = _generate_exercises(temp_script, s, s.n_exercises)
 
     return Script(
         topic=topic,

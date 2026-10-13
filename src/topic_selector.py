@@ -68,43 +68,80 @@ def pick_topic() -> str:
     except Exception as e:  # noqa: BLE001 - trend la uu tien, khong phai bat buoc
         log.debug("Khong lay duoc trend: %s", e)
 
-    trend_section = (
-        f"\n\nXU HUONG CONG NGHE HIEN TAI (su dung de chon chu de phu hop thoi su):\n{trend_block}\n"
-        "Hay THAM KHAO cac xu huong nay de chon chu de gan voi dieu nguoi dung dang quan tam,"
-        " nhung KHONG chep nguyen tieu de bai viet. Bien doi thanh goc nhin giai thich truc quan."
-        if trend_block else ""
-    )
-
-    # Thêm hướng dẫn đặc biệt nếu là priority domain GitHub/AI
-    github_hint = ""
-    if "github" in domain.lower() or "open-source" in domain.lower():
-        github_hint = (
-            "\n\nGỢI Ý CHỦ ĐỀ GITHUB/OPEN-SOURCE (ưu tiên):"
-            "\n- Phân tích kỹ thuật của một repo GitHub nổi tiếng (ví dụ: llm.c của Karpathy,"
-            " whisper, stable-diffusion, transformers, langchain, vllm, llama.cpp, comfyui...)"
-            "\n- Giải thích cách hoạt động bên trong của một open-source tool phổ biến"
-            "\n- Cách đọc và hiểu source code của một dự án ML/AI nổi tiếng"
-            "\nCHÚ Ý: Tập trung vào MỘT repo cụ thể, phân tích đến tầng thuật toán/kiến trúc."
-        )
-    elif "thuật toán ai" in domain.lower() or "ml" in domain.lower():
-        github_hint = (
-            "\n\nGỢI Ý CHỦ ĐỀ THUẬT TOÁN AI/ML (ưu tiên):"
-            "\n- Cơ chế toán học đằng sau: attention/transformer, backprop, diffusion, RLHF"
-            "\n- Tại sao thuật toán X hoạt động và tại sao cách truyền thống thất bại"
-            "\n- Trace từng bước tính toán với ma trận/tensor cụ thể (không chỉ công thức)"
+    if lang != "vi":
+        trend_section = (
+            f"\n\nCURRENT TECH TRENDS (use to pick a timely and relevant topic):\n{trend_block}\n"
+            "Please refer to these trends to pick a topic people currently care about,"
+            " but DO NOT copy the article title verbatim. Adapt it into a visual explanation perspective."
+            if trend_block else ""
         )
 
-    prompt = f"""Ban la bien tap vien kenh YouTube ve cong nghe theo phong cach giai thich truc quan (visualization).
-Hay de xuat MOT chu de video cu the, hap dan trong linh vuc: {domain}.
+        github_hint = ""
+        if "github" in domain.lower() or "open-source" in domain.lower():
+            github_hint = (
+                "\n\nGITHUB/OPEN-SOURCE TOPIC HINTS (priority):"
+                "\n- Technical analysis of a famous GitHub repo (e.g., Karpathy's llm.c,"
+                " whisper, stable-diffusion, transformers, langchain, vllm, llama.cpp, comfyui...)"
+                "\n- Explain how a popular open-source tool works internally"
+                "\n- How to read and understand source code of a notable ML/AI project"
+                "\nNOTE: Focus on ONE specific repo, analyze down to the algorithm/architecture level."
+            )
+        elif any(k in domain.lower() for k in ("thuật toán ai", "thuat toan ai", "algorithm", "ml", "ai")):
+            github_hint = (
+                "\n\nAI/ML ALGORITHM TOPIC HINTS (priority):"
+                "\n- Mathematical mechanism behind: attention/transformer, backprop, diffusion, RLHF"
+                "\n- Why algorithm X works and why traditional approaches fail"
+                "\n- Step-by-step trace of computations with concrete matrices/tensors (not just formulas)"
+            )
 
-Yeu cau:
-- Chu de du hep de giai thich trong video 5 phut bang hinh anh dong/bieu do.
-- Phu hop de minh hoa bang animation, bieu do du lieu, hoac mo phong thuat toan.
-- Viet bang {lang_name}.
-- KHONG trung hoac qua giong cac chu de da dung duoi day:
+        prompt = f"""You are an editor for a tech YouTube channel specializing in visual explanations (visualization).
+Propose ONE specific, engaging video topic in the field: {domain}.
+
+Requirements:
+- Narrow enough to explain in a 5-minute video using animations/diagrams.
+- Well-suited for illustration with animations, data charts, or algorithm simulations.
+- Written in English.
+- Do NOT duplicate or closely resemble any of the previously used topics below:
 {used_block}{trend_section}{github_hint}
 
-Chi tra ve DUY NHAT ten chu de tren mot dong, khong giai thich, khong danh so, khong dau ngoac kep."""
+Return ONLY the topic title on a single line, with no explanations, no numbering, and no quotes."""
+    else:
+        trend_section = (
+            f"\n\nXU HƯỚNG CÔNG NGHỆ HIỆN TẠI (sử dụng để chọn chủ đề phù hợp thời sự):\n{trend_block}\n"
+            "Hãy THAM KHẢO các xu hướng này để chọn chủ đề gần với điều người dùng đang quan tâm,"
+            " nhưng KHÔNG chép nguyên tiêu đề bài viết. Biến đổi thành góc nhìn giải thích trực quan."
+            if trend_block else ""
+        )
+
+        github_hint = ""
+        if "github" in domain.lower() or "open-source" in domain.lower():
+            github_hint = (
+                "\n\nGỢI Ý CHỦ ĐỀ GITHUB/OPEN-SOURCE (ưu tiên):"
+                "\n- Phân tích kỹ thuật của một repo GitHub nổi tiếng (ví dụ: llm.c của Karpathy,"
+                " whisper, stable-diffusion, transformers, langchain, vllm, llama.cpp, comfyui...)"
+                "\n- Giải thích cách hoạt động bên trong của một open-source tool phổ biến"
+                "\n- Cách đọc và hiểu source code của một dự án ML/AI nổi tiếng"
+                "\nCHÚ Ý: Tập trung vào MỘT repo cụ thể, phân tích đến tầng thuật toán/kiến trúc."
+            )
+        elif any(k in domain.lower() for k in ("thuật toán ai", "thuat toan ai", "algorithm", "ml", "ai")):
+            github_hint = (
+                "\n\nGỢI Ý CHỦ ĐỀ THUẬT TOÁN AI/ML (ưu tiên):"
+                "\n- Cơ chế toán học đằng sau: attention/transformer, backprop, diffusion, RLHF"
+                "\n- Tại sao thuật toán X hoạt động và tại sao cách truyền thống thất bại"
+                "\n- Trace từng bước tính toán với ma trận/tensor cụ thể (không chỉ công thức)"
+            )
+
+        prompt = f"""Bạn là biên tập viên kênh YouTube về công nghệ theo phong cách giải thích trực quan (visualization).
+Hãy đề xuất MỘT chủ đề video cụ thể, hấp dẫn trong lĩnh vực: {domain}.
+
+Yêu cầu:
+- Chủ đề đủ hẹp để giải thích trong video 5 phút bằng hình ảnh động/biểu đồ.
+- Phù hợp để minh họa bằng animation, biểu đồ dữ liệu, hoặc mô phỏng thuật toán.
+- Viết bằng tiếng Việt.
+- KHÔNG trùng hoặc quá giống các chủ đề đã dùng dưới đây:
+{used_block}{trend_section}{github_hint}
+
+Chỉ trả về DUY NHẤT tên chủ đề trên một dòng, không giải thích, không đánh số, không dấu ngoặc kép."""
 
     topic = generate_topic(prompt)
     log.info("Chu de da chon: %s", topic)

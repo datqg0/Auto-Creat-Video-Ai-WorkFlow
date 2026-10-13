@@ -31,5 +31,6 @@ MoneyPrinterTurbo/
 *TEMP_MPY*
 videoTEMP_*
 *.tmp
+*.mp4
 .pytest_cache/
 scratch/

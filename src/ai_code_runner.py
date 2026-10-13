@@ -371,13 +371,15 @@ def run_ai_code(
     width: int,
     height: int,
     fps: int,
-    timeout: int = 150,
+    timeout: int | None = None,
     auto_repair: bool = True,
     max_repairs: int = 2,
 ) -> Path | None:
     """Chạy ``code`` (matplotlib) trong sandbox env-rỗng. Tự động AI repair nếu lỗi. Trả về mp4 hoặc None."""
     if not code or not code.strip():
         return None
+
+    actual_timeout = timeout if (timeout is not None and timeout > 0) else max(150, int(duration * fps / 35))
 
     out_dir.mkdir(parents=True, exist_ok=True)
     script = out_dir / "ai_scene.py"
@@ -395,14 +397,14 @@ def run_ai_code(
                 [sys.executable, script.name],
                 cwd=str(out_dir),
                 env=safe_env,
-                timeout=timeout,
+                timeout=actual_timeout,
                 capture_output=True,
                 text=True,
             )
         except subprocess.TimeoutExpired:
-            log.warning("Code AI vượt timeout %ds (lần %d).", timeout, attempt + 1)
+            log.warning("Code AI vượt timeout %ds (lần %d).", actual_timeout, attempt + 1)
             proc = None
-            stderr = f"Execution timed out after {timeout} seconds."
+            stderr = f"Execution timed out after {actual_timeout} seconds."
         except Exception as e:  # noqa: BLE001
             log.warning("Chạy code AI lỗi: %s", e)
             proc = None

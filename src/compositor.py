@@ -194,7 +194,8 @@ def _ken_burns_clip(image_path: Path, duration: float):
     return VideoClip(frame, duration=duration)
 
 
-_XFADE = float(CONFIG["visual"].get("crossfade", 0.4))
+def _xfade() -> float:
+    return float(CONFIG["visual"].get("crossfade", 0.4))
 
 
 def _scene_clip(image_path: Path, audio_path: Path):
@@ -360,7 +361,8 @@ def compose(
         t += c.duration
     total = t
 
-    if _XFADE > 0 and len(clips) > 1:
+    xf = _xfade()
+    if xf > 0 and len(clips) > 1:
         # Audio GIỮ tuần tự (đúng thời lượng) để tránh "giọng đi trước hình".
         # Video crossfade kiểu "hình dẫn": mỗi cảnh hiện đủ NGAY KHI lời bắt đầu
         # (fade hoàn tất tại mốc starts[i], nơi narration scene i mới cất lời).
@@ -369,13 +371,13 @@ def compose(
         for i, c in enumerate(clips):
             v = without_audio(c)
             try:
-                v = set_duration(v, c.duration + _XFADE)  # phần đuôi để chồng dissolve
+                v = set_duration(v, c.duration + xf)  # phần đuôi để chồng dissolve
             except Exception:  # noqa: BLE001 - clip không kéo dài được -> giữ nguyên
                 pass
             if i == 0:
                 video_layers.append(set_start(v, 0.0))
             else:
-                video_layers.append(set_start(crossfadein(v, _XFADE), max(starts[i] - _XFADE, 0.0)))
+                video_layers.append(set_start(crossfadein(v, xf), max(starts[i] - xf, 0.0)))
         video = set_duration(CompositeVideoClip(video_layers, size=(_W(), _H())), total)
         video = set_audio(video, CompositeAudioClip(seq_audio))
     else:
@@ -389,7 +391,7 @@ def compose(
         vol = float(CONFIG.get("sfx", {}).get("volume", 0.3))
         for st in starts[1:]:
             try:
-                sfx = set_start(volumex(AudioFileClip(str(whoosh_path)), vol), max(st - _XFADE, 0))
+                sfx = set_start(volumex(AudioFileClip(str(whoosh_path)), vol), max(st - xf, 0))
                 audio_layers.append(sfx)
             except Exception:  # noqa: BLE001
                 break

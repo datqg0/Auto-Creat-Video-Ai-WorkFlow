@@ -150,17 +150,22 @@ def _resolve_base_url(url: str | None) -> str | None:
 
 
 def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -> str:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 
     api_key = _api_key(provider, "GEMINI_API_KEY")
-    genai.configure(api_key=api_key)
-    gm = genai.GenerativeModel(provider["model"], system_instruction=system or None)
-    timeout = provider.get("timeout") or 120.0
-    req_opts = {"timeout": float(timeout)}
-    resp = gm.generate_content(
-        prompt,
-        generation_config={"temperature": temperature},
-        request_options=req_opts,
+    timeout = float(provider.get("timeout") or 120.0)
+    http_options = types.HttpOptions(timeout=int(timeout * 1000))
+    client = genai.Client(api_key=api_key, http_options=http_options)
+
+    config = types.GenerateContentConfig(
+        system_instruction=system or None,
+        temperature=temperature,
+    )
+    resp = client.models.generate_content(
+        model=provider["model"],
+        contents=prompt,
+        config=config,
     )
     text = (resp.text or "").strip()
     if not text:
@@ -329,7 +334,10 @@ def generate(prompt: str, system: str = "", task: str | None = None) -> str:
 
     # Nếu không chỉ định task hoặc tất cả đã bị vô hiệu hóa, thử lại từ đầu
     if not providers_to_try:
-        _DISABLED_PROVIDERS.clear()
+        if _DISABLED_PROVIDERS:
+            log.warning("Tất cả LLM provider đã bị vô hiệu hoá trong phiên, chờ 2s rồi reset thử lại toàn bộ...")
+            time.sleep(2.0)
+            _DISABLED_PROVIDERS.clear()
         providers_to_try = all_providers
 
     last_err: Exception | None = None
