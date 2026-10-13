@@ -24,3 +24,4 @@
 2026-10-12T10:23:36.292904	LSM-Tree: Vũ khí của các Database Big Data xử lý hàng triệu lượt ghi mỗi giây
 2026-10-12T12:30:11.418247	Consistent Hashing: Nghệ thuật chia tải Petabyte dữ liệu mà không gây tắc nghẽn
 2026-10-12T20:32:04.396839	Đồng thuận phân tán Raft: Giữ vững sự thật duy nhất giữa bão tố lỗi mạng
+2026-10-13T01:55:29.637848	Không gian ngữ nghĩa: Cách máy tính biến từng chữ cái thành tọa độ hình học nhiều chiều
