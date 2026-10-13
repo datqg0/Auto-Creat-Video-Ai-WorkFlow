@@ -29,3 +29,4 @@
 2026-10-13T03:55:40.807098	Khối kiến trúc Transformer: Giải mã cỗ máy sinh từ từng bước một
 2026-10-13T04:14:04.085625	RLHF và Alignment: Huấn luyện AI bằng phản hồi con người để uốn nắn hành vi
 2026-10-13T05:01:28.600070	Vượt ngưỡng phần cứng: Bí mật KV Cache, FlashAttention và kỷ nguyên Context triệu Token
+2026-10-13T18:39:22.604504	Bản chất hình học của phép nhân: Từ diện tích hình chữ nhật đến ma trận pixel màn hình
