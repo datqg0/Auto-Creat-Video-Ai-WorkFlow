@@ -37,14 +37,15 @@ modes:
 llm:
   # ---- Phân chia định tuyến LLM theo từng tác vụ (Task Routing) ----
   tasks:
-    # 1. Chọn chủ đề & Tối ưu tiêu đề: Nhanh, nhẹ, đón trend tốt -> Gemini Flash -> Groq Llama
+    # 1. Chọn chủ đề & Tối ưu tiêu đề: Nhanh, nhẹ, đón trend tốt -> Gemini Flash -> Groq Llama -> GitHub Models
     topic:
       - gemini_37
       - gemini_latest
       - groq
       - groq_fast
+      - github_models
 
-    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq -> Cerebras -> Pollinations
+    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq -> Cerebras -> GitHub Models -> Pollinations
     script:
       - anthropic
       - gemini_37
@@ -52,6 +53,7 @@ llm:
       - groq
       - cerebras
       - groq_fast
+      - github_models
       - openrouter
       - pollinations
       - mistral
