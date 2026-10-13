@@ -307,9 +307,9 @@ thumbnail:
 
 # ---- Subtitles ----
 subtitles:
-  enabled: true
+  enabled: true           # Vẫn sinh file .srt (tiếng Việt & tiếng Anh) để upload CC lên YouTube
   whisper_model: "base"   # (chỉ dùng khi fallback Whisper) tiny|base|small|medium
-  burn_in: true           # true: in phụ đề chữ to rõ trực tiếp lên video (an toàn cho Shorts/TikTok & YouTube)
+  burn_in: false          # false: không in đè phụ đề chữ vào khung hình video (chỉ dùng file .srt rời)
 
 # ---- Nhạc nền ----
 music:

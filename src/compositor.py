@@ -441,9 +441,8 @@ def compose(
         c.close()
     video.close()
 
-    # Burn phụ đề + chuẩn hóa âm lượng giọng (loudnorm) + trộn nhạc ducking ở pass cuối.
-    # Short luôn burn-in (vì màn hình dọc người xem tắt tiếng nhiều), long theo cấu hình.
-    burn = bool(srt_path and (CONFIG.get("subtitles", {}).get("burn_in") or CONFIG.get("active_mode") == "short") and srt_path.exists())
+    # Burn phụ đề (nếu burn_in: true) + chuẩn hóa âm lượng giọng (loudnorm) + trộn nhạc ducking ở pass cuối.
+    burn = bool(srt_path and CONFIG.get("subtitles", {}).get("burn_in", False) and srt_path.exists())
     return _finalize(out_path, srt_path if burn else None, music_path)
 
 
