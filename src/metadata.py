@@ -1,8 +1,10 @@
 """Sinh metadata YouTube (title/description/tags) và thumbnail 1280x720."""
 from __future__ import annotations
 
+import html
 import logging
 from pathlib import Path
+import re
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -10,6 +12,72 @@ from .config import CONFIG
 from .models import Script
 
 log = logging.getLogger(__name__)
+
+
+def _sanitize_youtube_text(text: str) -> str:
+    """Làm sạch văn bản cho YouTube (chống lỗi invalidTitle, invalidDescription, invalidTag).
+
+    YouTube Data API v3 cấm tuyệt đối '<' và '>' (chống HTML/XSS injection).
+    Thay thế các ký hiệu phổ biến trước khi loại bỏ:
+      '->' / '-->' -> '→'
+      '<-' / '<--' -> '←'
+      '<=' -> '≤'
+      '>=' -> '≥'
+      '=>' -> '⇒'
+      '<<' -> '«'
+      '>>' -> '»'
+    Loại bỏ các thẻ HTML dạng <tag> hoặc ký tự <, > còn sót lại.
+    """
+    if not text:
+        return ""
+    text = html.unescape(str(text))
+    text = text.replace("-->", "→").replace("<--", "←")
+    text = text.replace("->", "→").replace("<-", "←")
+    text = text.replace("<=", "≤").replace(">=", "≥").replace("=>", "⇒")
+    text = text.replace("<<", "«").replace(">>", "»")
+    text = re.sub(r"</?[a-zA-Z][^>]*>", " ", text)
+    text = text.replace("<", "").replace(">", "")
+    return text
+
+
+def _truncate_utf8(text: str, max_bytes: int) -> str:
+    """Cắt chuỗi theo giới hạn byte UTF-8 mà không làm gãy ký tự đa byte."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    return encoded[:max_bytes].decode("utf-8", errors="ignore").strip()
+
+
+def sanitize_title(title: str, max_chars: int = 100) -> str:
+    """Làm sạch tiêu đề YouTube: cấm '<', '>', ký tự xuống dòng; tối đa 100 ký tự."""
+    t = _sanitize_youtube_text(title)
+    t = re.sub(r"[\r\n\t]+", " ", t).strip()
+    return t[:max_chars].strip()
+
+
+def sanitize_description(desc: str, max_bytes: int = 4800) -> str:
+    """Làm sạch mô tả YouTube: cấm '<', '>'; tối đa 4800 bytes UTF-8 (ngưỡng YouTube là 5000 bytes)."""
+    d = _sanitize_youtube_text(desc)
+    return _truncate_utf8(d, max_bytes)
+
+
+def sanitize_tags(tags: list[str], max_total_bytes: int = 450) -> list[str]:
+    """Làm sạch tags YouTube: cấm '<', '>', dấu phẩy; tổng độ dài <= 450 bytes."""
+    cleaned: list[str] = []
+    total_bytes = 0
+    for tag in tags:
+        t = _sanitize_youtube_text(str(tag))
+        t = t.replace(",", "").strip()
+        if not t:
+            continue
+        if t.lower() in [c.lower() for c in cleaned]:
+            continue
+        t_bytes = len(t.encode("utf-8")) + 1
+        if total_bytes + t_bytes > max_total_bytes:
+            break
+        cleaned.append(t)
+        total_bytes += t_bytes
+    return cleaned
 
 
 def _fmt_ts(seconds: float) -> str:
@@ -34,7 +102,7 @@ def _build_chapters(script: Script, durations: list[float] | None) -> str:
     last_label = ""
     for i, scene in enumerate(script.scenes):
         dur = durations[i] if i < len(durations) else 0.0
-        label = (scene.heading or "").strip()
+        label = _sanitize_youtube_text((scene.heading or "").strip())
         # Bỏ scene không có heading hoặc trùng nhãn liền trước (chapter cần nhãn rõ ràng).
         if label and label != last_label:
             ts = "0:00" if not lines else _fmt_ts(t)
@@ -57,14 +125,14 @@ def build_metadata(script: Script, durations: list[float] | None = None) -> dict
     tags = list(dict.fromkeys([*script.tags, *yt.get("default_tags", [])]))
     if is_short and "shorts" not in [t.lower() for t in tags]:
         tags.insert(0, "shorts")
-    tags = tags[:15]
+    tags = sanitize_tags(tags[:15])
 
     # YouTube nhận diện Short qua tỉ lệ khung hình dọc 9:16, thời lượng tối đa 3 phút (180s) và #Shorts
-    title = script.title[:100]
+    title = sanitize_title(script.title, max_chars=100)
     if is_short and "#shorts" not in title.lower():
-        title = (title[:90] + " #Shorts")[:100]
+        title = sanitize_title((title[:90] + " #Shorts"), max_chars=100)
 
-    description = script.description.strip()
+    description = _sanitize_youtube_text(script.description.strip())
     if is_short and "#shorts" not in description.lower():
         description = "#Shorts\n\n" + description
 
@@ -75,10 +143,11 @@ def build_metadata(script: Script, durations: list[float] | None = None) -> dict
             description += "\n\n" + chapters
 
     description += "\n\n" + " ".join(f"#{t.replace(' ', '')}" for t in tags[:8])
+    description = sanitize_description(description, max_bytes=4800)
 
     return {
         "title": title,
-        "description": description[:4900],
+        "description": description,
         "tags": tags,
         "categoryId": str(yt.get("category_id", "28")),
         "privacyStatus": yt.get("privacy_status", "public"),

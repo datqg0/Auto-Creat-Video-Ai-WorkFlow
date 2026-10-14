@@ -98,11 +98,14 @@ def _is_quota_or_auth_error(e: Exception) -> bool:
         "tokens per minute",
         "account behind this api key",
         "billing not active",
-        "no available channel",
         "model_not_found",
         "does not exist or you do not have access",
         "is unavailable for free",
         "all nodes exhausted",
+        "410",
+        "end of life",
+        "no longer available",
+        "has reached its end of life",
     )) or "authenticationerror" in name or "permissiondenied" in name
 
 

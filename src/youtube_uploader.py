@@ -8,14 +8,17 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+import re
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError, ResumableUploadError
 from googleapiclient.http import MediaFileUpload
 
 from .config import CREDENTIALS_DIR, env
+from .metadata import sanitize_description, sanitize_tags, sanitize_title
 
 log = logging.getLogger(__name__)
 
@@ -87,12 +90,16 @@ def upload(
     creds = _load_credentials()
     youtube = build("youtube", "v3", credentials=creds)
 
+    safe_title = sanitize_title(str(meta.get("title") or "Video"))
+    safe_desc = sanitize_description(str(meta.get("description") or ""))
+    safe_tags = sanitize_tags(meta.get("tags") or [])
+
     body = {
         "snippet": {
-            "title": meta["title"],
-            "description": meta["description"],
-            "tags": meta.get("tags", []),
-            "categoryId": meta.get("categoryId", "28"),
+            "title": safe_title,
+            "description": safe_desc,
+            "tags": safe_tags,
+            "categoryId": str(meta.get("categoryId", "28")),
             "defaultLanguage": meta.get("language", "vi"),
             "defaultAudioLanguage": meta.get("language", "vi"),
         },
@@ -102,14 +109,34 @@ def upload(
         },
     }
 
-    media = MediaFileUpload(str(video_path), chunksize=-1, resumable=True, mimetype="video/mp4")
-    request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
+    def _execute_upload(upload_body: dict) -> dict:
+        media = MediaFileUpload(str(video_path), chunksize=-1, resumable=True, mimetype="video/mp4")
+        request = youtube.videos().insert(part="snippet,status", body=upload_body, media_body=media)
+        res = None
+        while res is None:
+            status, res = request.next_chunk()
+            if status:
+                log.info("Upload %.0f%%", status.progress() * 100)
+        return res
 
-    response = None
-    while response is None:
-        status, response = request.next_chunk()
-        if status:
-            log.info("Upload %.0f%%", status.progress() * 100)
+    try:
+        response = _execute_upload(body)
+    except (ResumableUploadError, HttpError) as e:
+        err_msg = str(e)
+        if "invalidDescription" in err_msg or "description" in err_msg.lower():
+            log.warning("YouTube từ chối description (%s). Thử lại với description tối giản...", e)
+            body["snippet"]["description"] = f"{body['snippet']['title']}\n\n#Tech #Education"
+            response = _execute_upload(body)
+        elif "invalidTitle" in err_msg or "title" in err_msg.lower():
+            log.warning("YouTube từ chối title (%s). Thử lại với title làm sạch...", e)
+            body["snippet"]["title"] = re.sub(r"[^\w\s-]", "", body["snippet"]["title"])[:60].strip() or "Tech Visualized"
+            response = _execute_upload(body)
+        elif "invalidTag" in err_msg or "tag" in err_msg.lower():
+            log.warning("YouTube từ chối tags (%s). Thử lại không dùng tags...", e)
+            body["snippet"]["tags"] = []
+            response = _execute_upload(body)
+        else:
+            raise
 
     video_id = response["id"]
     log.info("Đã upload: https://youtu.be/%s", video_id)

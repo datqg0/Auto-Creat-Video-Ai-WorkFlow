@@ -608,6 +608,13 @@ def _valid_chart(chart: object) -> bool:
     return all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values)
 
 
+def _sentences(text: str | None, n: int = 1, max_chars: int = 80) -> list[str]:
+    if not text:
+        return []
+    raw = [s.strip() for s in re.split(r"[.!?\n]+", text) if s.strip()]
+    return [s[:max_chars].strip() for s in raw[:n] if s.strip()]
+
+
 def _normalize_scene_dict(raw: dict, topic: str, s: _Settings) -> dict | None:
     d = dict(raw)
     narration = _clean_narration(d.get("narration"), s.lang)
