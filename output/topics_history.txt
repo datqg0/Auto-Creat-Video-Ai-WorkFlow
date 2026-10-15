@@ -32,3 +32,4 @@
 2026-10-13T18:39:22.604504	Bản chất hình học của phép nhân: Từ diện tích hình chữ nhật đến ma trận pixel màn hình
 2026-10-14T03:07:58.605152	Phân số và Tỷ lệ: Thuật toán chia pixel và bài toán phóng to không vỡ nét
 2026-10-14T16:05:59.333433	Hệ thập phân vs Nhị phân: Cách máy tính dịch chuyển giá trị vị trí qua các công tắc On-Off
+2026-10-15T02:48:05.213729	Bí ẩn số Pi và Sai số nhị phân: Vì sao máy tính không thể vẽ một đường tròn hoàn hảo?
