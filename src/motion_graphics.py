@@ -1180,22 +1180,19 @@ def _d_calculus_curve(scene: Scene, lang: str) -> dict | None:
 
 
 def _pick_mascot(scene: Scene) -> str:
-    """Tự động chọn linh vật cute phù hợp với nội dung scene."""
+    """Tự động chọn linh vật cute (mặc định là Bunny Girl mascot chính của kênh)."""
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''}".lower()
-    if any(w in corpus for w in ("duck", "vịt", "vit", "rubber duck", "debug", "bọ", "bug")):
+    if any(w in corpus for w in ("duck", "vịt", "vit", "rubber duck")):
         return "duck"
-    if any(w in corpus for w in ("cat", "mèo", "meo", "neko", "kitten")):
+    if any(w in corpus for w in ("cat", "mèo", "meo", "neko")):
         return "cat"
-    if any(w in corpus for w in ("dog", "chó", "cho", "shiba", "corgi", "puppy")):
+    if any(w in corpus for w in ("dog", "chó", "cho", "shiba")):
         return "dog"
-    if any(w in corpus for w in ("bird", "chim", "kurzgesagt", "kurz")):
+    if any(w in corpus for w in ("bird", "chim")):
         return "bird"
-    if any(w in corpus for w in ("bot", "robot", "ai", "trợ lý", "agent", "assistant")):
+    if any(w in corpus for w in ("bot", "robot")):
         return "bot"
-    choices = ["duck", "cat", "dog", "bird", "bot"]
-    seed_str = (scene.heading or "") + (scene.narration or "")
-    idx = sum(ord(c) for c in seed_str) % len(choices)
-    return choices[idx]
+    return "bunny_girl"
 
 
 def _d_story(scene: Scene, lang: str) -> dict | None:
@@ -1245,6 +1242,7 @@ def _d_mascot_tip(scene: Scene, lang: str) -> dict | None:
             "tips": [_truncate(b, 110) for b in bullets[:3]],
             "mascot": mascot,
             "badge": "PRO-TIP & BEST PRACTICE",
+            "pose": "explaining",
         }
     }
 
@@ -1587,6 +1585,15 @@ const px = n => n * U;
 
 let stockImg = null;
 if (CFG.image) { stockImg = new Image(); stockImg.src = CFG.image; }
+
+const MASCOT_IMGS = {};
+if (CFG.mascot_images) {
+  for (const [k, v] of Object.entries(CFG.mascot_images)) {
+    const im = new Image();
+    im.src = v;
+    MASCOT_IMGS[k] = im;
+  }
+}
 
 const CYAN = '#00f0ff', PINK = '#ff2bd6', GREEN = '#39ff14', YELLOW = '#ffe600', PURPLE = '#a855f7',
       ORANGE = '#ff6b35', BLUE = '#3b82f6', RED = '#ef4444', BG = '#060a14';
@@ -2266,16 +2273,169 @@ function drawCyberBot(x, groundY, sc, pose, t, color) {
   ctx.restore();
 }
 
+// Mascot Chính Kênh: Cô Bé Áo Khoác Tai Thỏ (Bunny Girl Chibi Asset)
+function drawBunnyGirl(x, groundY, sc, pose, t, color) {
+  const img = MASCOT_IMGS[pose] || MASCOT_IMGS.idle || MASCOT_IMGS.idea;
+  if (!img || !img.complete || img.naturalWidth === 0) {
+    return drawCuteDuck(x, groundY, sc, pose, t, color);
+  }
+
+  // Physics Animation siêu mượt 60 FPS (Breathing, Squash & Stretch, Bobbing, Jumps)
+  let bob = Math.sin(t * 4.5) * 4;
+  let breathY = 1 + Math.sin(t * 3.5) * 0.025;
+  let breathX = 1 - Math.sin(t * 3.5) * 0.015;
+  let tilt = Math.sin(t * 2.2) * 0.025;
+  let jump = 0;
+
+  if (pose === 'idea') {
+    jump = -Math.abs(Math.sin(t * 5.5)) * 14;
+    tilt = -0.04 + Math.sin(t * 4) * 0.02;
+    breathY = 1.03; breathX = 0.98;
+  } else if (pose === 'confused') {
+    tilt = 0.12 + Math.sin(t * 3) * 0.04;
+    bob = Math.sin(t * 2.5) * 3;
+  } else if (pose === 'happy') {
+    jump = -Math.abs(Math.sin(t * 7)) * 20;
+    tilt = Math.sin(t * 7) * 0.04;
+    breathY = 1.05; breathX = 0.96;
+  } else if (pose === 'explaining') {
+    tilt = -0.04 + Math.sin(t * 2.2) * 0.025;
+    bob = Math.sin(t * 3.5) * 3.5;
+    breathY = 1 + Math.sin(t * 3.0) * 0.02;
+    breathX = 1 - Math.sin(t * 3.0) * 0.015;
+  }
+
+  const targetH = 260 * sc;
+  const oy = groundY - targetH - 10 + jump + bob;
+
+  // 1. Bóng đổ dưới chân mượt mà theo độ cao nảy
+  ctx.save();
+  const shadowAlpha = Math.max(0.08, 0.24 + jump * 0.006);
+  const shadowW = Math.max(20, (65 + jump * 0.3) * sc);
+  ctx.fillStyle = `rgba(251, 191, 36, ${shadowAlpha})`;
+  ctx.beginPath();
+  ctx.ellipse(x, groundY, shadowW, 14 * sc, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 2. Vẽ hình ảnh nhân vật Sprite
+  ctx.save();
+  ctx.translate(x, oy + targetH);
+  ctx.scale(sc * breathX, sc * breathY);
+  ctx.rotate(tilt);
+
+  const asp = (img.naturalWidth && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1;
+  const drawW = 260 * asp;
+  const drawH = 260;
+
+  // Viền hào quang phát sáng nhẹ
+  ctx.save();
+  ctx.shadowColor = (pose === 'idea' || pose === 'happy') ? '#fbbf24' : (pose === 'explaining' ? '#00f0ff' : '#38bdf8');
+  ctx.shadowBlur = 18;
+  ctx.drawImage(img, -drawW / 2, -drawH, drawW, drawH);
+  ctx.restore();
+
+  // 3. Hiệu ứng hạt động (Particle VFX)
+  if (pose === 'confused') {
+    for (let q = 0; q < 3; q++) {
+      const p = (t * 0.5 + q * 0.33) % 1, qa = Math.sin(p * Math.PI);
+      ctx.save();
+      ctx.fillStyle = `rgba(255,230,0,${qa})`;
+      ctx.font = font(28, 'bold');
+      ctx.textAlign = 'center';
+      ctx.shadowColor = YELLOW; ctx.shadowBlur = 14;
+      ctx.fillText('?', (q - 1) * 26 + Math.sin(t * 3 + q) * 12 + 10, -drawH - 20 - p * 60);
+      ctx.restore();
+    }
+  } else if (pose === 'idea') {
+    const rays = 8, rl = 18 + Math.sin(t * 8) * 6;
+    ctx.save();
+    ctx.translate(35, -drawH - 30);
+    ctx.strokeStyle = YELLOW; ctx.lineWidth = 2.5; ctx.shadowColor = YELLOW; ctx.shadowBlur = 18;
+    for (let i = 0; i < rays; i++) {
+      const a = i * Math.PI * 2 / rays + t * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 20, Math.sin(a) * 20);
+      ctx.lineTo(Math.cos(a) * (20 + rl), Math.sin(a) * (20 + rl));
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if (pose === 'happy') {
+    for (let s = 0; s < 4; s++) {
+      const p = (t * 0.6 + s * 0.25) % 1, sa = Math.sin(p * Math.PI);
+      const sx = (s % 2 === 0 ? -1 : 1) * (50 + s * 15) + Math.sin(t * 4 + s) * 10;
+      const sy = -drawH * 0.6 - p * 120;
+      ctx.save();
+      ctx.fillStyle = `rgba(251,191,36,${sa})`;
+      ctx.shadowColor = YELLOW; ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4 + Math.sin(t * 6 + s) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  } else if (pose === 'explaining') {
+    // Holographic tech pointer & presentation sparkles
+    const ptx = drawW * 0.32, pty = -drawH * 0.54;
+    const pulse = (t * 2.5) % 1;
+    ctx.save();
+    // 1. Vòng tròn holographic radar target
+    ctx.strokeStyle = `rgba(0, 240, 255, ${1 - pulse})`;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(ptx, pty, 6 + pulse * 20, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 2. Điểm phát sáng laser tại đầu ngón tay / que chỉ
+    ctx.fillStyle = '#00f0ff';
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(ptx, pty, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Tia laser năng lượng chỉ về phía bảng phân tích
+    const bLen = 85 + Math.sin(t * 4) * 12;
+    const bAngle = -0.20 + Math.sin(t * 2) * 0.04;
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)';
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([7, 5]);
+    ctx.lineDashOffset = -t * 28;
+    ctx.beginPath();
+    ctx.moveTo(ptx, pty);
+    ctx.lineTo(ptx + Math.cos(bAngle) * bLen, pty + Math.sin(bAngle) * bLen);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 4. Hạt bụi tri thức holographic bay về phía nội dung
+    for (let p = 0; p < 4; p++) {
+      const prog = (t * 0.7 + p * 0.25) % 1;
+      const pa = Math.sin(prog * Math.PI);
+      const px_pos = ptx + 20 + prog * 90;
+      const py_pos = pty - 12 - Math.sin(prog * Math.PI * 1.4) * 30 + (p % 2 === 0 ? -8 : 8);
+      ctx.fillStyle = `rgba(56, 189, 248, ${pa * 0.9})`;
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(px_pos, py_pos, 2.5 + Math.sin(t * 6 + p), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 // Router điều hướng linh vật thông minh
 function drawMascot(type, x, groundY, sc, pose, t, color) {
-  const m = String(type || 'duck').toLowerCase();
+  const m = String(type || 'bunny_girl').toLowerCase();
+  if (m.includes('bunny') || m.includes('girl') || m.includes('tho') || m.includes('anime') || m.includes('mascot') || m.includes('stickman') || m.includes('human')) {
+    return drawBunnyGirl(x, groundY, sc, pose, t, color);
+  }
   if (m.includes('duck') || m.includes('vit')) return drawCuteDuck(x, groundY, sc, pose, t, color);
   if (m.includes('cat') || m.includes('meo') || m.includes('neko')) return drawCuteCat(x, groundY, sc, pose, t, color);
   if (m.includes('dog') || m.includes('cho') || m.includes('shiba') || m.includes('corgi')) return drawCuteDog(x, groundY, sc, pose, t, color);
   if (m.includes('bird') || m.includes('chim') || m.includes('kurz')) return drawKurzBird(x, groundY, sc, pose, t, color);
   if (m.includes('bot') || m.includes('robot') || m.includes('ai')) return drawCyberBot(x, groundY, sc, pose, t, color);
-  if (m.includes('stickman') || m.includes('human')) return drawStickman(x, groundY, sc, pose, t, color);
-  return drawCuteDuck(x, groundY, sc, pose, t, color);
+  return drawBunnyGirl(x, groundY, sc, pose, t, color);
 }
 
 // ================= TEMPLATES (t, box) =================
@@ -2585,7 +2745,7 @@ TEMPLATES.stickman = function (t, box) {
   const tsw = DURATION > 5 ? clamp(DURATION * 0.55, 2.5, DURATION - 2.5) : DURATION * 0.55, resolved = t >= tsw && s.solution.length > 0;
   const col = resolved ? GREEN : CYAN, sc = (IS_VERTICAL ? 1.5 : 1.9) * U;
   let pxL, pyT, pw, ph, gy, fx;
-  if (IS_VERTICAL) { fx = box.x + box.w / 2; gy = box.y + px(300); pxL = box.x; pyT = gy + px(40); pw = box.w; ph = box.h - (pyT - box.y); }
+  if (IS_VERTICAL) { fx = box.x + box.w / 2; gy = box.y + px(365); pxL = box.x; pyT = gy + px(35); pw = box.w; ph = box.h - (pyT - box.y); }
   else { fx = box.x + box.w * 0.13; gy = box.y + box.h * 0.8; pxL = box.x + box.w * 0.28; pyT = box.y; pw = box.w * 0.72; ph = box.h; }
   const mascotType = s.mascot || 'duck';
   drawMascot(mascotType, fx, gy, sc, resolved ? 'idea' : 'confused', t, col);
@@ -2620,9 +2780,9 @@ TEMPLATES.mascot_tip = function (t, box) {
 
   if (IS_VERTICAL) {
     fx = box.x + box.w / 2;
-    gy = box.y + px(240);
+    gy = box.y + px(365);
     bubbleX = box.x;
-    bubbleY = gy + px(35);
+    bubbleY = gy + px(30);
     bubbleW = box.w;
     bubbleH = mainH - (bubbleY - box.y);
   } else {
@@ -2635,18 +2795,22 @@ TEMPLATES.mascot_tip = function (t, box) {
   }
 
   // 1. Vẽ Mascot tương tác động
-  drawMascot(mascotType, fx, gy, sc, 'idea', t, YELLOW);
+  const mascotPose = mt.pose || 'explaining';
+  drawMascot(mascotType, fx, gy, sc, mascotPose, t, YELLOW);
+
+  const strokeCol = mascotPose === 'explaining' ? CYAN : YELLOW;
+  const badgeBg = mascotPose === 'explaining' ? 'rgba(0, 240, 255, 0.16)' : 'rgba(255, 230, 0, 0.16)';
 
   // 2. Khung thoại Speech Bubble bo cong phát sáng
-  panel(bubbleX, bubbleY, bubbleW, bubbleH, { r: 18, fill: 'rgba(10, 18, 36, 0.95)', stroke: YELLOW, lw: 2.5, glow: px(16) });
+  panel(bubbleX, bubbleY, bubbleW, bubbleH, { r: 18, fill: 'rgba(10, 18, 36, 0.95)', stroke: strokeCol, lw: 2.5, glow: px(16) });
 
   // Huy hiệu tiêu đề
   const headH = px(56);
   roundRect(bubbleX, bubbleY, bubbleW, headH, [px(18), px(18), 0, 0]);
-  ctx.fillStyle = 'rgba(255, 230, 0, 0.16)'; ctx.fill();
-  const bTitle = mt.badge || 'PRO-TIP & BEST PRACTICE';
+  ctx.fillStyle = badgeBg; ctx.fill();
+  const bTitle = mt.badge || (mascotPose === 'explaining' ? 'GIẢI THÍCH CHI TIẾT & PHÂN TÍCH' : 'PRO-TIP & BEST PRACTICE');
   const btf = font(px(IS_VERTICAL ? 17 : 20), 'bold', FONT);
-  text(bTitle, bubbleX + px(24), bubbleY + headH / 2 + px(7), btf, YELLOW);
+  text(bTitle, bubbleX + px(24), bubbleY + headH / 2 + px(7), btf, strokeCol);
 
   // Danh sách các Tips
   const tipGap = px(12);
@@ -2662,9 +2826,9 @@ TEMPLATES.mascot_tip = function (t, box) {
     ctx.translate(lerp(px(24), 0, e), 0);
     panel(bubbleX + px(18), ty, bubbleW - px(36), tipH, { r: 10, fill: 'rgba(30, 41, 59, 0.85)', stroke: 'rgba(100, 116, 139, 0.45)', lw: 1.2 });
     icon('check', bubbleX + px(38), ty + tipH / 2, px(24), GREEN);
-    const tf = font(px(IS_VERTICAL ? 18 : 23), 'bold', FONT);
-    const th = tbHeight(tipText, bubbleW - px(100), tf, { maxLines: 2 });
-    tb(tipText, bubbleX + px(68), ty + (tipH - th) / 2, bubbleW - px(100), tf, '#f1f5f9', { maxLines: 2 });
+    const fs = px(IS_VERTICAL ? 20 : 25);
+    const th = tbHeight(tipText, bubbleW - px(100), fs, { weight: 'bold', maxLines: 2 });
+    tb(tipText, bubbleX + px(68), ty + (tipH - th) / 2, bubbleW - px(100), fs, '#f1f5f9', { weight: 'bold', maxLines: 2 });
     ctx.restore();
   });
 
@@ -4461,6 +4625,9 @@ function report(kind, msg) { try { return fetch('/' + kind + '?msg=' + encodeURI
 async function prepare() {
   try { if (document.fonts) { if (CFG.custom_font) { await document.fonts.load('20px MGFont'); await document.fonts.load('bold 20px MGFont'); await document.fonts.load('600 20px MGFont'); await document.fonts.load('20px "Be Vietnam Pro"'); await document.fonts.load('bold 20px "Be Vietnam Pro"'); } await document.fonts.ready; } } catch (e) {}
   if (stockImg && stockImg.decode) { try { await stockImg.decode(); } catch (e) {} }
+  for (const im of Object.values(MASCOT_IMGS)) {
+    if (im && im.decode) { try { await im.decode(); } catch (e) {} }
+  }
   try {
     if (window.MathJax && MathJax.tex2svg) {
       if (D.math_equation) {
@@ -4590,6 +4757,26 @@ def _json_for_script(obj: Any) -> str:
     return s.replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
+_BUNNY_GIRL_CACHE: dict[str, str] | None = None
+
+
+def _get_bunny_girl_assets() -> dict[str, str]:
+    global _BUNNY_GIRL_CACHE
+    if _BUNNY_GIRL_CACHE is not None:
+        return _BUNNY_GIRL_CACHE
+    assets = {}
+    m_dir = _ROOT / "assets" / "mascots" / "bunny_girl"
+    if m_dir.is_dir():
+        for p in m_dir.glob("*.png"):
+            try:
+                raw = p.read_bytes()
+                assets[p.stem] = "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
+            except Exception as e:
+                log.debug("Load mascot asset %s lỗi: %s", p.name, e)
+    _BUNNY_GIRL_CACHE = assets
+    return assets
+
+
 def _build_motion_html(
     scene: Scene,
     duration: float,
@@ -4618,6 +4805,7 @@ def _build_motion_html(
         "title": _clean_title(scene.heading, lang),
         "subtitle": subtitle_src[0] if subtitle_src else "",
         "lang": lang, "labels": _LABELS[lang], "image": img, "custom_font": custom_font,
+        "mascot_images": _get_bunny_girl_assets(),
     }
     html = (_HTML.replace("__LANG__", lang)
             .replace("__FONTFACE__", css)

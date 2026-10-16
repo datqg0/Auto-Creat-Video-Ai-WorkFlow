@@ -344,17 +344,35 @@ def _render_challenge(scene: Scene, out: Path) -> None:
     bfont = _font(26, bold=True)
     draw.text((bx0 + 36, by0 + 14), "🎯 THỬ THÁCH VẬN DỤNG", font=bfont, fill="#000000")
 
-    # Icon dấu hỏi tròn
-    icon_w = 60
-    draw.ellipse([cx0 + 60, cy0 + 60, cx0 + 60 + icon_w, cy0 + 60 + icon_w], fill="#fbbf24")
-    draw.text((cx0 + 80, cy0 + 66), "?", font=_font(42, bold=True), fill="#000000")
+    # Mascot cô bé tai thỏ cute (fallback icon dấu hỏi tròn nếu không tìm thấy asset)
+    mascot_path = Path(__file__).resolve().parent.parent / "assets" / "mascots" / "bunny_girl" / "confused.png"
+    qx = cx0 + 150
+    if mascot_path.is_file():
+        try:
+            with Image.open(mascot_path) as m_img:
+                m_size = 136 if not _is_vertical() else 118
+                m_resized = m_img.resize((m_size, m_size), Image.Resampling.LANCZOS)
+                mx, my = cx0 + 36, cy0 + 36
+                glow = Image.new("RGBA", (_W(), _H()), (0, 0, 0, 0))
+                ImageDraw.Draw(glow).ellipse([mx - 10, my - 10, mx + m_size + 10, my + m_size + 10], fill=(251, 191, 36, 45))
+                img = Image.alpha_composite(img.convert("RGBA"), glow)
+                img.paste(m_resized, (mx, my), m_resized)
+                img = img.convert("RGB")
+                draw = ImageDraw.Draw(img)
+                qx = cx0 + m_size + 56
+        except Exception as e:
+            log.debug("Chèn mascot bunny girl lỗi: %s", e)
+            qx = cx0 + 150
+    else:
+        icon_w = 60
+        draw.ellipse([cx0 + 60, cy0 + 60, cx0 + 60 + icon_w, cy0 + 60 + icon_w], fill="#fbbf24")
+        draw.text((cx0 + 80, cy0 + 66), "?", font=_font(42, bold=True), fill="#000000")
+        qx = cx0 + 150
 
     # Câu hỏi
     q_font = _font(40 if not _is_vertical() else 34, bold=True)
     bullets = scene.bullets or [scene.narration]
     question_text = bullets[0] if bullets else "Hãy suy nghĩ giải pháp cho bài toán này."
-
-    qx = cx0 + 150
     qy = cy0 + 65
     max_qw = cx1 - qx - 60
     q_lines = _wrap_lines(draw, question_text, q_font, max_qw)

@@ -151,7 +151,7 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
 - "algorithm": đặt "algorithm" là 1 trong: sorting | search | graph | neural_network | matrix_mult | covariance | tree | two_pointers | stack_queue | dp.
 - "diagram": SƠ ĐỒ QUY TRÌNH / LUỒNG DỮ LIỆU / KIẾN TRÚC. 3-5 bước trong "bullets" (mỗi bullet 1 bước để tự động vẽ flowchart động với hạt dữ liệu di chuyển), hoặc dùng visual_type "animation" với preset "flowchart" hoặc "system_layers".
 - "quote": câu chốt ấn tượng đặt vào bullets[0].
-- "challenge": cảnh ĐẶT BÀI TOÁN / NGHỊCH LÝ / BẾ TẮC / SAI LẦM THƯỜNG GẶP -> GIẢI PHÁP ĐỘT PHÁ. Hiển thị Animation Người Que (Stickman) bối rối trước rắc rối ('?') rồi bừng sáng ý tưởng giải cứu (bóng đèn phát sáng, dấu tích xanh) cực kỳ sinh động! "bullets" gồm 2-4 dòng (nửa đầu: vấn đề / rắc rối; nửa sau: giải pháp).
+- "challenge": cảnh ĐẶT BÀI TOÁN / NGHỊCH LÝ / BẾ TẮC / SAI LẦM THƯỜNG GẶP -> GIẢI PHÁP ĐỘT PHÁ. Hiển thị Animation Mascot Cô Bé Áo Khoác Tai Thỏ (Bunny Girl Chibi) bối rối trước rắc rối ('?') rồi bừng sáng ý tưởng giải cứu (bóng đèn phát sáng, dấu tích xanh) cực kỳ sinh động! "bullets" gồm 2-4 dòng (nửa đầu: vấn đề / rắc rối; nửa sau: giải pháp).
 - "animation": clip động visual thuật toán / toán học / sơ đồ / bảng biểu (kiểu Deep-ML & Tech Studio & 3Blue1Brown). "animation" là object có "preset" thuộc:
   linear_transform | calculus_curve | math_equation | trie_tree | graph_network | donut_chart | flowchart | system_layers | comparison_matrix | radar_chart | matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
@@ -220,7 +220,7 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML &
 
 _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" hoặc "challenge" do AI vẽ.
-- BẮT BUỘC có ÍT NHẤT 1 scene "challenge" (Người Que - Stickman) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
+- BẮT BUỘC có ÍT NHẤT 1 scene "challenge" (Mascot Cô Bé Áo Khoác Tai Thỏ - Bunny Girl Chibi) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
 - Với bài toán ma trận, đại số tuyến tính, mảng, thống kê, bảng tính: ƯU TIÊN preset "matrix_op" hoặc "visual_algo" (kiểu Deep-ML) để hiển thị chi tiết từng bước tính toán.
 - Với chủ đề GPU, Huấn luyện phân tán, LLM, Bộ nhớ AI: ƯU TIÊN preset "gpu_sharding" hoặc "manim" (vẽ cụm GPU #1..#4, thước đo VRAM meter, phân mảnh tham số/gradient, công thức 2P+2P+12P màu đồng bộ với hình khối).
 - Scene 1 (HOOK) BẮT BUỘC là "animation" hoặc "challenge", vẽ chuyển động ngay từ giây đầu tiên.
