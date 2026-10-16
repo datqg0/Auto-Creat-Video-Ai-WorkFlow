@@ -175,10 +175,11 @@ def repair_code_with_ai(
     if framework == "manim":
         framework_rules = (
             "1. Output ONE Scene class `class NeonScene(Scene):`.\n"
-            "2. Do NOT redefine neon helpers: neon, NeonDot, neon_trail, sym, neon_box, curve, make_grid, send, hud (already injected).\n"
+            "2. Do NOT redefine neon helpers: neon, NeonDot, neon_trail, sym, neon_box, curve, make_grid, send, hud, var_panel, vram_meter, gpu_column (already injected).\n"
             "3. NO LaTeX: do NOT use Tex, MathTex, DecimalNumber. Use sym(...) or Text for symbols.\n"
-            "4. Keep coordinates inside safe frame: x in [-6.2, 6.2], y in [-3.3, 3.3].\n"
-            "5. Output ONLY the fixed Python code inside a ```python ... ``` block. No explanations."
+            "4. NO overlapping text: multiple variables must be stacked vertically (arrange(DOWN)) or in var_panel. Never leave stale text on screen when updating.\n"
+            "5. Keep coordinates inside safe frame: x in [-6.2, 6.2], y in [-3.3, 3.3].\n"
+            "6. Output ONLY the fixed Python code inside a ```python ... ``` block. No explanations."
         )
     else:
         framework_rules = (
@@ -250,7 +251,10 @@ def generate_matplotlib_from_prompt(
         f"   - Palette constants available: CYAN ('#00f0ff'), NEON_GREEN ('#39ff14'), PINK ('#ff2bd6'), PURPLE ('#a855f7'), GOLD ('#ffe600'), DARK_BG ('#0a0d14').\n"
         f"   - Helper available: `glow_plot(ax, x, y, color=CYAN, lw=2.5)` creates multi-layer glowing neon laser curves! Use it for dynamic paths/data.\n"
         f"   - Helper available: `clean_axes(ax)` removes ugly borders, sets subtle grid.\n"
-        f"4. CLEANLINESS: Minimalist styling, subtle grid, clear annotations (ax.annotate) for key points.\n\n"
+        f"4. CLEANLINESS & ANTI-COLLISION:\n"
+        f"   - Minimalist styling, subtle grid, clear annotations for key points.\n"
+        f"   - ANTI-COLLISION: Ensure all text annotations (ax.annotate / ax.text) have distinct coordinates so they NEVER overlap. When tracking multiple variables, format them into a single multiline status box in a corner.\n"
+        f"   - Do NOT render episode titles or banners ('Tập X/Y') on the figure canvas.\n\n"
         f"CRITICAL TECHNICAL RULES:\n"
         f"- The runner already injects: WIDTH, HEIGHT, FPS, DURATION, OUT_PATH = 'out.mp4', and sets dark background. DO NOT REDEFINE THEM.\n"
         f"- Use `import matplotlib.pyplot as plt` and `from matplotlib.animation import FuncAnimation`.\n"
@@ -327,9 +331,20 @@ def generate_manim_from_prompt(
         f"     * make_grid(): faint dark neon background grid.\n"
         f"     * send(a, b, color=GR, rt=0.8): glowing request packet traveling from a to b.\n"
         f"     * hud(fn, color=CY): live HUD stats in corner (symbols + numbers only).\n"
-        f"5. VISUAL ALGORITHMS & MATRIX OPERATIONS (DEEP-ML STYLE):\n"
+        f"     * var_panel(items, pos=UL, title='STATE'): HUD card for multiple variables with auto-stacking.\n"
+        f"     * vram_meter(used_gb, max_gb=32, pos=RIGHT*5.6): vertical VRAM capacity thermometer (red when OOM, green when fits).\n"
+        f"     * gpu_column(idx, layers=None, pos=ORIGIN, w=2.0): GPU hardware node card with partitioned memory slots.\n"
+        f"5. VISUAL ALGORITHMS, HARDWARE & MEMORY (ZE-RO / DEEP-ML STYLE):\n"
+        f"   - For distributed training / GPU memory: use `gpu_column(idx, layers, pos)` for multi-node sharding, and `vram_meter(used_gb, max_gb)` to show capacity vs OOM limit.\n"
+        f"   - Formula color-binding: when writing formulas like '2P + 2P + 12P/4', match colors with memory slices (2P params: CY, 2P grads: GR, 12P opt states: OR/YE).\n"
         f"   - For matrix/algebra operations: display grid of rounded boxes for matrix A, scalar/vector badge, and result matrix C.\n"
-        f"   - Step-by-step arithmetic: highlight current inspecting cell with YE ('#ffe600'), show live calculation below, and pop result cell in with GR ('#39ff14').\n\n"
+        f"   - Step-by-step arithmetic: highlight current inspecting cell with YE ('#ffe600'), show live calculation below, and pop result cell in with GR ('#39ff14').\n"
+        f"6. ANTI-COLLISION & CLEAN TEXT (CRITICAL - NON-NEGOTIABLE):\n"
+        f"   - NEVER put multiple text/sym labels at the same coordinate or anchor (e.g. next_to(pt, LEFT) for multiple variables).\n"
+        f"   - To display multiple tracking variables (e.g., d=-996, x=1, y=1000): ALWAYS stack them vertically with VGroup(*labels).arrange(DOWN, aligned_edge=LEFT, buff=0.18) OR use helper var_panel([('d', '-996', YE), ('x', '1', CY), ('y', '1000', GR)], pos=UL).\n"
+        f"   - SPATIAL SEPARATION: Place status panels and variables in corners (to_corner(UL) or to_corner(UR)), NEVER on the trajectory or geometry where circles/curves will pass through and obscure them.\n"
+        f"   - CLEAN TRANSITIONS (NO GHOSTING): When updating a number or label, NEVER just FadeIn or add new text over the old one. MUST use Transform(old_obj, new_obj) or self.play(FadeOut(old_obj), FadeIn(new_obj)) so previous values are completely removed.\n"
+        f"   - ZERO EPISODE BANNERS: NEVER render 'Tập X/Y', video titles, or channel watermarks on screen. The video player overlay handles this. Keep canvas 100% focused on mathematical visualization.\n\n"
         f"RECOMMENDED STRUCTURE PATTERN:\n"
         f"```python\n"
         f"class NeonScene(Scene):\n"
@@ -352,9 +367,11 @@ def generate_manim_from_prompt(
         f"HARD CONSTRAINTS:\n"
         f"1. Output ONE class `class NeonScene(Scene):` with `construct(self)`.\n"
         f"2. ZERO LaTeX: NEVER use Tex, MathTex, DecimalNumber, Variable. Use sym() or Text for 1-4 character symbols/numbers.\n"
-        f"3. ZERO long text or paragraphs on screen: pure visual storytelling through shapes, glow, packets, and motion.\n"
-        f"4. Keep all objects inside safe frame: x in [-6.0, 6.0], y in [-3.2, 3.2].\n"
-        f"5. Return ONLY Python code inside ```python ... ``` block. No explanations."
+        f"3. ZERO overlapping text: Every text label must have a unique coordinate. Multiple variables must be stacked vertically (arrange(DOWN)) or placed in var_panel.\n"
+        f"4. ZERO long text or paragraphs on screen: pure visual storytelling through shapes, glow, packets, and motion.\n"
+        f"5. NO episode titles or watermarks on screen (no 'Tập X/Y').\n"
+        f"6. Keep all objects inside safe frame: x in [-6.0, 6.0], y in [-3.2, 3.2].\n"
+        f"7. Return ONLY Python code inside ```python ... ``` block. No explanations."
     )
     try:
         log.info("Đang gọi AI chuyên code sinh Manim animation...")
@@ -527,6 +544,120 @@ def send(a, b, color=GR, rt=0.8):
 
 def hud(fn, color=CY):
     return always_redraw(lambda: sym(fn(), color, 20).to_corner(UL, buff=0.4))
+
+def var_panel(items, pos=UL, title="STATE", color=CY):
+    vg = VGroup()
+    if title:
+        try:
+            vg.add(Text(str(title), font=FONT, font_size=18, color=color, weight=BOLD))
+        except Exception:
+            vg.add(Text(str(title), font_size=18, color=color))
+    for it in items:
+        if isinstance(it, (list, tuple)) and len(it) >= 2:
+            k, v = str(it[0]), str(it[1])
+            c = it[2] if len(it) > 2 else YE
+            try:
+                line_mob = VGroup(
+                    Text(str(k) + ": ", font=FONT, font_size=18, color="#8b949e"),
+                    Text(str(v), font=FONT, font_size=18, color=c, weight=BOLD)
+                ).arrange(RIGHT, buff=0.08)
+            except Exception:
+                line_mob = Text(str(k) + ": " + str(v), font_size=18, color=c)
+            vg.add(line_mob)
+        else:
+            try:
+                vg.add(Text(str(it), font=FONT, font_size=18, color=YE))
+            except Exception:
+                vg.add(Text(str(it), font_size=18, color=YE))
+    vg.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
+    pad_w = max(vg.width + 0.6, 2.4)
+    pad_h = vg.height + 0.5
+    bg_box = RoundedRectangle(corner_radius=0.15, width=pad_w, height=pad_h,
+                              fill_color="#0a0d14", fill_opacity=0.88,
+                              stroke_color=color, stroke_width=1.5)
+    panel = VGroup(bg_box, vg).to_corner(pos, buff=0.45)
+    vg.move_to(bg_box.get_center())
+    return panel
+
+def vram_meter(used_gb, max_gb=32, pos=RIGHT*5.6, h=5.0, w=0.7):
+    """Thước đo dung lượng VRAM GPU trực quan (đỏ khi OOM, xanh khi vừa vặn)."""
+    vg = VGroup()
+    box = Rectangle(width=w, height=h, stroke_color="#8b949e", stroke_width=2, fill_opacity=0.0).move_to(pos)
+    vg.add(box)
+    
+    limit_y = box.get_bottom()[1] + h * 0.28
+    limit_line = DashedLine(
+        start=[box.get_left()[0] - 0.25, limit_y, 0],
+        end=[box.get_right()[0] + 0.25, limit_y, 0],
+        stroke_color="#ffffff", stroke_width=2.5
+    )
+    vg.add(limit_line)
+    try:
+        limit_lbl = Text(str(max_gb) + " GB", font=FONT, font_size=16, color="#ffffff").next_to(limit_line, UP, buff=0.08)
+    except Exception:
+        limit_lbl = Text(str(max_gb) + " GB", font_size=16, color="#ffffff").next_to(limit_line, UP, buff=0.08)
+    vg.add(limit_lbl)
+    
+    is_oom = used_gb > max_gb
+    bar_col = "#ef4444" if is_oom else "#22c55e"
+    frac = min(used_gb / (max_gb * 3.8 if is_oom else max_gb), 1.0)
+    bar_h = max(h * (0.28 + frac * 0.65) if is_oom else h * 0.28 * (used_gb / max_gb), 0.15)
+    
+    fill_bar = Rectangle(width=w - 0.08, height=bar_h, fill_color=bar_col, fill_opacity=0.85, stroke_width=0)
+    fill_bar.align_to(box, DOWN).shift(UP * 0.04)
+    vg.add(fill_bar)
+    
+    try:
+        val_lbl = Text(str(used_gb) + " GB", font=FONT, font_size=20, color=bar_col, weight=BOLD)
+    except Exception:
+        val_lbl = Text(str(used_gb) + " GB", font_size=20, color=bar_col)
+    val_lbl.next_to(fill_bar, UP, buff=0.12)
+    vg.add(val_lbl)
+    
+    try:
+        desc_lbl = Text("VRAM Model", font=FONT, font_size=14, color="#8b949e").next_to(box, DOWN, buff=0.2)
+    except Exception:
+        desc_lbl = Text("VRAM Model", font_size=14, color="#8b949e").next_to(box, DOWN, buff=0.2)
+    vg.add(desc_lbl)
+    return vg
+
+def gpu_column(idx, layers=None, pos=ORIGIN, w=2.0):
+    """Cột GPU biểu diễn các tầng bộ nhớ (Parameters, Gradients, Optimizer states)."""
+    vg = VGroup()
+    top_badge = VGroup(
+        RoundedRectangle(corner_radius=0.1, width=1.1, height=0.45, fill_color="#00b4d8", fill_opacity=0.9, stroke_width=0),
+        Text("GPU", font_size=14, color="#000000").shift(LEFT * 0.15),
+        Text("#" + str(idx), font_size=18, color="#ffffff").shift(RIGHT * 0.3)
+    )
+    vg.add(top_badge)
+    
+    layer_list = layers or [
+        ("Param", CY, 1.0),
+        ("Grad", GR, 1.0),
+        ("FP32", YE, 0.25),
+        ("Momentum", OR, 0.25),
+        ("Variance", PU, 0.25),
+    ]
+    
+    box_group = VGroup()
+    for l_name, l_col, l_frac in layer_list:
+        row_box = Rectangle(width=w, height=0.55, stroke_color="#30363d", stroke_width=1.2, fill_opacity=0.0)
+        if l_frac > 0:
+            filled_w = w * min(l_frac, 1.0)
+            fill_m = Rectangle(width=filled_w, height=0.51, fill_color=l_col, fill_opacity=0.85, stroke_width=0)
+            fill_m.align_to(row_box, LEFT).shift(RIGHT * 0.02)
+            row_box = VGroup(row_box, fill_m)
+        box_group.add(row_box)
+    box_group.arrange(DOWN, buff=0.08)
+    
+    card_bg = RoundedRectangle(corner_radius=0.18, width=w + 0.3, height=box_group.height + 1.2,
+                               stroke_color="#30363d", stroke_width=1.5, fill_color="#0d1117", fill_opacity=0.9)
+    top_badge.next_to(card_bg.get_top(), DOWN, buff=0.15)
+    box_group.next_to(top_badge, DOWN, buff=0.2)
+    
+    lbl = Text("Shard " + str(idx), font_size=16, color="#8b949e").next_to(card_bg, DOWN, buff=0.15)
+    full_card = VGroup(card_bg, top_badge, box_group, lbl).move_to(pos)
+    return full_card
 
 # ================= CODE AI (MANIM) BÊN DƯỚI =================
 '''

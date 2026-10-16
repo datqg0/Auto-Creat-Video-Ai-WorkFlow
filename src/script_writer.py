@@ -188,6 +188,9 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML &
   * radar_chart (Mạng nhện đánh giá đa chỉ số Trade-offs):
     {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"], "series": [{"name": "Truyền thống", "values": [40, 80, 45, 85, 90]}, {"name": "Hiện đại", "values": [95, 85, 90, 95, 60]}]}
     (Lưới đa giác mạng nhện phát sáng 2 màu neon so sánh sự đánh đổi trade-offs).
+  * gpu_sharding (Phân mảnh bộ nhớ GPU, ZeRO & FSDP - Chuẩn ZeRO/3Blue1Brown):
+    {"preset": "gpu_sharding", "num_gpus": 4, "stage": "zero_3", "model_params": "7.5B", "used_gb": 30, "max_gb": 32, "formula": "(2P + 2P + 12P) / 4"}
+    (4 cột GPU node Shard 1..4, các dải bộ nhớ Parameters CY, Gradients GR, Optimizer states OR/PU được phân mảnh đều, thước đo VRAM kế bên chuyển xanh an toàn < 32GB).
   * matrix_op (Ma trận & Đại số tuyến tính - Giống Lesson.mp4):
     {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×"}
     (Phép toán ma trận: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
@@ -219,9 +222,10 @@ _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" hoặc "challenge" do AI vẽ.
 - BẮT BUỘC có ÍT NHẤT 1 scene "challenge" (Người Que - Stickman) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
 - Với bài toán ma trận, đại số tuyến tính, mảng, thống kê, bảng tính: ƯU TIÊN preset "matrix_op" hoặc "visual_algo" (kiểu Deep-ML) để hiển thị chi tiết từng bước tính toán.
+- Với chủ đề GPU, Huấn luyện phân tán, LLM, Bộ nhớ AI: ƯU TIÊN preset "gpu_sharding" hoặc "manim" (vẽ cụm GPU #1..#4, thước đo VRAM meter, phân mảnh tham số/gradient, công thức 2P+2P+12P màu đồng bộ với hình khối).
 - Scene 1 (HOOK) BẮT BUỘC là "animation" hoặc "challenge", vẽ chuyển động ngay từ giây đầu tiên.
 - "visual_prompt" của scene animation PHẢI mô tả 3 yếu tố, đồng bộ với deictic narration:
-  1. DỮ LIỆU CỤ THỂ (3 lệnh CPU, mảng 4 số, ma trận 2x3, 3 node mạng...).
+  1. DỮ LIỆU CỤ THỂ (3 lệnh CPU, mảng 4 số, ma trận 2x3, 3 node mạng, cụm 4 GPU...).
   2. CHUYỂN ĐỘNG TỪNG BƯỚC & MÀU SẮC (ô nào sáng vàng, đường nào đổi xanh neon, con trỏ dừng ở đâu).
   3. NHỊP ĐIỆU: dừng 0.6-0.8s ở mỗi bước để người xem kịp ngấm.
 - MỌI scene (trừ code) PHẢI có "image_query" (2-5 từ khoá TIẾNG ANH). Scene hợp cảnh quay thực tế (data center, vi mạch...) thêm "video_query" (2-4 từ khoá TIẾNG ANH)."""

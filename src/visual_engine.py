@@ -362,17 +362,57 @@ def _render_challenge(scene: Scene, out: Path) -> None:
         draw.text((qx, qy), ql, font=q_font, fill="#ffffff")
         qy += 56
 
-    # Hộp gợi ý (Hint box) nếu có
-    if len(bullets) > 1 and bullets[1]:
-        hint_text = bullets[1]
-        hy0 = max(qy + 35, cy0 + ch - 170)
-        draw.rounded_rectangle([cx0 + 50, hy0, cx1 - 50, hy0 + 95], radius=16, fill="#0d1117", outline="#38bdf8", width=2)
-        h_font = _font(28, bold=False)
-        draw.text((cx0 + 75, hy0 + 26), "💡 " + hint_text, font=h_font, fill="#38bdf8")
+    # Call to action ở đáy (tính trước để xác định toạ độ an toàn)
+    cta_text = "💬 ĐỂ LẠI ĐÁP ÁN CỦA BẠN DƯỚI PHẦN BÌNH LUẬN"
+    cta_font = _font(24 if not _is_vertical() else 20, bold=True)
+    cta_w = _text_w(draw, cta_text, cta_font)
+    cta_y = cy1 - 46
+    draw.text(((_W() - cta_w) // 2, cta_y), cta_text, font=cta_font, fill="#f59e0b")
 
-    # Call to action ở đáy
-    cta_font = _font(24, bold=True)
-    draw.text(((_W() - 520) // 2, cy1 - 42), "💬 ĐỂ LẠI ĐÁP ÁN CỦA BẠN DƯỚI PHẦN BÌNH LUẬN", font=cta_font, fill="#f59e0b")
+    # Hộp gợi ý (Hint box) nếu có - Tự động bọc dòng & co giãn chiều cao chống tràn
+    if len(bullets) > 1 and bullets[1]:
+        raw_hint = str(bullets[1]).strip()
+        clean_hint = re.sub(r"^(?:Gợi ý:\s*|💡\s*)+", "", raw_hint, flags=re.IGNORECASE).strip()
+        hint_display = f"Gợi ý: {clean_hint}" if clean_hint else raw_hint
+
+        hx0 = cx0 + 50
+        hx1 = cx1 - 50
+        max_box_w = hx1 - hx0
+        hint_pad_x = 30
+        max_hw = max_box_w - hint_pad_x * 2
+
+        base_h_size = 26 if not _is_vertical() else 22
+        h_font = _font(base_h_size, bold=False)
+        h_lines = _wrap_lines(draw, hint_display, h_font, max_hw)
+
+        # Nếu quá 3 dòng, tự động giảm cỡ chữ để vừa khung
+        if len(h_lines) > 3:
+            h_font = _font(base_h_size - 4, bold=False)
+            h_lines = _wrap_lines(draw, hint_display, h_font, max_hw)
+
+        ascent, descent = h_font.getmetrics()
+        line_h = ascent + descent + 10
+        pad_v = 18
+        hint_box_h = pad_v * 2 + len(h_lines[:4]) * line_h
+
+        # Vị trí dọc: nằm dưới câu hỏi nhưng không đè lên CTA đáy
+        hy0 = max(qy + 28, cta_y - 20 - hint_box_h)
+        if hy0 < qy + 15:
+            hy0 = qy + 15
+        hy1 = hy0 + hint_box_h
+        if hy1 > cta_y - 12:
+            hint_box_h = max(60, cta_y - 12 - hy0)
+            hy1 = hy0 + hint_box_h
+
+        # Vẽ hộp bo góc gợi ý
+        draw.rounded_rectangle([hx0, hy0, hx1, hy1], radius=16, fill="#0d1117", outline="#38bdf8", width=2)
+
+        # Vẽ từng dòng text gợi ý
+        ty = hy0 + pad_v
+        for hl in h_lines[:4]:
+            if ty + line_h <= hy1 + 6:
+                draw.text((hx0 + hint_pad_x, ty), hl, font=h_font, fill="#38bdf8")
+            ty += line_h
 
     _footer(draw)
     img.save(out)

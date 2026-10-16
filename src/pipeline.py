@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -39,11 +40,13 @@ def _exercise_scenes(script: Script) -> list:
 
     ex = exercises[0]
     bullets = [ex.question]
+    clean_hint = ""
     if ex.hint:
-        bullets.append("Gợi ý: " + ex.hint)
+        clean_hint = re.sub(r"^(?:Gợi ý:\s*|💡\s*)+", "", str(ex.hint), flags=re.IGNORECASE).strip()
+        bullets.append("Gợi ý: " + clean_hint)
     narration = f"Thử thách nhỏ cho bạn: {ex.question}"
-    if ex.hint:
-        narration += f" Gợi ý: {ex.hint}"
+    if clean_hint:
+        narration += f" Gợi ý: {clean_hint}"
     narration += " Hãy để lại đáp án của bạn ở phần bình luận."
     return [
         Scene(
@@ -156,10 +159,11 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             if should_try_manim:
                 manim_code = acfg.get("code") if preset == "manim" else None
                 if not manim_code and visual_desc:
+                    clean_topic = re.sub(r"^\[(?:Tập|Part)\s*\d+/\d+\]\s*", "", script.title or "").strip()
                     manim_code = generate_manim_from_prompt(
                         visual_desc,
                         duration=dur,
-                        topic=script.title,
+                        topic=clean_topic,
                         narration=scene.narration,
                     )
                 if manim_code:
