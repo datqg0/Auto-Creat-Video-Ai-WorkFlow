@@ -395,3 +395,10 @@ trend:
     hacker_news: true
     reddit: true
     google_trends: true   # can: pip install pytrends
+
+# ---- Quản lý Chuỗi Video (Series Engine) ----
+series:
+  enabled: true
+  default_episodes: 5
+  short_episodes: 5     # Số tập cho mỗi chuỗi Shorts (60-180s, dọc 9:16)
+  long_episodes: 5      # Số tập cho mỗi chuỗi Video Dài (5-15p, ngang 16:9)

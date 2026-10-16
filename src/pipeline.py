@@ -357,11 +357,17 @@ def run_once(
     topic: str | None = None,
     upload_video: bool = True,
     dry_run: bool = False,
+    mode: str | None = None,
 ) -> None:
+    import os
     from .script_writer import write_script
     from .series_manager import get_or_create_active_series_task
 
     db.init_db()
+
+    if not mode:
+        mode = str(CONFIG.get("active_mode") or os.environ.get("VIDEO_MODE") or "long").lower()
+    normalized_mode = "short" if mode == "short" else ("mega" if mode == "mega" else "long")
 
     series_context = None
     episode_id = None
@@ -371,23 +377,24 @@ def run_once(
         series_cfg = CONFIG.get("series", {})
         if series_cfg.get("enabled", True):
             # Tự động điều phối theo Chuỗi Video (Series):
-            # Nếu DB trống hoặc series cũ xong -> Tự động sinh series mới!
+            # Tách riêng Short vs Long: mode='short' chỉ lấy/tạo Short series, mode='long' chỉ lấy/tạo Long series
             try:
-                series_task = get_or_create_active_series_task()
+                series_task = get_or_create_active_series_task(mode=normalized_mode)
                 topic = series_task["episode"]["topic"]
                 series_context = series_task["series_context"]
                 episode_id = series_task["episode"]["id"]
                 series_info = series_task["series"]
                 db.update_episode(episode_id, status="in_progress")
                 log.info(
-                    "▶ Bắt đầu sản xuất: %s - [Tập %d/%d] %s",
+                    "▶ Bắt đầu sản xuất [%s Series]: %s - [Tập %d/%d] %s",
+                    normalized_mode.upper(),
                     series_context["series_name"],
                     series_context["episode_num"],
                     series_context["total_episodes"],
                     topic,
                 )
             except Exception as e:
-                log.warning("Không thể lấy nhiệm vụ series (%s), fallback sang pick_topic đơn lẻ", e)
+                log.warning("Không thể lấy nhiệm vụ series [%s] (%s), fallback sang pick_topic đơn lẻ", normalized_mode, e)
                 from .topic_selector import pick_topic
 
                 topic = pick_topic()
@@ -476,17 +483,18 @@ def main() -> None:
     if args.list_series:
         from .series_manager import print_series_table
 
-        print_series_table()
+        print_series_table(mode=args.mode)
         return
+
+    mode = apply_mode(args.mode)
 
     if args.plan_series:
         from .series_manager import plan_new_series, print_series_table
 
-        plan_new_series(theme=args.plan_series, num_episodes=args.episodes)
-        print_series_table()
+        plan_new_series(theme=args.plan_series, num_episodes=args.episodes, mode=mode)
+        print_series_table(mode=mode)
         return
 
-    mode = apply_mode(args.mode)
     if args.duration:
         CONFIG["target_duration_seconds"] = int(args.duration)
 
@@ -496,13 +504,13 @@ def main() -> None:
         CONFIG["visual"]["width"],
         CONFIG["visual"]["height"],
         CONFIG["target_duration_seconds"],
-        args.topic or "Series Auto-pick",
+        args.topic or f"[{mode.upper()} Series Auto-pick]",
     )
 
     n = int(CONFIG.get("videos_per_run", 1))
     for i in range(n):
         log.info("=== Video %d/%d ===", i + 1, n)
-        run_once(topic=args.topic, upload_video=not args.no_upload, dry_run=args.dry_run)
+        run_once(topic=args.topic, upload_video=not args.no_upload, dry_run=args.dry_run, mode=mode)
 
 
 if __name__ == "__main__":

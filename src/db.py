@@ -77,12 +77,19 @@ def _init_sqlite_schema_on_conn(conn: sqlite3.Connection) -> None:
             theme TEXT NOT NULL,
             domain TEXT,
             total_episodes INTEGER NOT NULL DEFAULT 5,
+            mode TEXT NOT NULL DEFAULT 'long',
             status TEXT NOT NULL DEFAULT 'in_progress',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
         """
     )
+    # Tự động migrate nếu bảng series cũ chưa có cột mode
+    try:
+        cur.execute("ALTER TABLE series ADD COLUMN mode TEXT NOT NULL DEFAULT 'long'")
+    except Exception:
+        pass
+
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS series_episodes (
@@ -252,6 +259,7 @@ def init_db() -> None:
                         theme TEXT NOT NULL,
                         domain TEXT,
                         total_episodes INTEGER NOT NULL DEFAULT 5,
+                        mode TEXT NOT NULL DEFAULT 'long',
                         status TEXT NOT NULL DEFAULT 'in_progress',
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL
@@ -271,6 +279,10 @@ def init_db() -> None:
                     );
                     """
                 )
+                try:
+                    cur.execute("ALTER TABLE series ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'long'")
+                except Exception:
+                    pass
                 log.debug("Database initialized (PostgreSQL/Neon)")
             else:
                 _init_sqlite_schema_on_conn(conn)
@@ -366,12 +378,13 @@ def update_video(video_id: int, **fields: Any) -> None:
 # ==============================================================================
 
 
-def create_series(name: str, theme: str, domain: str = "", total_episodes: int = 5) -> int:
+def create_series(name: str, theme: str, domain: str = "", total_episodes: int = 5, mode: str = "long") -> int:
     now = datetime.utcnow().isoformat()
+    normalized_mode = "short" if mode == "short" else ("mega" if mode == "mega" else "long")
     return _insert_get_id(
-        "INSERT INTO series (name, theme, domain, total_episodes, status, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, 'in_progress', ?, ?)",
-        (name, theme, domain, total_episodes, now, now),
+        "INSERT INTO series (name, theme, domain, total_episodes, mode, status, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, 'in_progress', ?, ?)",
+        (name, theme, domain, total_episodes, normalized_mode, now, now),
     )
 
 
@@ -390,9 +403,13 @@ def add_series_episode(
     )
 
 
-def get_active_series() -> dict[str, Any] | None:
-    """Lấy series đang chạy ('in_progress') ưu tiên theo id cũ nhất."""
-    return _query_one("SELECT * FROM series WHERE status = 'in_progress' ORDER BY id ASC LIMIT 1")
+def get_active_series(mode: str = "long") -> dict[str, Any] | None:
+    """Lấy series đang chạy ('in_progress') theo đúng mode (long, short, mega) ưu tiên id cũ nhất."""
+    normalized_mode = "short" if mode == "short" else ("mega" if mode == "mega" else "long")
+    return _query_one(
+        "SELECT * FROM series WHERE status = 'in_progress' AND (mode = ? OR (mode IS NULL AND ? = 'long')) ORDER BY id ASC LIMIT 1",
+        (normalized_mode, normalized_mode),
+    )
 
 
 def get_series_by_id(series_id: int) -> dict[str, Any] | None:
@@ -433,9 +450,16 @@ def update_episode(episode_id: int, **fields: Any) -> None:
         log.warning("update_episode DB thất bại (id=%s): %s", episode_id, e)
 
 
-def list_all_series() -> list[dict[str, Any]]:
-    """Liệt kê toàn bộ các series cùng thống kê số tập đã hoàn thành."""
-    series_list = _query_all("SELECT * FROM series ORDER BY id DESC")
+def list_all_series(mode: str | None = None) -> list[dict[str, Any]]:
+    """Liệt kê toàn bộ các series cùng thống kê số tập đã hoàn thành, có thể lọc theo mode."""
+    if mode:
+        normalized_mode = "short" if mode == "short" else ("mega" if mode == "mega" else "long")
+        series_list = _query_all(
+            "SELECT * FROM series WHERE mode = ? OR (mode IS NULL AND ? = 'long') ORDER BY id DESC",
+            (normalized_mode, normalized_mode),
+        )
+    else:
+        series_list = _query_all("SELECT * FROM series ORDER BY id DESC")
     for s in series_list:
         eps = get_series_episodes(s["id"])
         completed = sum(1 for e in eps if e.get("status") in ("rendered", "uploaded"))
