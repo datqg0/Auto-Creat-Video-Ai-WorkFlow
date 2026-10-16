@@ -36,3 +36,4 @@
 2026-10-15T15:54:32.745740	Từ phép cộng diện tích tiểu học đến Ray Tracing: Khử răng cưa và mô phỏng thực tại 3D
 2026-10-16T02:45:21.963491	Cơ chế hoạt động của GGML và quantization trong llama.cpp & llm.c
 2026-10-16T06:31:16.091772	vLLM: Kiến trúc phân tán và tối ưu hoá inference trên nhiều GPU
+2026-10-16T07:56:53.806226	Ollama: Đóng gói mô hình, quản lý môi trường và giao diện người dùng
