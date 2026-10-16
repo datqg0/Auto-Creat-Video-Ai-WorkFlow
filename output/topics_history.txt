@@ -34,3 +34,4 @@
 2026-10-14T16:05:59.333433	Hệ thập phân vs Nhị phân: Cách máy tính dịch chuyển giá trị vị trí qua các công tắc On-Off
 2026-10-15T02:48:05.213729	Bí ẩn số Pi và Sai số nhị phân: Vì sao máy tính không thể vẽ một đường tròn hoàn hảo?
 2026-10-15T15:54:32.745740	Từ phép cộng diện tích tiểu học đến Ray Tracing: Khử răng cưa và mô phỏng thực tại 3D
+2026-10-16T02:45:21.963491	Cơ chế hoạt động của GGML và quantization trong llama.cpp & llm.c
