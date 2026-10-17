@@ -38,3 +38,4 @@
 2026-10-16T06:31:16.091772	vLLM: Kiến trúc phân tán và tối ưu hoá inference trên nhiều GPU
 2026-10-16T07:56:53.806226	Ollama: Đóng gói mô hình, quản lý môi trường và giao diện người dùng
 2026-10-16T15:42:56.602551	Backpropagation: Vì sao mạng học ngược nhanh hơn học tiến?
+2026-10-17T02:36:23.588569	ComfyUI: Kiến trúc modular cho pipeline đồ họa và AI
