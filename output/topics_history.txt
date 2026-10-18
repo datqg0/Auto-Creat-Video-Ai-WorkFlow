@@ -41,3 +41,4 @@
 2026-10-17T02:36:23.588569	ComfyUI: Kiến trúc modular cho pipeline đồ họa và AI
 2026-10-17T14:34:24.040856	Attention Mechanism: AI tập trung vào phần quan trọng như thế nào?
 2026-10-18T02:36:51.169348	BitNet & DeepSeek: Kiến trúc siêu hiệu quả và tầm nhìn tương lai
+2026-10-18T15:01:06.522708	RLHF (Reinforcement Learning from Human Feedback): AI trở nên ‘thông minh’ sau phản hồi người dùng?
