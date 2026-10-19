@@ -87,14 +87,14 @@ llm:
       type: gemini
       model: gemini-3.7-flash
       api_key_env: GEMINI_API_KEY
-      timeout: 120
+      timeout: 50
 
     # Tier 1.2 — Google Gemini Flash Latest (Dự phòng khi 3.7 chạm quota)
     - name: gemini_latest
       type: gemini
       model: gemini-flash-latest
       api_key_env: GEMINI_API_KEY
-      timeout: 120
+      timeout: 50
 
     # Tier 2.1 — Groq LPU (Các model khả dụng trên tài khoản: gpt-oss-120b, qwen3.8-27b, gpt-oss-20b — Giới hạn 8K TPM)
     - name: groq
@@ -121,7 +121,7 @@ llm:
     # Tier 2.2 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
     - name: cerebras
       type: openai
-      model: llama-3.1-8b
+      model: llama3.1-8b
       base_url: https://api.cerebras.ai/v1
       api_key_env: CEREBRAS_API_KEY
       max_output_tokens: 8192

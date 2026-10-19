@@ -2497,12 +2497,16 @@ TEMPLATES.conclusion = function (t, box) {
       const tx = x0 + px(18) + tag + px(24), tw = cw - (tx - x0) - px(24);
       const m = it.match(/^(.{2,40}?):\s+(.+)$/);
       if (m) {
-        const hh = tbHeight(m[1], tw, px(30), { weight: 'bold', maxLines: 1 }), bh = tbHeight(m[2], tw, px(27), { maxLines: 2 });
+        let bfs = px(26);
+        while (bfs > px(18) && wrapLines(m[2], tw, font(bfs), 99).length > 2) bfs -= px(1.5);
+        const hh = tbHeight(m[1], tw, px(28), { weight: 'bold', maxLines: 1 }), bh = tbHeight(m[2], tw, bfs, { maxLines: 3 });
         const top = y + (ch - hh - bh) / 2;
-        tb(m[1], tx, top, tw, px(30), col, { weight: 'bold', maxLines: 1 });
-        tb(m[2], tx, top + hh, tw, px(27), '#cbd5e1', { maxLines: 2 });
+        tb(m[1], tx, top, tw, px(28), col, { weight: 'bold', maxLines: 1 });
+        tb(m[2], tx, top + hh, tw, bfs, '#cbd5e1', { maxLines: 3 });
       } else {
-        const fs = px(32), hh = tbHeight(it, tw, fs, { weight: 'bold', maxLines: 3 });
+        let fs = px(30);
+        while (fs > px(20) && wrapLines(it, tw, font(fs, 'bold'), 99).length > 3) fs -= px(1.5);
+        const hh = tbHeight(it, tw, fs, { weight: 'bold', maxLines: 3 });
         tb(it, tx, y + (ch - hh) / 2, tw, fs, '#f1f5f9', { weight: 'bold', maxLines: 3 });
       }
     });

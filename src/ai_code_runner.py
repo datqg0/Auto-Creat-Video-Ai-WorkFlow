@@ -341,10 +341,11 @@ def generate_manim_from_prompt(
         f"   - Step-by-step arithmetic: highlight current inspecting cell with YE ('#ffe600'), show live calculation below, and pop result cell in with GR ('#39ff14').\n"
         f"6. ANTI-COLLISION & CLEAN TEXT (CRITICAL - NON-NEGOTIABLE):\n"
         f"   - NEVER put multiple text/sym labels at the same coordinate or anchor (e.g. next_to(pt, LEFT) for multiple variables).\n"
+        f"   - NEVER ADD TEXT OVER AN EXISTING BOX: Inside `box = neon_box(label)`, `box[1]` is the text label. NEVER call `FadeIn(sym(val))` or `add(sym(val))` over the same box! That creates ugly overlapping ghost text (e.g. '2 x 0' or '6 y^ 0'). ALWAYS use `self.play(change_box_label(box, '2.0'))` or `self.play(Transform(box[1], sym('2.0')))` to replace the label cleanly.\n"
+        f"   - NEVER DRAW A FORMULA ON TOP OF AN OLD FORMULA: When updating calculations (e.g. loss values or partial derivatives), ALWAYS `FadeOut` the previous formula before introducing the new one, or use `Transform(old_eq, new_eq)`.\n"
         f"   - To display multiple tracking variables (e.g., d=-996, x=1, y=1000): ALWAYS stack them vertically with VGroup(*labels).arrange(DOWN, aligned_edge=LEFT, buff=0.18) OR use helper var_panel([('d', '-996', YE), ('x', '1', CY), ('y', '1000', GR)], pos=UL).\n"
         f"   - SPATIAL SEPARATION: Place status panels and variables in corners (to_corner(UL) or to_corner(UR)), NEVER on the trajectory or geometry where circles/curves will pass through and obscure them.\n"
-        f"   - CLEAN TRANSITIONS (NO GHOSTING): When updating a number or label, NEVER just FadeIn or add new text over the old one. MUST use Transform(old_obj, new_obj) or self.play(FadeOut(old_obj), FadeIn(new_obj)) so previous values are completely removed.\n"
-        f"   - ZERO EPISODE BANNERS: NEVER render 'Tập X/Y', video titles, or channel watermarks on screen. The video player overlay handles this. Keep canvas 100% focused on mathematical visualization.\n\n"
+        f"   - ZERO EPISODE BANNERS: NEVER render 'Tập X/Y', video titles, or channel watermarks on screen. Keep canvas 100% focused on mathematical visualization.\n\n"
         f"RECOMMENDED STRUCTURE PATTERN:\n"
         f"```python\n"
         f"class NeonScene(Scene):\n"
@@ -359,18 +360,18 @@ def generate_manim_from_prompt(
         f"        # Phase 2: Action / Packet transfer / Computation\n"
         f"        self.play(send(box_a.get_center(), box_b.get_center(), color=GR, rt=1.2))\n"
         f"        self.wait(0.5)\n"
-        f"        # Phase 3: Highlight state / Result\n"
-        f"        self.play(box_b[0].animate.set_color(YE), run_time=0.8)\n"
+        f"        # Phase 3: Highlight state / Result (USE change_box_label to update label without overlap!)\n"
+        f"        self.play(box_b[0].animate.set_color(YE), change_box_label(box_b, 'B*', color=YE), run_time=0.8)\n"
         f"        remaining = max(DURATION - 4.0, 0.5)\n"
         f"        self.wait(remaining)\n"
         f"```\n\n"
         f"HARD CONSTRAINTS:\n"
         f"1. Output ONE class `class NeonScene(Scene):` with `construct(self)`.\n"
         f"2. ZERO LaTeX: NEVER use Tex, MathTex, DecimalNumber, Variable. Use sym() or Text for 1-4 character symbols/numbers.\n"
-        f"3. ZERO overlapping text: Every text label must have a unique coordinate. Multiple variables must be stacked vertically (arrange(DOWN)) or placed in var_panel.\n"
+        f"3. ZERO overlapping text: Every text label must have a unique coordinate. Never fade in text over an existing label without removing/transforming the old one.\n"
         f"4. ZERO long text or paragraphs on screen: pure visual storytelling through shapes, glow, packets, and motion.\n"
-        f"5. NO episode titles or watermarks on screen (no 'Tập X/Y').\n"
-        f"6. Keep all objects inside safe frame: x in [-6.0, 6.0], y in [-3.2, 3.2].\n"
+        f"5. NO unsupported animations: Do NOT call `.animate.set(..., stretch=...)` or pass 'stretch' keyword.\n"
+        f"6. Keep all objects inside safe frame: x in [-5.5, 5.5], y in [-2.8, 2.8]. Avoid placing elements at the screen borders.\n"
         f"7. Return ONLY Python code inside ```python ... ``` block. No explanations."
     )
     try:
@@ -524,6 +525,11 @@ def neon_box(label, color=CY, w=1.6, h=0.9, pos=ORIGIN):
     box = neon(RoundedRectangle(corner_radius=0.2, width=w, height=h).move_to(pos),
                color, 3, 4, fill=0.12)
     return VGroup(box, sym(label, color, 22).move_to(pos))
+
+def change_box_label(box, new_label, color=None):
+    c = color if color is not None else CY
+    new_sym = sym(str(new_label), color=c, size=22).move_to(box[1].get_center())
+    return Transform(box[1], new_sym)
 
 def curve(xs, ys):
     xs, ys = np.asarray(xs, float), np.asarray(ys, float)

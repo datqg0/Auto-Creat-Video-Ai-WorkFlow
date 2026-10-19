@@ -22,7 +22,10 @@ from .metadata import sanitize_description, sanitize_tags, sanitize_title
 
 log = logging.getLogger(__name__)
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+]
 CLIENT_SECRET_FILE = CREDENTIALS_DIR / "client_secret.json"
 TOKEN_FILE = CREDENTIALS_DIR / "token.json"
 
@@ -77,7 +80,13 @@ def upload_caption(youtube, video_id: str, srt_path: Path, language: str = "vi",
         youtube.captions().insert(part="snippet", body=body, media_body=media).execute()
         log.info("Đã upload phụ đề %s (%s) cho video %s", name, language, video_id)
     except Exception as e:  # noqa: BLE001
-        log.warning("Upload phụ đề %s lỗi: %s", language, e)
+        if "insufficientPermissions" in str(e):
+            log.warning(
+                "Upload phụ đề %s lỗi: Token thiếu quyền 'youtube.force-ssl'. Hãy chạy `python -m src.youtube_uploader --auth` để cấp lại token và cập nhật Secret YOUTUBE_TOKEN trên GitHub.",
+                language,
+            )
+        else:
+            log.warning("Upload phụ đề %s lỗi: %s", language, e)
 
 
 def upload(

@@ -943,22 +943,27 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
     # Chỉ vẽ caption khi có bullets (ý chính); narration đã hiện ở phụ đề burn-in
     # nên KHÔNG vẽ lại để tránh trùng/chồng chữ.
     if scene.bullets:
-        caption_font = _font(52 if not is_vertical else 60, bold=False)
+        # Tự động co kích thước font nếu bullets dài (như bài toán thử thách / công thức)
+        # để hiển thị ĐẦY ĐỦ câu hỏi + gợi ý, không bao giờ bị cắt cụt dòng.
+        base_size = 48 if not is_vertical else 54
+        caption_font = _font(base_size, bold=False)
         lines: list[str] = []
         for b in scene.bullets[:4]:
             lines.extend(_wrap_lines(draw, "• " + b, caption_font, _W() - 2 * margin))
-        lines = lines[:6]
+
+        while len(lines) > 6 and base_size > 26:
+            base_size -= 4
+            caption_font = _font(base_size, bold=False)
+            lines = []
+            for b in scene.bullets[:4]:
+                lines.extend(_wrap_lines(draw, "• " + b, caption_font, _W() - 2 * margin))
+
         asc, desc = caption_font.getmetrics()
-        line_h = asc + desc + 16
+        line_h = asc + desc + 12
         total = len(lines) * line_h
-        # Phụ đề burn-in nằm ở ĐÁY màn hình (ffmpeg subtitles, FontSize=22,
-        # BorderStyle=3). Dành riêng ~18% chiều cao đáy cho phụ đề và ĐẶT
-        # caption NẰM TRÊN vùng đó -> chữ overlay luôn ở trên phụ đề, không
-        # còn chồng lên nhau dù phụ đề xuất hiện giữa scene.
         sub_reserve = int(_H() * 0.18)
         bottom_limit = _H() - sub_reserve
         y = bottom_limit - total
-        # Tránh đè lên heading ở góc trên khi caption quá dài.
         y = max(y, top_h + 20)
         for line in lines:
             draw.text((margin, y), line, font=caption_font, fill=_TEXT)

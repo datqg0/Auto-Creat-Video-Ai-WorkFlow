@@ -13,8 +13,12 @@ import math
 import os
 import random
 import subprocess
+import warnings
 import zlib
 from pathlib import Path
+
+# Tắt cảnh báo MoviePy đọc frame chạm EOF khi clip bị lệch millisecond
+warnings.filterwarnings("ignore", category=UserWarning, module="moviepy.video.io.ffmpeg_reader")
 
 from .mv_compat import (
     AudioFileClip,
