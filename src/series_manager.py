@@ -47,7 +47,19 @@ def plan_new_series(
     is_short = normalized_mode == "short"
 
     topics_cfg = CONFIG.get("topics", {})
-    domains: list[str] = topics_cfg.get("domains", ["algorithms", "architecture", "distributed_systems", "ai_llm"])
+    domains: list[str] = topics_cfg.get(
+        "domains",
+        [
+            "Lập trình đồ họa & Shaders (Graphic Programming: Ray Tracing, Shaders, Voxels, Render Pipeline)",
+            "Thuật toán trực quan & Tư duy logic (Algorithms: A*, Boids, Quadtree, Nén dữ liệu, Sắp xếp)",
+            "Phần cứng máy tính & Bán dẫn (Hardware: Transistor, Cổng logic, Cache L1/L2/L3, CPU vs GPU, ASML)",
+            "Mã hóa & An toàn số (Cryptography: Diffie-Hellman, RSA, Hàm băm SHA, Zero-Knowledge Proofs)",
+            "Đồ họa máy tính & Thị giác (Computer Graphics: Bézier, Anti-Aliasing, PBR, Occlusion Culling)",
+            "Nghệ thuật của Toán học & Mô phỏng (Art of Math: Mandelbrot, Conway's Game of Life, Fourier, Voronoi)",
+            "Công nghệ đời sống & Internet căn bản (Everyday Tech: Mã QR, Cáp quang biển, GPS, Wifi, Pin Lithium)",
+            "Trí tuệ nhân tạo & Học máy trực quan (AI & Machine Learning: Attention, Diffusion, CNN, Gradient Descent)",
+        ],
+    )
     sel_domain = domain or random.choice(domains)
 
     used_topics = db.recent_topics(days=60)
