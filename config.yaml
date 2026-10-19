@@ -371,11 +371,14 @@ topics:
     # 8. TRÍ TUỆ NHÂN TẠO & HỌC MÁY TRỰC QUAN (AI & Machine Learning Visualized)
     - "Trí tuệ nhân tạo & Học máy trực quan (AI & Machine Learning: Cơ chế Attention Mechanism trong Transformer, Quá trình khuếch tán Diffusion tạo ảnh, Mạng nơ-ron nhận diện hình ảnh CNN, Không gian vector Embeddings, Tối ưu hóa Gradient Descent)"
 
+    # 9. CÁC NGÔN NGỮ LẬP TRÌNH & SO SÁNH ĐỐI ĐẦU (Programming Languages & Showdowns)
+    - "Ngôn ngữ lập trình & Cuộc chiến hiệu năng (Programming Languages: Rust vs C++, Tại sao Python chậm hơn C 100 lần, JavaScript V8 Engine & JIT Compiler, Go Goroutines vs Java Threads, Cơ chế dọn rác Garbage Collector vs Borrow Checker, Assembly vs C, Con trỏ Pointer trong C, Functional Programming Haskell/Lisp)"
+
   # Số ngày tránh lặp lại chủ đề đã dùng
   dedup_days: 30
-  # Luân phiên đa dạng giữa các nhóm lĩnh vực (0 đến 7)
+  # Luân phiên đa dạng giữa các nhóm lĩnh vực (0 đến 8)
   priority_domains_every_n: 1
-  priority_domain_indices: [0, 1, 2, 3, 4, 5, 6, 7]
+  priority_domain_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
 # ---- Trending signals ----
 trend:

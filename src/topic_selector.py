@@ -125,6 +125,12 @@ def pick_topic() -> str:
                 "\n- Deep visual explanation of modern AI mechanisms: Attention Mechanism in Transformers, Diffusion process turning noise into art, Vector Embeddings, Gradient Descent loss landscape."
                 "\n- Example: 'Inside Attention Mechanism: How ChatGPT Actually Understands Context', 'How Diffusion Models Create Art Out of Pure Noise'."
             )
+        elif any(k in domain.lower() for k in ("programming language", "languages", "rust", "c++", "python", "compiler", "showdown", "ngôn ngữ")):
+            github_hint = (
+                "\n\nPROGRAMMING LANGUAGES & SHOWDOWNS HINTS (priority):"
+                "\n- Deep technical comparisons of programming languages and runtime mechanics: Rust vs C++ memory safety without GC, Why Python is 100x slower than C, JavaScript V8 Engine JIT, Go Goroutines vs Java Threads, Garbage Collection vs Manual Memory vs Borrow Checker."
+                "\n- Example: 'Rust vs C++: How Borrow Checker Achieves Memory Safety Without GC', 'Why Python is 100x Slower Than C (Under the Hood)', 'Go Goroutines: How Go Handles 1 Million Connections on 2KB Stacks'."
+            )
 
         prompt = f"""You are an editor for a tech YouTube channel specializing in visual explanations (visualization).
 Propose ONE specific, engaging video topic in the field: {domain}.
@@ -235,6 +241,18 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
                 "\n  + 'Vector Embeddings: Làm thế nào máy tính đo được khoảng cách ý nghĩa giữa từ Vua, Nữ hoàng và Vương miện?'"
                 "\n  + 'Gradient Descent: Trực giác hình học về quả bóng lăn xuống thung lũng giúp AI tự học từ sai lầm'"
                 "\n  + 'Mạng nơ-ron CNN: Thị giác máy tính bóc tách từng đường nét để nhận diện khuôn mặt con người như thế nào?'"
+            )
+        elif any(k in domain.lower() for k in ("ngôn ngữ lập trình", "programming language", "so sánh", "rust", "c++", "python", "golang", "go", "javascript", "compiler")):
+            github_hint = (
+                "\n\nGỢI Ý CHỦ ĐỀ NGÔN NGỮ LẬP TRÌNH & CUỘC CHIẾN HIỆU NĂNG (PROGRAMMING LANGUAGES & SHOWDOWNS):"
+                "\n- Cốt lõi: Mổ xẻ cơ chế quản lý bộ nhớ, mô hình thông dịch vs biên dịch, và sự đánh đổi tốc độ giữa các ngôn ngữ."
+                "\n  + 'Rust vs C++: Bí mật Borrow Checker - Làm sao an toàn bộ nhớ tuyệt đối mà không cần Garbage Collector?'"
+                "\n  + 'Tại sao Python chậm hơn C gấp 50-100 lần? (Bóc tách GIL, dynamic typing và con trỏ gián tiếp)'"
+                "\n  + 'JavaScript V8 Engine: Trình duyệt biến code kịch bản thành mã máy xé gió bằng JIT Compiler như thế nào?'"
+                "\n  + 'Go Goroutines vs Java Threads: Bí quyết Go cân 1 triệu kết nối đồng thời với Stack chỉ 2KB'"
+                "\n  + 'Bộ thu gom rác (Garbage Collector): Java và C# dọn dẹp RAM tự động tinh vi ra sao?'"
+                "\n  + 'C & Con trỏ: Ngôn ngữ điều khiển phần cứng trần trụi và nguồn gốc của mọi lỗi phân mảnh bộ nhớ'"
+                "\n  + 'TypeScript vs JavaScript: Vì sao dev thà viết dài hơn để diệt tận gốc lỗi undefined is not a function?'"
             )
 
         prompt = f"""Bạn là biên tập viên kênh YouTube về công nghệ theo phong cách giải thích trực quan (visualization).

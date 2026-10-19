@@ -122,6 +122,7 @@ _PEDAGOGY = """TRIẾT LÝ SƯ PHẠM CHIỀU SÂU (DEPTH-FIRST — CHỐNG CƯ�
    * Mã hóa/Bảo mật: ví dụ số nhỏ cụ thể (Diffie-Hellman với p=23, g=5; Alice chọn a=6, Bob chọn b=15 tính ra khóa bí mật chung = 2) hoặc ẩn dụ pha màu.
    * Art of Math: lần theo 1 điểm phức z0 qua các bước lặp z = z^2 + c xem thoát ra vô cực hay nằm trong tập Mandelbrot.
    * Mạng/Hệ thống: client gửi SYN seq=100, server trả ACK=101, mô phỏng mất gói tin ở một bước.
+   * Ngôn ngữ lập trình/Hiệu năng: cùng 1 biến số nguyên (C: 4 byte trực tiếp trên thanh ghi CPU, 1 chu kỳ; Python: PyObject con trỏ 28 byte phải tra cứu kiểu, 30 chu kỳ) hoặc vết chạy Borrow Checker của Rust kiểm tra lifetime.
    * ML/Repo: trace một tensor cụ thể (shape [8, 512] -> attention -> [8, 512]), chỉ rõ từng phép biến đổi.
    Ca đó đi qua 3 chặng:
    * Chặng A (Bình thường): dữ liệu di chuyển qua các trạm.

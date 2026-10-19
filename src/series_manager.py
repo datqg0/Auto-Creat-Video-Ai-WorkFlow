@@ -58,6 +58,7 @@ def plan_new_series(
             "Nghệ thuật của Toán học & Mô phỏng (Art of Math: Mandelbrot, Conway's Game of Life, Fourier, Voronoi)",
             "Công nghệ đời sống & Internet căn bản (Everyday Tech: Mã QR, Cáp quang biển, GPS, Wifi, Pin Lithium)",
             "Trí tuệ nhân tạo & Học máy trực quan (AI & Machine Learning: Attention, Diffusion, CNN, Gradient Descent)",
+            "Ngôn ngữ lập trình & Cuộc chiến hiệu năng (Programming Languages: Rust vs C++, Python vs C, V8 JIT, Go vs Java)",
         ],
     )
     sel_domain = domain or random.choice(domains)
