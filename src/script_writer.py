@@ -422,19 +422,30 @@ def _fit_title(t: str, limit: int) -> str:
 
 
 def _finalize_title(title: object, topic: str, s: _Settings, series: dict | None = None) -> str:
-    """Chuẩn hoá tiêu đề: sạch, sentence case, vừa giới hạn, (short -> câu hỏi), gắn tiền tố series AN TOÀN."""
+    """Chuẩn hoá tiêu đề: sạch, sentence case, vừa giới hạn, (short -> câu hỏi), gắn hậu tố series AN TOÀN."""
     t = _clean_title(title) or _clean_title(topic)
-    prefix = ""
+    series_tag = ""
     if series:
-        raw_prefix = series["prefix"]
-        prefix = raw_prefix + " "
-        if t.lower().startswith(raw_prefix.lower()):
-            t = t[len(raw_prefix):].strip()
-    body_limit = max(min(s.title_limit, _TITLE_HARD_MAX - len(prefix)), 20)
+        raw_prefix = str(series.get("prefix", "")).strip()
+        if raw_prefix:
+            if t.lower().startswith(raw_prefix.lower()):
+                t = t[len(raw_prefix):].strip(" -:|")
+            series_tag = raw_prefix
+
     if s.is_short:
         t = _as_question(t)
+
+    # Đặt tag series ở CUỐI tiêu đề (suffix) để phần hook tò mò đập vào mắt người xem đầu tiên trên mobile:
+    # Ví dụ: "Có 175 tỷ tham số, làm sao AI biết con số nào đang tính sai? [Tập 1/5]"
+    if series_tag:
+        suffix = f" {series_tag}"
+        body_limit = max(min(s.title_limit, _TITLE_HARD_MAX - len(suffix)), 20)
+        t = _sentence_case(_fit_title(t, body_limit))
+        return f"{t}{suffix}"[:_TITLE_HARD_MAX]
+
+    body_limit = min(s.title_limit, _TITLE_HARD_MAX)
     t = _sentence_case(_fit_title(t, body_limit))
-    return (prefix + t)[:_TITLE_HARD_MAX]
+    return t[:_TITLE_HARD_MAX]
 
 
 def _title_ok(t: str, s: _Settings) -> bool:
@@ -446,10 +457,7 @@ def _title_ok(t: str, s: _Settings) -> bool:
 
 
 def _optimize_title(script: Script, s: _Settings) -> str:
-    """Lượt LLM riêng chuyên viết tiêu đề: sinh 5 phương án, chọn cái hợp lệ tốt nhất.
-
-    Chạy SAU khi kịch bản xong nên bám nội dung thật. Thất bại -> giữ title hiện tại.
-    """
+    """Lượt LLM riêng chuyên viết tiêu đề: sinh 5 phương án theo phong cách Kiến Thức Thú Vị + 3Blue1Brown, chọn cái tốt nhất."""
     hook = (script.scenes[0].narration or "")[:300] if script.scenes else ""
     headings = " | ".join(sc.heading for sc in script.scenes if sc.heading)[:500]
     short_note = (
@@ -457,24 +465,35 @@ def _optimize_title(script: Script, s: _Settings) -> str:
         if s.is_short else ""
     )
 
-    prompt = f"""Bạn là chuyên gia tiêu đề YouTube. Video về chủ đề: "{script.topic}".
+    prompt = f"""Bạn là chuyên gia đặt tiêu đề YouTube triệu view (phong cách kênh Kiến Thức Thú Vị kết hợp Tech/Computer Science của 3Blue1Brown/Veritasium).
+Video về chủ đề: "{script.topic}".
 Tiêu đề hiện tại: "{script.title}"
 Câu mở đầu video (hook): "{hook}"
 Các mục trong video: {headings}
 
-Viết 5 tiêu đề {s.lang_name} KHÁC NHAU theo ĐÚNG 5 dạng (mỗi dạng 1 tiêu đề):
-1. CÂU HỎI GÂY SỐC: câu hỏi có con số hoặc nghịch lý. Ví dụ: "Tại sao 99% lập trình viên hiểu sai cách RAM hoạt động?"
-2. CON SỐ + LỢI ÍCH: con số cụ thể, hứa hẹn rõ. Ví dụ: "5 phút hiểu thuật toán tìm đường ngắn nhất mà Google Maps dùng hàng ngày"
-3. KHOẢNG CÁCH TÒ MÒ: gợi điều bí ẩn chưa tiết lộ. Ví dụ: "Thứ ẩn bên trong mọi ảnh JPEG mà bạn không thể nhìn thấy"
-4. CỔ PHẦN CAO: hậu quả nếu không biết/lợi ích lớn nếu biết. Ví dụ: "Lỗ hổng này làm 500 triệu tài khoản bị hack, code của bạn có dính không?"
-5. PHẢN TRỰC GIÁC: tuyên bố nghe vô lý nhưng đúng. Ví dụ: "Thêm máy chủ đôi khi khiến hệ thống chậm hơn, đây là lý do"
+Viết 5 tiêu đề {s.lang_name} CỰC KỲ HẤP DẪN, kích hoạt tò mò cao (CTR cao), đánh trúng tâm lý người xem theo 5 phong cách sau:
+1. MẪU "HÓA RA..." / "AI NGỜ...": Phá vỡ định kiến, hé lộ bí mật kỹ thuật/toán học đằng sau một thứ quen thuộc.
+   - Ví dụ: "Hóa ra cỗ máy dịch thuật của ChatGPT chỉ là trò ghép cặp ba ma trận này"
+   - Ví dụ: "Ai ngờ thuật toán làm nên cả thế giới AI lại từng bị hắt hủi suốt 30 năm"
+2. MẪU CÂU HỎI KHẨU NGỮ ĐỜI THƯỜNG: Dùng từ ngữ tự nhiên, phản trực giác ("lại... đến vậy?", "như thế nào?").
+   - Ví dụ: "Tại sao chỉ một câu lệnh if-else lại khiến cả cụm GPU tê liệt?"
+   - Ví dụ: "Tại sao CPU chạy 4 GHz nhưng 80% thời gian lại ngồi chơi chờ RAM?"
+3. MẪU NGHỊCH LÝ CON SỐ: Con số khổng lồ đối lập với một nghịch lý cụ thể.
+   - Ví dụ: "Có 175 tỷ tham số, làm sao AI biết con số nào đang tính sai?"
+   - Ví dụ: "Tại sao máy tính sẽ chậm đi 100 lần nếu thiếu 32KB bộ nhớ này?"
+4. MẪU "KHÓ AI NGHĨ..." / "KHÔNG TỰ NHIÊN MÀ...": Gợi mở lịch sử phát minh hoặc bước ngoặt công nghệ kỳ thú.
+   - Ví dụ: "Khó ai nghĩ thuật toán tìm đường của Google Maps lại ra đời trên bàn ăn sáng"
+   - Ví dụ: "Không tự nhiên mà cả thế giới phải tranh nhau mua từng chiếc GPU"
+5. MẪU HIỂM HỌA SỐNG CÒN / PHẢN TRỰC GIÁC: Hậu quả nếu thiếu thuật toán/công nghệ này.
+   - Ví dụ: "Không có cỗ máy đạo hàm này, toàn bộ mô hình AI sẽ lập tức sụp đổ"
+   - Ví dụ: "Thêm máy chủ đôi khi lại khiến hệ thống chậm đi, đây là lý do"
 
-Quy tắc:
-- Mỗi tiêu đề tối đa {s.title_limit} ký tự (đủ hiển thị trên điện thoại). Không dùng dấu ngoặc kép trong tiêu đề.
-- Không bắt đầu bằng "Giới thiệu", "Tìm hiểu", "Hướng dẫn", "Trong video này".
-- Bám NỘI DUNG THẬT của video (số liệu, ví dụ, insight từ hook), không hứa điều video không có.{short_note}
+Quy tắc bắt buộc:
+- Mỗi tiêu đề tối đa {s.title_limit} ký tự (đủ hiển thị trọn vẹn trên điện thoại di động). Không dùng dấu ngoặc kép trong tiêu đề.
+- TUYỆT ĐỐI KHÔNG DÙNG VĂN HỌC THUẬT KHÔ CỨNG: Cấm bắt đầu bằng "Tổng quan về...", "Giới thiệu...", "Tìm hiểu cơ chế...", "Nguyên lý hoạt động...", "Hướng dẫn...".
+- Tiêu đề phải gắn liền với BẢN CHẤT KỸ THUẬT/NỘI DUNG THẬT của video, không clickbait lừa dối.{short_note}
 
-Chọn 1 tiêu đề tốt nhất theo: CTR cao nhất, có từ khoá tìm kiếm, khớp nội dung video.
+Chọn 1 tiêu đề xuất sắc nhất theo: Tò mò cao nhất, CTR đỉnh nhất nhưng vẫn chuẩn xác với nội dung.
 
 Chỉ trả JSON:
 {{"candidates": ["...", "...", "...", "...", "..."], "best": "tiêu đề được chọn"}}"""

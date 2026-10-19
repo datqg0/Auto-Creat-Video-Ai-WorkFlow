@@ -87,7 +87,7 @@ Hãy lên kế hoạch cho MỘT CHUỖI VIDEO (Series) gồm {num_episodes} t�
 
 4. Mỗi tập gồm:
    - episode_num: Số thứ tự (1 đến {num_episodes})
-   - topic: Tên chủ đề chi tiết của tập (cụ thể, súc tích)
+   - topic: Tên chủ đề chi tiết của tập (đặt theo phong cách tò mò cao như kênh Kiến Thức Thú Vị kết hợp 3Blue1Brown: dùng "Hóa ra...", "Tại sao... lại... đến vậy?", "Không ngờ...", hoặc nghịch lý con số, TUYỆT ĐỐI tránh văn phong giáo trình khô cứng).
    - hook_from_previous: (Tập 1 để trống). Từ tập 2 trở đi, 1 câu ngắn nhắc lại nền tảng từ tập trước.
    - hook_to_next: (Tập cuối để trống). 1 câu gợi mở bí mật sẽ giải quyết ở tập tiếp theo.
 

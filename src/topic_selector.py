@@ -183,6 +183,7 @@ Hãy đề xuất MỘT chủ đề video cụ thể, hấp dẫn trong lĩnh v�
 Yêu cầu:
 - Chủ đề đủ hẹp để giải thích trong video 5 phút bằng hình ảnh động/biểu đồ.
 - Phù hợp để minh họa bằng animation, biểu đồ dữ liệu, hoặc mô phỏng thuật toán.
+- Đặt tên chủ đề theo phong cách hấp dẫn, khơi gợi tò mò mạnh (như "Hóa ra...", "Tại sao... lại... đến vậy?", "Không ngờ...", hoặc nghịch lý con số). TUYỆT ĐỐI không dùng văn học thuật khô cứng như "Tổng quan về...", "Tìm hiểu...", "Cơ chế...".
 - Viết bằng tiếng Việt.
 - KHÔNG trùng hoặc quá giống các chủ đề đã dùng dưới đây:
 {used_block}{trend_section}{github_hint}
