@@ -82,6 +82,54 @@ def _font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
             return ImageFont.load_default()
 
 
+def _fallback_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
+    """Font dự phòng hỗ trợ đầy đủ ký tự Hy Lạp (α, ε), toán học (√, −, ·) khi font chính thiếu glyph."""
+    for p in (
+        r"C:\Windows\Fonts\segoeui.ttf",
+        r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\seguisym.ttf",
+    ):
+        if Path(p).exists():
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                pass
+    return _font(size, bold)
+
+
+def _text_w(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, fallback_font: ImageFont.ImageFont | None = None) -> int:
+    fb = fallback_font or _fallback_font(getattr(font, "size", 30))
+    total_w = 0.0
+    for ch in str(text or ""):
+        mask = font.getmask(ch) if hasattr(font, "getmask") else None
+        active = font if (mask and mask.getbbox() is not None) else fb
+        total_w += draw.textlength(ch, font=active)
+    return int(total_w)
+
+
+def _draw_text_with_fallback(
+    draw: ImageDraw.ImageDraw,
+    xy: tuple[int, int],
+    text: str,
+    font: ImageFont.ImageFont,
+    fill: str | tuple,
+    fallback_font: ImageFont.ImageFont | None = None,
+    anchor: str | None = None,
+) -> None:
+    if not text:
+        return
+    fb = fallback_font or _fallback_font(getattr(font, "size", 30))
+    x, y = xy
+    if anchor and "m" in anchor:
+        w = _text_w(draw, text, font, fb)
+        x = x - w // 2
+    for ch in str(text):
+        mask = font.getmask(ch) if hasattr(font, "getmask") else None
+        active = font if (mask and mask.getbbox() is not None) else fb
+        draw.text((x, y), ch, font=active, fill=fill)
+        x += draw.textlength(ch, font=active)
+
+
 # ----------------------------- Nền trang trí -----------------------------
 
 def _gradient_bg(top: str = BG, bottom: str = "#010409") -> Image.Image:
@@ -271,7 +319,15 @@ def _icon(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: str, idx:
 # ----------------------------- Renderers -----------------------------
 
 def _render_title(scene: Scene, out: Path) -> None:
-    heading = scene.heading or scene.narration[:60]
+    raw_heading = scene.heading or scene.narration[:60]
+    is_outro = raw_heading.strip().lower() in ("outro", "kết thúc", "outro.", "lời kết", "outro:")
+    if is_outro:
+        heading = "Cảm Ơn Bạn Đã Theo Dõi!"
+        badge_text = "★ LIKE & SUBSCRIBE ★"
+    else:
+        heading = raw_heading
+        badge_text = "★ CHUYÊN ĐỀ CÔNG NGHỆ ★"
+
     img, draw = _new_canvas(_seed(heading), blobs=4, image_query=scene.image_query)
     img = _grid_overlay(img, spacing=64)
     cx, cy = _W() // 2, _H() // 2 - 10
@@ -287,7 +343,7 @@ def _render_title(scene: Scene, out: Path) -> None:
     bx0 = cx - badge_w // 2
     by0 = cy - hh + 30
     draw.rounded_rectangle([bx0, by0, bx0 + badge_w, by0 + badge_h], radius=22, fill=(30, 41, 59, 240), outline=ACCENT, width=1)
-    draw.text((cx, by0 + badge_h // 2), "★ CHUYÊN ĐỀ CÔNG NGHỆ ★", font=_font(18, bold=True), fill=ACCENT, anchor="mm")
+    draw.text((cx, by0 + badge_h // 2), badge_text, font=_font(18, bold=True), fill=ACCENT, anchor="mm")
 
     # Icon công nghệ nếu tìm thấy
     try:
@@ -337,12 +393,18 @@ def _render_challenge(scene: Scene, out: Path) -> None:
     img = Image.alpha_composite(img.convert("RGBA"), panel).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    # Badge: 🎯 THỬ THÁCH VẬN DỤNG
-    badge_w, badge_h = 360, 56
+    # Phân biệt Thử thách tương tác (quiz) vs Tình huống nghịch lý trong bài giảng
+    bullets = scene.bullets or [scene.narration]
+    question_text = bullets[0] if bullets else "Hãy suy nghĩ giải pháp cho bài toán này."
+    is_quiz = any(k in (scene.heading or "").lower() for k in ("thử thách", "bài tập", "quiz", "exercise", "câu hỏi", "tính ")) or "?" in question_text
+
+    badge_w, badge_h = 380, 56
     bx0, by0 = (_W() - badge_w) // 2, cy0 - 28
-    draw.rounded_rectangle([bx0, by0, bx0 + badge_w, by0 + badge_h], radius=28, fill="#f59e0b", outline="#ffffff", width=2)
-    bfont = _font(26, bold=True)
-    draw.text((bx0 + 36, by0 + 14), "🎯 THỬ THÁCH VẬN DỤNG", font=bfont, fill="#000000")
+    badge_fill = "#f59e0b" if is_quiz else "#0284c7"
+    badge_title = "🎯 THỬ THÁCH VẬN DỤNG" if is_quiz else "⚡ NGHỊCH LÝ & BẾ TẮC"
+    draw.rounded_rectangle([bx0, by0, bx0 + badge_w, by0 + badge_h], radius=28, fill=badge_fill, outline="#ffffff", width=2)
+    bfont = _font(24, bold=True)
+    draw.text((bx0 + 32, by0 + 14), badge_title, font=bfont, fill="#ffffff" if not is_quiz else "#000000")
 
     # Mascot cô bé tai thỏ cute (fallback icon dấu hỏi tròn nếu không tìm thấy asset)
     mascot_path = Path(__file__).resolve().parent.parent / "assets" / "mascots" / "bunny_girl" / "confused.png"
@@ -377,15 +439,20 @@ def _render_challenge(scene: Scene, out: Path) -> None:
     max_qw = cx1 - qx - 60
     q_lines = _wrap_lines(draw, question_text, q_font, max_qw)
     for ql in q_lines[:4]:
-        draw.text((qx, qy), ql, font=q_font, fill="#ffffff")
+        _draw_text_with_fallback(draw, (qx, qy), ql, font=q_font, fill="#ffffff")
         qy += 56
 
-    # Call to action ở đáy (tính trước để xác định toạ độ an toàn)
-    cta_text = "💬 ĐỂ LẠI ĐÁP ÁN CỦA BẠN DƯỚI PHẦN BÌNH LUẬN"
+    # Call to action ở đáy (phân biệt quiz vs tình huống lý thuyết)
+    if is_quiz:
+        cta_text = "💬 ĐỂ LẠI ĐÁP ÁN CỦA BẠN DƯỚI PHẦN BÌNH LUẬN"
+        cta_fill = "#f59e0b"
+    else:
+        cta_text = "💡 CÙNG PHÂN TÍCH NGUYÊN LÝ & BẢN CHẤT CỐT LÕI"
+        cta_fill = "#38bdf8"
     cta_font = _font(24 if not _is_vertical() else 20, bold=True)
     cta_w = _text_w(draw, cta_text, cta_font)
     cta_y = cy1 - 46
-    draw.text(((_W() - cta_w) // 2, cta_y), cta_text, font=cta_font, fill="#f59e0b")
+    draw.text(((_W() - cta_w) // 2, cta_y), cta_text, font=cta_font, fill=cta_fill)
 
     # Hộp gợi ý (Hint box) nếu có - Tự động bọc dòng & co giãn chiều cao chống tràn
     if len(bullets) > 1 and bullets[1]:
@@ -429,7 +496,7 @@ def _render_challenge(scene: Scene, out: Path) -> None:
         ty = hy0 + pad_v
         for hl in h_lines[:4]:
             if ty + line_h <= hy1 + 6:
-                draw.text((hx0 + hint_pad_x, ty), hl, font=h_font, fill="#38bdf8")
+                _draw_text_with_fallback(draw, (hx0 + hint_pad_x, ty), hl, font=h_font, fill="#38bdf8")
             ty += line_h
 
     _footer(draw)

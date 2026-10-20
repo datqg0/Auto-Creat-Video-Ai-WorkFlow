@@ -310,10 +310,13 @@ def generate_manim_from_prompt(
         f"   - Synchronize with the voiceover narration so the graphic visually matches what is being explained.\n"
         f"   - For data structures: clearly position nodes/elements, highlight active pointers, animate swaps/inserts/traversals.\n"
         f"   - For systems/networks: show sender, receiver, and data packets flowing across channels with send(a, b).\n"
-        f"2. COLOR SEMANTICS (State-based contrast):\n"
+        f"2. COLOR SEMANTICS & NO-OVERLAP RULES (CRITICAL):\n"
         f"   - Base/Idle elements: CY ('#00f0ff') with subtle glow.\n"
         f"   - Currently inspecting/active pointer: YE ('#ffe600') or PK ('#ff2bd6').\n"
         f"   - Successful match / sorted / verified: GR ('#39ff14').\n"
+        f"   - NO OVERLAPPING TEXT: NEVER place multiple text, formulas, or numbers at the exact same coordinates. Use .next_to(..., buff=0.3) or distinct positions.\n"
+        f"   - NO EMPTY BOXES: Every neon_box() MUST have an informative label (e.g. 'Input', 'Noise', 'Image', 'x_0'). NEVER leave it blank.\n"
+        f"   - CLEAR TITLE: Always add a clear title/heading at top: self.add(sym(topic or 'AI VISUALIZATION', CY, 28).to_edge(UP, buff=0.4)).\n"
         f"3. PACING & RHYTHM (SLOW DOWN — NON-NEGOTIABLE):\n"
         f"   - RHYTHM RULE (NON-NEGOTIABLE): Between EVERY self.play(), insert self.wait(0.6-1.0).\n"
         f"   - Max 4-5 play() calls for the full scene. Budget time carefully. Do NOT cram too many actions.\n"
@@ -523,12 +526,25 @@ def tex_math(expr, color=CY, size=28):
     try:
         return MathTex(str(expr), color=color, font_size=size)
     except Exception:
-        return sym(str(expr), color=color, size=size)
+        import re
+        clean = str(expr).strip('$').strip()
+        clean = clean.replace('\\alpha', 'α').replace('\\beta', 'β').replace('\\gamma', 'γ')
+        clean = clean.replace('\\epsilon', 'ε').replace('\\theta', 'θ').replace('\\lambda', 'λ')
+        clean = clean.replace('\\sigma', 'σ').replace('\\pi', 'π').replace('\\cdot', ' · ')
+        clean = clean.replace('\\times', ' × ').replace('\\approx', ' ≈ ').replace('\\neq', ' ≠ ')
+        clean = re.sub(r'\\\\frac\\{([^}]+)\\}\\{([^}]+)\\}', r'(\\1) / (\\2)', clean)
+        clean = re.sub(r'\\\\sqrt\\{([^}]+)\\}', r'√(\\1)', clean)
+        clean = re.sub(r'\\[a-zA-Z]+', '', clean)
+        clean = clean.replace('{', '').replace('}', '')
+        return sym(clean, color=color, size=size)
 
 def neon_box(label, color=CY, w=1.6, h=0.9, pos=ORIGIN):
+    lbl_str = str(label or "").strip()
+    if not lbl_str:
+        lbl_str = "Step"
     box = neon(RoundedRectangle(corner_radius=0.2, width=w, height=h).move_to(pos),
                color, 3, 4, fill=0.12)
-    return VGroup(box, sym(label, color, 22).move_to(pos))
+    return VGroup(box, sym(lbl_str, color, 22).move_to(pos))
 
 def change_box_label(box, new_label, color=None):
     c = color if color is not None else CY

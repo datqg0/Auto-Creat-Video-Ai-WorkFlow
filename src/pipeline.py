@@ -145,7 +145,35 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             preset = str(acfg.get("preset", ""))
             visual_desc = scene.visual_prompt or scene.heading or scene.narration[:120]
 
-            # Tầng 1: Manim (Ưu tiên cho thuật toán chuyên sâu, toán học, hoặc yêu cầu rõ Manim)
+            explicit_manim = (preset == "manim") or bool(acfg.get("code")) or anim_cfg.get("manim_prefer", False)
+
+            # Tầng 1 (CHỦ ĐẠO): Motion Graphics Engine (HTML5/Canvas qua Edge/Chrome Headless)
+            # Ưu tiên Motion Graphics vì có MathJax xử lý công thức toán mượt mà, layout đẹp, không bị lỗi LaTeX/chữ đè
+            if not explicit_manim and anim_cfg.get("motion_graphics_enabled", True) and is_motion_graphics_available():
+                try:
+                    mg_dir = workdir / f"motion_graphic_{i:02d}"
+                    stock_img_path = None
+                    if scene.image_query:
+                        try:
+                            from .image_fetcher import fetch_image
+                            stock_img_path = fetch_image(scene.image_query, index=i % 3)
+                        except Exception as e:
+                            log.debug("fetch_image error: %s", e)
+                    code_video = render_motion_graphic_scene(
+                        scene,
+                        mg_dir,
+                        duration=dur,
+                        width=CONFIG["visual"]["width"],
+                        height=CONFIG["visual"]["height"],
+                        fps=CONFIG["visual"]["fps"],
+                        image_path=stock_img_path,
+                    )
+                    if code_video:
+                        log.info("Scene %d: Render thành công bằng Motion Graphics HTML5/Edge", i)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Motion Graphics scene %d lỗi: %s, chuyển sang fallback", i, e)
+
+            # Tầng 2: Manim (Khi được chỉ định rõ hoặc làm fallback cho thuật toán/toán học chuyên sâu)
             is_math_or_algo = any(k in visual_desc.lower() for k in (
                 "toán", "công thức", "hàm số", "graph", "tree", "sorting", "binary",
                 "matrix", "vector", "thuật toán", "algorithm", "pointer", "dp",
@@ -155,8 +183,10 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                 "manim", "matrix_op", "visual_algo", "tree_graph", "two_pointers",
                 "dp_grid", "stack_queue", "sorting", "neural_net"
             }
-            should_try_manim = anim_cfg.get("manim_enabled", True) and (preset in algo_presets or "manim" in visual_desc.lower() or is_math_or_algo)
-            if should_try_manim:
+            should_try_manim = anim_cfg.get("manim_enabled", True) and (
+                explicit_manim or (code_video is None and (preset in algo_presets or "manim" in visual_desc.lower() or is_math_or_algo))
+            )
+            if code_video is None and should_try_manim:
                 manim_code = acfg.get("code") if preset == "manim" else None
                 if not manim_code and visual_desc:
                     clean_topic = re.sub(r"^\[(?:Tập|Part)\s*\d+/\d+\]\s*", "", script.title or "").strip()
@@ -184,31 +214,6 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                             log.info("Scene %d: Render thành công bằng Manim (3Blue1Brown)", i)
                     except Exception as e:  # noqa: BLE001
                         log.warning("Manim scene %d lỗi: %s", i, e)
-
-            # Tầng 2 (MỚI & CHỦ ĐẠO): Motion Graphics Engine (HTML5/Canvas qua Edge/Chrome Headless)
-            if code_video is None and anim_cfg.get("motion_graphics_enabled", True) and is_motion_graphics_available():
-                try:
-                    mg_dir = workdir / f"motion_graphic_{i:02d}"
-                    stock_img_path = None
-                    if scene.image_query:
-                        try:
-                            from .image_fetcher import fetch_image
-                            stock_img_path = fetch_image(scene.image_query, index=i % 3)
-                        except Exception as e:
-                            log.debug("fetch_image error: %s", e)
-                    code_video = render_motion_graphic_scene(
-                        scene,
-                        mg_dir,
-                        duration=dur,
-                        width=CONFIG["visual"]["width"],
-                        height=CONFIG["visual"]["height"],
-                        fps=CONFIG["visual"]["fps"],
-                        image_path=stock_img_path,
-                    )
-                    if code_video:
-                        log.info("Scene %d: Render thành công bằng Motion Graphics HTML5/Edge", i)
-                except Exception as e:  # noqa: BLE001
-                    log.warning("Motion Graphics scene %d lỗi: %s, chuyển sang fallback", i, e)
 
             # Tầng 3 (Dự phòng): PyCode (Matplotlib)
             if code_video is None:

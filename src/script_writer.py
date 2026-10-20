@@ -934,7 +934,7 @@ PHA 4: ỨNG DỤNG THỰC CHIẾN & ĐÁNH ĐỔI (~15%, 1-2 scene)
 
 PHA 5: KẾT LUẬN & KÊU GỌI (~10%, 1-2 scene cuối, BẮT BUỘC)
 - Scene TỔNG KẾT: heading "{_T[s.lang]['conclusion_heading']}", visual_type "bullets" với 3 ý: (1) bản chất cốt lõi; (2) khi nào NÊN dùng; (3) khi nào KHÔNG NÊN dùng/cạm bẫy.
-- Scene OUTRO: 1 câu châm ngôn tâm đắc, gợi mở bài toán tập sau, kêu gọi Like và Đăng ký kênh.
+     * Scene OUTRO: 1 câu châm ngôn tâm đắc, gợi mở bài toán tập sau, kêu gọi Like và Đăng ký kênh (heading KHÔNG được để mỗi chữ "Outro", hãy đặt tiêu đề truyền cảm hứng như "Lời Kết & Hẹn Gặp Lại", "Tương Lai Công Nghệ...").
 
 {_NARRATION_RULES}
 
@@ -1064,16 +1064,16 @@ NGỮ CẢNH TỪ NỬA ĐẦU (PHẦN 1 ĐÃ HOÀN THÀNH):
 YÊU CẦU NỬA SAU (PHẦN 2 - BẮT ĐẦU TỪ SCENE {start_idx}):
 1. Viết ĐÚNG {n_p2_min}-{n_p2_max} scene nối tiếp mượt mà từ nửa đầu theo trình tự:
    - PHA 3 (GIAI ĐOẠN 2 - CÚ HACK GIẢI CỨU): (2-3 scene tiếp theo):
-     * Tung ra giải pháp đột phá tháo gỡ điểm nghẽn (Bypass/WAL Append-only/Indexing/Tree Rebalance...).
+     * Tung ra giải pháp đột phá tháo gỡ điểm nghẽn CHÍNH XÁC theo domain chủ đề (AI/Mô hình toán: Denoising Score Matching, Reparameterization Trick, Vectorization, Caching... / Hệ thống: Indexing, Pipelining, Bypass...). TUYỆT ĐỐI KHÔNG đem thuật ngữ database (WAL, Sharding) áp vào các bài toán AI/Toán học không liên quan.
      * Trace tiếp running case study với số liệu định lượng (ví dụ: giảm từ 12ms xuống 0.2ms, throughput tăng 50×, an toàn 100% khi mất điện).
      * 100% scene là "animation" ("matrix_op", "visual_algo", "flowchart", "pycode" hoặc "manim"), áp dụng triệt để DEICTIC NARRATION.
    - PHA 4: ỨNG DỤNG THỰC CHIẾN & ĐÁNH ĐỔI (1-2 scene):
-     * Cái giá phải trả (bộ nhớ, độ trễ, tài nguyên...) và cách hệ thống lớn (Linux, Postgres, Intel, V8...) xử lý đánh đổi.
+     * Cái giá phải trả (bộ nhớ, độ trễ, độ phân giải...) và cách các hệ thống/framework thực chiến (PyTorch, TensorFlow, Linux, V8...) xử lý đánh đổi đúng chuyên ngành.
      * Ưu tiên preset "comparison_matrix" hoặc "radar_chart".
    - PHA 5: KẾT LUẬN & KÊU GỌI (2 scene cuối, BẮT BUỘC):
      * Scene TỔNG KẾT: heading "{_T[s.lang]['conclusion_heading']}", visual_type "bullets" với 3 ý: (1) bản chất cốt lõi; (2) khi nào NÊN dùng; (3) khi nào KHÔNG NÊN dùng/cạm bẫy.
-     * Scene OUTRO: 1 câu châm ngôn tâm đắc, gợi mở bài toán tập sau, kêu gọi Like và Đăng ký kênh.
-2. BÀI TẬP: mảng "exercises" gồm ĐÚNG 1 bài toán THỰC TẾ tiêu biểu có số liệu và đáp án thật.
+     * Scene OUTRO: 1 câu châm ngôn tâm đắc, gợi mở bài toán tập sau, kêu gọi Like và Đăng ký kênh (heading KHÔNG được để mỗi chữ "Outro", hãy đặt tiêu đề truyền cảm hứng như "Lời Kết & Hẹn Gặp Lại", "Tương Lai Công Nghệ...").
+2. BÀI TẬP: mảng "exercises" gồm ĐÚNG 1 bài toán THỰC TẾ tiêu biểu có số liệu và đáp án thật (dùng ký hiệu toán học dễ hiểu như alpha_t = 0.9, epsilon = 0.3, x_{t-1} = ...; TUYỆT ĐỐI KHÔNG dùng LaTeX chưa escape \\).
 3. Tổng lời đọc nửa sau mục tiêu: ~{words_p2} từ (tối thiểu {int(words_p2 * 0.75)} từ).
 
 {_PEDAGOGY}

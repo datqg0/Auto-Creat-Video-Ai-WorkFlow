@@ -299,6 +299,8 @@ def _d_quote(scene: Scene, lang: str) -> dict | None:
     if not q:
         s = _sentences(scene.narration, 1, 200)
         q = s[0] if s else ""
+    if q and q.strip().lower() in ("outro", "outro.", "kết thúc"):
+        q = "Cảm ơn bạn đã theo dõi! Hãy Like & Đăng ký kênh để đón xem các tập công nghệ tiếp theo."
     return {"quote": q} if q else None
 
 
@@ -1032,9 +1034,12 @@ def _d_graph_network(scene: Scene, lang: str) -> dict | None:
 
     raw_path = a.get("path") or ["A", "C", "B", "D", "E"]
     path = [str(p.get("id") or "") if isinstance(p, dict) else str(p) for p in raw_path]
-    bc = a.get("breadcrumb") or "GRAPH THEORY / DIJKSTRA / SHORTEST PATH"
-    diff = a.get("difficulty") or "Medium"
-    cat = a.get("category") or "Graph Algorithms"
+    is_dijkstra = any(w in corpus for w in ("dijkstra", "shortest path", "đường đi ngắn nhất"))
+    default_bc = "GRAPH THEORY / DIJKSTRA / SHORTEST PATH" if is_dijkstra else ((scene.heading or "NETWORK & GRAPH TOPOLOGY").upper())
+    bc = a.get("breadcrumb") or default_bc
+    diff = a.get("difficulty") or ("Medium" if is_dijkstra else "Architecture")
+    cat = a.get("category") or ("Graph Algorithms" if is_dijkstra else "Topology & System")
+    badge = a.get("badge") or ("DIJKSTRA ALGO" if is_dijkstra else "GRAPH TOPOLOGY")
 
     return {
         "graph_network": {
@@ -1044,6 +1049,8 @@ def _d_graph_network(scene: Scene, lang: str) -> dict | None:
             "breadcrumb": bc,
             "difficulty": diff,
             "category": cat,
+            "badge": badge,
+            "is_dijkstra": is_dijkstra,
         },
         "_illustrative": not bool(a.get("edges")),
     }
@@ -1182,15 +1189,17 @@ def _d_calculus_curve(scene: Scene, lang: str) -> dict | None:
 def _pick_mascot(scene: Scene) -> str:
     """Tự động chọn linh vật cute (mặc định là Bunny Girl mascot chính của kênh)."""
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''}".lower()
-    if any(w in corpus for w in ("duck", "vịt", "vit", "rubber duck")):
-        return "duck"
-    if any(w in corpus for w in ("cat", "mèo", "meo", "neko")):
-        return "cat"
-    if any(w in corpus for w in ("dog", "chó", "cho", "shiba")):
+    if any(w in corpus for w in ("bunny", "tai thỏ", "thỏ", "tho", "cô bé", "co be", "girl", "anime")):
+        return "bunny_girl"
+    if re.search(r"\b(?:chó|cún|con chó|shiba|corgi|puppy|dog|dogs)\b", corpus):
         return "dog"
-    if any(w in corpus for w in ("bird", "chim")):
+    if re.search(r"\b(?:mèo|con mèo|neko|kitty|kitten|cat|cats)\b", corpus):
+        return "cat"
+    if re.search(r"\b(?:vịt|con vịt|rubber duck|duck|ducks)\b", corpus):
+        return "duck"
+    if re.search(r"\b(?:chim|con chim|bird|birds|kurz)\b", corpus):
         return "bird"
-    if any(w in corpus for w in ("bot", "robot")):
+    if re.search(r"\b(?:robot|người máy|cyber bot|bot)\b", corpus):
         return "bot"
     return "bunny_girl"
 
@@ -1206,8 +1215,13 @@ def _d_story(scene: Scene, lang: str) -> dict | None:
         return None
     mascot = _pick_mascot(scene)
     if len(items) <= 1:
-        prob = [items[0]] if items else ["Vấn đề kỹ thuật gặp phải"]
-        sol = [_sentences(scene.narration, 1, 100)[0]] if _sentences(scene.narration, 1) else [_LABELS[lang]["solution"]]
+        narr_sents = _sentences(scene.narration, 4, 120)
+        if len(narr_sents) >= 2:
+            prob = [_truncate(x, 100) for x in narr_sents[:2]]
+            sol = [_truncate(x, 100) for x in narr_sents[2:4]]
+        else:
+            prob = [items[0]] if items else ["Vấn đề kỹ thuật gặp phải"]
+            sol = [_sentences(scene.narration, 1, 100)[0]] if _sentences(scene.narration, 1) else [_LABELS[lang]["solution"]]
         return {"story": {"problem": prob, "solution": sol, "mascot": mascot}}
     k = math.ceil(len(items) / 2)
     return {"story": {"problem": [_truncate(x, 100) for x in items[:k][:3]],
@@ -4268,14 +4282,16 @@ TEMPLATES.graph_network = function (t, box) {
 
   // 3. Bottom Card
   panel(box.x, cardY, box.w, cardH, { r: 16, fill: 'rgba(10, 18, 36, 0.95)', stroke: GREEN, lw: 2, glow: px(16) });
-  const bText = 'DIJKSTRA ALGO';
+  const gnData = D.graph_network || {};
+  const bText = gnData.badge || (gnData.is_dijkstra ? 'DIJKSTRA ALGO' : 'GRAPH FLOW');
   const sbf = font(px(IS_VERTICAL ? 16 : 18), 'bold', MONO);
   const sbw = measure(bText, sbf) + px(24);
   panel(box.x + px(20), cardY + px(IS_VERTICAL ? 14 : 24), sbw, px(32), { r: 16, fill: 'rgba(57, 255, 20, 0.15)', stroke: GREEN, lw: 1.5 });
   text(bText, box.x + px(20) + sbw / 2, cardY + px(IS_VERTICAL ? 35 : 45), sbf, GREEN, 'center');
 
   const pStr = path.slice(0, activePathStep + 1).join(' → ');
-  const pathMsg = `Đường đi ngắn nhất: ${pStr}`;
+  const pathPrefix = gnData.is_dijkstra ? 'Đường đi ngắn nhất: ' : 'Luồng phân tán: ';
+  const pathMsg = `${pathPrefix}${pStr}`;
   const pf = font(px(IS_VERTICAL ? 18 : 22), 'bold', MONO);
   text(fitText(pathMsg, box.w - sbw - px(60), pf), box.x + px(35) + sbw, cardY + px(IS_VERTICAL ? 36 : 46), pf, '#ffffff');
 };
