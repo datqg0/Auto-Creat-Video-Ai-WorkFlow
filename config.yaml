@@ -121,7 +121,7 @@ llm:
     # Tier 2.2 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
     - name: cerebras
       type: openai
-      model: llama3.1-8b
+      model: llama-3.3-70b
       base_url: https://api.cerebras.ai/v1
       api_key_env: CEREBRAS_API_KEY
       max_output_tokens: 8192
@@ -177,7 +177,7 @@ llm:
     # Tier 4.5 — NVIDIA NIM (tương thích OpenAI)
     - name: nvidia
       type: openai
-      model: meta/llama-3.1-70b-instruct
+      model: meta/llama-3.3-70b-instruct
       base_url: https://integrate.api.nvidia.com/v1
       api_key_env: NVIDIA_API_KEY
       max_output_tokens: 8192

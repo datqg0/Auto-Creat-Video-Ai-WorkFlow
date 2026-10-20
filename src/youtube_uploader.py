@@ -35,22 +35,44 @@ def _load_credentials() -> Credentials:
 
     # Ưu tiên token từ env (CI)
     token_env = env("YOUTUBE_TOKEN")
-    if token_env and not TOKEN_FILE.exists():
+    if token_env:
         TOKEN_FILE.write_text(token_env, encoding="utf-8")
     secret_env = env("YOUTUBE_CLIENT_SECRET")
-    if secret_env and not CLIENT_SECRET_FILE.exists():
+    if secret_env:
         CLIENT_SECRET_FILE.write_text(secret_env, encoding="utf-8")
 
     creds: Credentials | None = None
     if TOKEN_FILE.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+        try:
+            # Không ép cứng SCOPES ở đây để tránh lỗi invalid_scope nếu token cũ chưa cấp đủ scope mới
+            creds = Credentials.from_authorized_user_file(str(TOKEN_FILE))
+        except Exception as e:
+            log.warning("Không thể đọc token.json: %s", e)
+            creds = None
 
     if creds and creds.valid:
         return creds
     if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
-        return creds
+        try:
+            creds.refresh(Request())
+            TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+            return creds
+        except Exception as e:
+            err_msg = str(e)
+            if "invalid_scope" in err_msg:
+                log.warning(
+                    "Refresh token gặp lỗi invalid_scope (%s). Thử fallback chỉ với scope cơ bản 'youtube.upload'...",
+                    e,
+                )
+                try:
+                    creds._scopes = ["https://www.googleapis.com/auth/youtube.upload"]
+                    creds.refresh(Request())
+                    TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+                    log.info("✓ Fallback refresh với 'youtube.upload' thành công!")
+                    return creds
+                except Exception as e2:
+                    log.error("Fallback refresh vẫn thất bại: %s", e2)
+            raise
 
     # Chưa có token hợp lệ -> chạy OAuth flow (chỉ dùng ở local)
     if not CLIENT_SECRET_FILE.exists():
@@ -159,17 +181,32 @@ def upload(
             log.warning("Đặt thumbnail lỗi: %s", e)
 
     if captions:
-        for lang_code, cap_path in captions.items():
-            if cap_path and cap_path.exists():
-                name = "Tiếng Việt" if lang_code == "vi" else "English"
-                upload_caption(youtube, video_id, cap_path, language=lang_code, name=name)
+        token_scopes = getattr(creds, "scopes", None) or []
+        has_caption_scope = any("youtube.force-ssl" in s or s.endswith("/auth/youtube") for s in token_scopes)
+        if not has_caption_scope:
+            log.warning(
+                "Token hiện tại chỉ có quyền upload video, chưa có quyền 'youtube.force-ssl' để tải phụ đề .srt lên YouTube Captions. "
+                "Bỏ qua bước nạp phụ đề. (Để bật phụ đề tự động trên YouTube, hãy chạy local: `python -m src.youtube_uploader --auth` "
+                "rồi cập nhật lại Secret YOUTUBE_TOKEN trên GitHub)."
+            )
+        else:
+            for lang_code, cap_path in captions.items():
+                if cap_path and cap_path.exists():
+                    name = "Tiếng Việt" if lang_code == "vi" else "English"
+                    upload_caption(youtube, video_id, cap_path, language=lang_code, name=name)
 
     return video_id
 
 
 def _auth_only() -> None:
     """Tạo token.json ở local để copy vào GitHub Secret YOUTUBE_TOKEN."""
-    creds = _load_credentials()
+    if not CLIENT_SECRET_FILE.exists():
+        raise RuntimeError(
+            "Thiếu credentials/client_secret.json. Tải từ Google Cloud Console."
+        )
+    flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRET_FILE), SCOPES)
+    creds = flow.run_local_server(port=0)
+    TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
     print("Xác thực thành công. token.json đã lưu tại:", TOKEN_FILE)
     print("\nNội dung token (copy vào GitHub Secret YOUTUBE_TOKEN):\n")
     print(json.dumps(json.loads(creds.to_json())))
@@ -177,6 +214,12 @@ def _auth_only() -> None:
 
 if __name__ == "__main__":
     import argparse
+    import sys
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()

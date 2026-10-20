@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -139,6 +140,9 @@ def _clean_and_validate_code(resp: str, framework: str = "matplotlib") -> str | 
         if err in lower:
             log.warning("Phản hồi AI không phải code mà là thông báo lỗi API: %s", cleaned[:150])
             return None
+
+    # Loại bỏ các import ảo mà AI hay bịa khi thấy từ 'helpers' trong prompt
+    cleaned = re.sub(r"^\s*(?:from\s+helpers\s+import\s+.*|import\s+helpers\b.*)$", "", cleaned, flags=re.MULTILINE)
 
     # Kiểm tra cấu trúc tối thiểu của code theo framework
     if framework == "manim":
