@@ -44,5 +44,3 @@
 2026-10-18T15:01:06.522708	RLHF (Reinforcement Learning from Human Feedback): AI trở nên ‘thông minh’ sau phản hồi người dùng?
 2026-10-19T02:56:35.483456	Backpropagation: Trực quan hóa cỗ máy đạo hàm giúp mạng nơ-ron tự sửa sai
 2026-10-19T15:13:15.716207	Self-Attention Mechanism: Vũ điệu ma trận Q-K-V mở khóa sức mạnh Transformer
-2026-10-19T17:54:05.744004	Diffusion Models: AI biến nhiễu thành hình ảnh như phép màu?
-2026-10-20T00:22:47.112626	Diffusion Models: Đảo ngược nhiệt động lực học để vẽ tranh từ nhiễu hạt
