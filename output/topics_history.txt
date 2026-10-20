@@ -46,3 +46,4 @@
 2026-10-19T15:13:15.716207	Self-Attention Mechanism: Vũ điệu ma trận Q-K-V mở khóa sức mạnh Transformer
 2026-10-20T01:29:33.093585	RLHF: Dạy AI hành xử văn minh bằng Reward Model và thuật toán PPO
 2026-10-20T02:09:11.317266	Kết hợp 4 thuật toán: AI siêu tốc trong 60s?
+2026-10-20T03:02:25.769468	Test-Time Compute & Reasoning: Bước nhảy vọt từ khớp mẫu sang chuỗi tư duy suy luận
