@@ -48,3 +48,4 @@
 2026-10-20T02:09:11.317266	Kết hợp 4 thuật toán: AI siêu tốc trong 60s?
 2026-10-20T03:02:25.769468	Test-Time Compute & Reasoning: Bước nhảy vọt từ khớp mẫu sang chuỗi tư duy suy luận
 2026-10-20T15:59:00.480642	Bị rách nát 30% diện tích, tại sao mã QR vẫn quét được ngon lành?
+2026-10-21T02:58:04.831586	Hành trình vào thế giới mã hoá: Vì sao dữ liệu cần một 'lá chắn' vô hình?
