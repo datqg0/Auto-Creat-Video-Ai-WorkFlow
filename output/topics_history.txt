@@ -53,3 +53,4 @@
 2026-10-22T01:41:25.660328	Màu sắc và phép toán: Diffie‑Hellman pha màu tạo khóa chung trong 5 bước
 2026-10-22T02:54:25.121353	RSA – Khi các số nguyên tố khổng lồ trở thành chìa khóa mở cửa số
 2026-10-22T10:47:54.388438	Bóng bán dẫn: Khi một transistor quyết định cuộc sống máy tính
+2026-10-22T16:40:54.291517	Hóa ra Internet không nằm trên 'Mây': 99% thế giới kết nối qua sợi thủy tinh dưới đáy đại dương!
