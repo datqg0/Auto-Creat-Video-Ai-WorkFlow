@@ -52,6 +52,7 @@ _BASE_PRESETS = {
     "matrix_op", "visual_algo", "tree_graph", "two_pointers", "stack_queue", "dp_grid",
     "flowchart", "system_layers", "comparison_matrix", "radar_chart",
     "trie_tree", "graph_network", "donut_chart", "math_equation", "linear_transform", "calculus_curve",
+    "stickman", "stickman_explainer",
 }
 
 _BAD_TITLE_PREFIXES = (
@@ -213,6 +214,9 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML &
   * dp_grid (Bảng Quy hoạch động 2D DP Table):
     {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]"}
     (Bảng DP 2D: ô đang tính sáng vàng, mũi tên nhận giá trị từ ô phụ thuộc).
+  * stickman_explainer (Người que diễn hoạt StykAnimate - IK & Hành động trực quan):
+    {"preset": "stickman_explainer", "pose": "pointing", "topic_heading": "Cơ chế then chốt", "bullet": "Con trỏ chỉ thẳng vào trọng tâm thuật toán", "code_snippet": "Q @ K.T"}
+    (Người que phong cách StykAnimate: tay dùng IK chỉ laser vào công thức/sơ đồ, pose 'pointing'|'confused'|'idea'|'coding'|'walk', giải thích deictic narration).
   * function : {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
   * neural_net: {"preset": "neural_net", "layers": [3, 5, 4, 2]}
   * bar_chart : {"preset": "bar_chart", "values": [3, 7, 5, 9], "labels": ["A", "B", "C", "D"]}
@@ -224,7 +228,7 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML &
 
 _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" hoặc "challenge" do AI vẽ.
-- BẮT BUỘC có ÍT NHẤT 1 scene "challenge" (Mascot Cô Bé Áo Khoác Tai Thỏ - Bunny Girl Chibi) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
+- BẮT BUỘC có ÍT NHẤT 1 scene "challenge" hoặc "stickman_explainer" (Người Que StykAnimate với khớp IK sống động hoặc Mascot Cô Bé Áo Khoác Tai Thỏ) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
 - Với bài toán ma trận, đại số tuyến tính, mảng, thống kê, bảng tính: ƯU TIÊN preset "matrix_op" hoặc "visual_algo" (kiểu Deep-ML) để hiển thị chi tiết từng bước tính toán.
 - Với chủ đề GPU, Huấn luyện phân tán, LLM, Bộ nhớ AI: ƯU TIÊN preset "gpu_sharding" hoặc "manim" (vẽ cụm GPU #1..#4, thước đo VRAM meter, phân mảnh tham số/gradient, công thức 2P+2P+12P màu đồng bộ với hình khối).
 - Scene 1 (HOOK) BẮT BUỘC là "animation" hoặc "challenge", vẽ chuyển động ngay từ giây đầu tiên.

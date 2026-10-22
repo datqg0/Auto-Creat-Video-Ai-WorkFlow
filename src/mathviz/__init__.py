@@ -47,6 +47,7 @@ from .objects import (
     NeuralNet,
     BarChart,
     Group,
+    Stickman,
 )
 from .theme import THEME
 
@@ -79,5 +80,7 @@ __all__ = [
     "NeuralNet",
     "BarChart",
     "Group",
+    "Stickman",
     "THEME",
 ]
+

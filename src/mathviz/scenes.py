@@ -20,6 +20,8 @@ from .objects import (
     Group,
     Line,
     NeuralNet,
+    Rect,
+    Stickman,
     Text,
 )
 from .anims import (
@@ -419,16 +421,16 @@ def comparison_scene(
     return scene
 
 
-# --------------------------------------------------------------- mascot / cute animals
+# --------------------------------------------------------------- mascot (Bunny Girl / Stickman)
 def mascot_scene(
     title: str,
-    mascot: str = "duck",
-    bubble_title: str = "Rubber Duck Debugging",
-    tips: Sequence[str] = ("Giải thích bài toán từng bước", "Tự nhận ra điểm vô lý trong logic", "Lỗi sẽ tự lộ ra một cách tự nhiên"),
+    mascot: str = "bunny_girl",
+    bubble_title: str = "Lời khuyên & Best Practice",
+    tips: Sequence[str] = ("Chia nhỏ bài toán phức tạp", "Viết code sạch và dễ bảo trì", "Tối ưu hóa hiệu năng và bộ nhớ"),
     subtitle: str = "",
     duration: Optional[float] = None,
 ) -> Scene:
-    """Scene linh vật động vật cute tương tác giải thích tech / best practice."""
+    """Scene linh vật (Bunny Girl hoặc Stickman) tương tác giải thích tech / best practice."""
     from .objects import Mascot, Rect, Text
     from .anims import FadeIn, GrowFromCenter
 
@@ -516,6 +518,62 @@ def math_equation_scene(
     return scene
 
 
+# --------------------------------------------------------------- stickman explainer
+def stickman_scene(
+    title: str,
+    pose: str = "pointing",
+    bullets: Optional[Sequence[str]] = None,
+    code_snippet: str = "",
+    subtitle: str = "",
+    duration: float = 6.0,
+) -> Scene:
+    """Scene người que giải thích kiến thức (StykAnimate Stick Figure Explainer).
+
+    Người que đứng phía bên trái dùng khớp IK chỉ que laser deictic vào thẻ kiến thức bên phải.
+    """
+    W, H = THEME.width, THEME.height
+    scene = Scene(duration=duration)
+    _title_block(scene, title, subtitle)
+
+    # Bên trái: Người que StykAnimate
+    stick_x = W * 0.20
+    stick_y = H * 0.60
+    card_x0 = W * 0.38
+    card_x1 = W * 0.90
+    card_y0 = H * 0.30
+    card_y1 = H * 0.86
+
+    target_pt = (card_x0 + 40, card_y0 + 60)
+    stick = Stickman(center=(stick_x, stick_y), pose=pose, scale=1.9, color=THEME.accent, target_point=target_pt)
+    scene.add(stick)
+    scene.play(FadeIn(stick, shift=20, run_time=0.6))
+
+    # Bên phải: Thẻ kiến thức / Bảng giải thích
+    panel = Rect((card_x0, card_y0, card_x1, card_y1), fill="#0d1117", outline=THEME.secondary, width=2.5, radius=16)
+    scene.add(panel)
+    scene.play(FadeIn(panel, run_time=0.4))
+
+    # Tiêu đề bảng
+    header_bar = Rect((card_x0, card_y0, card_x1, card_y0 + 60), fill="#161b22", outline=THEME.secondary, width=1.5, radius=16)
+    badge = Text("TRỌNG TÂM BẢN CHẤT", (card_x0 + 30, card_y0 + 30), size=24, color=THEME.secondary, anchor="lm")
+    scene.add(header_bar)
+    scene.add(badge)
+
+    # Nội dung bullets
+    lines = bullets or ["Trực quan hoá bản chất cơ chế", "Giải thích từng bước không cưỡi ngựa xem hoa", "Tối ưu hiệu năng và độ phức tạp"]
+    row_h = (card_y1 - card_y0 - 90) / max(len(lines), 1)
+    for i, line_txt in enumerate(lines[:4]):
+        ly = card_y0 + 80 + i * row_h + row_h / 2
+        dot = Circle((card_x0 + 36, ly), 5, fill=THEME.accent)
+        txt = Text(str(line_txt)[:55], (card_x0 + 58, ly), size=26, color=THEME.text, anchor="lm", bold=False)
+        row = Group(dot, txt)
+        scene.add(row)
+        scene.play(FadeIn(row, shift=15, run_time=0.4))
+
+    scene.wait(0.8)
+    return scene
+
+
 # preset registry để pipeline chọn theo tên
 PRESETS = {
     "function": function_scene,
@@ -534,6 +592,9 @@ PRESETS = {
     "math_equation": math_equation_scene,
     "formula": math_equation_scene,
     "equation": math_equation_scene,
+    "stickman": stickman_scene,
+    "stickman_explainer": stickman_scene,
 }
+
 
 

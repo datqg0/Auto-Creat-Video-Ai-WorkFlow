@@ -862,18 +862,21 @@ class Group(Drawable):
 
 # ---------------------------------------------------------------- Mascot
 class Mascot(Drawable):
-    """Linh vật động vật cute (Rubber Duck, Cat, Dog, Bird) cho MathViz."""
+    """Linh vật chính: Bunny Girl (Cô bé áo khoác tai thỏ) hoặc Stickman (Người que StykAnimate)."""
 
     def __init__(
         self,
         center: tuple[float, float],
-        kind: str = "duck",
-        size: float = 120,
+        kind: str = "bunny_girl",
+        size: float = 160,
+        pose: str = "idle",
     ) -> None:
         super().__init__()
         self.center = center
         self.kind = kind
         self.size = size
+        self.pose = pose
+        self._sprite_cache: dict[str, tuple[Image.Image, int, int]] = {}
 
     def bounds_center(self) -> tuple[float, float]:
         cx, cy = self.center
@@ -886,37 +889,213 @@ class Mascot(Drawable):
         if a <= 0 or s <= 0:
             return
 
-        # Bóng đổ
+        k = self.kind.lower()
+        if "stick" in k or "que" in k or "pivot" in k:
+            # Delegate to Stickman
+            st = Stickman(
+                center=(cx, cy),
+                pose=self.pose if self.pose in ("idle", "pointing", "confused", "idea", "celebrate") else "pointing",
+                scale=self.scale * (self.size / 140),
+            )
+            st.dx = 0
+            st.dy = 0
+            st.opacity = self.opacity
+            st.draw(canvas)
+            return
+
+        # Bóng đổ dưới chân
         canvas.circle((cx, cy + 50 * s), 40 * s, fill="#161b22", alpha=int(a * 0.4))
 
-        k = self.kind.lower()
-        if "cat" in k or "meo" in k:
-            # Mèo cute
-            canvas.circle((cx, cy + 10 * s), 32 * s, fill="#f1f5f9", outline="#cbd5e1", width=2, alpha=a)
-            canvas.circle((cx, cy - 20 * s), 28 * s, fill="#f1f5f9", outline="#cbd5e1", width=2, alpha=a)
-            # Tai mèo
-            canvas.polygon([(cx - 22 * s, cy - 35 * s), (cx - 26 * s, cy - 55 * s), (cx - 8 * s, cy - 42 * s)], fill="#f1f5f9", outline="#cbd5e1", alpha=a)
-            canvas.polygon([(cx + 22 * s, cy - 35 * s), (cx + 26 * s, cy - 55 * s), (cx + 8 * s, cy - 42 * s)], fill="#f1f5f9", outline="#cbd5e1", alpha=a)
-            # Mắt & Mũi
-            canvas.circle((cx - 10 * s, cy - 22 * s), 5 * s, fill="#06b6d4", alpha=a)
-            canvas.circle((cx + 10 * s, cy - 22 * s), 5 * s, fill="#06b6d4", alpha=a)
-            canvas.circle((cx, cy - 14 * s), 2.5 * s, fill="#f472b6", alpha=a)
-        elif "dog" in k or "cho" in k or "shiba" in k:
-            # Chó Shiba cute
-            canvas.circle((cx, cy + 10 * s), 34 * s, fill="#f59e0b", outline="#d97706", width=2, alpha=a)
-            canvas.circle((cx, cy - 20 * s), 30 * s, fill="#f59e0b", outline="#d97706", width=2, alpha=a)
-            canvas.circle((cx - 12 * s, cy - 14 * s), 14 * s, fill="#ffffff", alpha=a)
-            canvas.circle((cx + 12 * s, cy - 14 * s), 14 * s, fill="#ffffff", alpha=a)
-            # Mắt & Mũi
-            canvas.circle((cx - 10 * s, cy - 20 * s), 4.5 * s, fill="#0f172a", alpha=a)
-            canvas.circle((cx + 10 * s, cy - 20 * s), 4.5 * s, fill="#0f172a", alpha=a)
-            canvas.circle((cx, cy - 12 * s), 3.5 * s, fill="#0f172a", alpha=a)
-        else:
-            # Rubber Duck vịt vàng
-            canvas.circle((cx - 5 * s, cy + 12 * s), 34 * s, fill="#fbbf24", outline="#f59e0b", width=2.5, alpha=a)
-            canvas.circle((cx + 12 * s, cy - 24 * s), 24 * s, fill="#fbbf24", outline="#f59e0b", width=2.5, alpha=a)
-            canvas.circle((cx + 18 * s, cy - 28 * s), 5 * s, fill="#0f172a", alpha=a)
-            canvas.circle((cx + 20 * s, cy - 30 * s), 1.8 * s, fill="#ffffff", alpha=a)
-            canvas.polygon([(cx + 30 * s, cy - 24 * s), (cx + 46 * s, cy - 20 * s), (cx + 28 * s, cy - 14 * s)], fill="#f97316", outline="#ea580c", alpha=a)
-            canvas.circle((cx - 8 * s, cy + 12 * s), 18 * s, fill="#f59e0b", alpha=a)
+        # 1. Thử load sprite chính thức của Bunny Girl (assets/mascots/bunny_girl/{pose}.png)
+        from pathlib import Path
+
+        mascot_dir = Path(__file__).resolve().parent.parent.parent / "assets" / "mascots" / "bunny_girl"
+        p_name = self.pose if self.pose in ("idle", "confused", "idea", "happy", "explaining") else "idle"
+        img_path = mascot_dir / f"{p_name}.png"
+        if not img_path.is_file():
+            img_path = mascot_dir / "idle.png"
+
+        if img_path.is_file():
+            try:
+                cache_key = f"{img_path}_{round(s, 2)}_{a}"
+                if cache_key not in self._sprite_cache:
+                    with Image.open(img_path) as orig:
+                        orig = orig.convert("RGBA")
+                        asp = orig.width / max(orig.height, 1)
+                        target_h = max(10, int(self.size * s * canvas.ss))
+                        target_w = max(10, int(target_h * asp))
+                        resized = orig.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                        if a < 255:
+                            r, g, b, alpha_ch = resized.split()
+                            alpha_ch = alpha_ch.point(lambda p: int(p * (a / 255.0)))
+                            resized = Image.merge("RGBA", (r, g, b, alpha_ch))
+                        self._sprite_cache[cache_key] = (resized, target_w, target_h)
+
+                sprite, tw, th = self._sprite_cache[cache_key]
+                px, py = canvas._px(cx, cy)
+                dest_x = int(px - tw / 2)
+                dest_y = int(py - th * 0.85)
+                canvas.img.alpha_composite(sprite, dest=(dest_x, dest_y))
+                return
+            except Exception:
+                pass
+
+        # 2. Fallback thủ công vẽ Chibi Bunny Girl (Tai thỏ + Áo khoác vàng + Chibi)
+        # Tai thỏ dài
+        canvas.polygon([(cx - 16 * s, cy - 35 * s), (cx - 24 * s, cy - 75 * s), (cx - 8 * s, cy - 40 * s)], fill="#ffffff", outline="#cbd5e1", width=2, alpha=a)
+        canvas.polygon([(cx - 15 * s, cy - 38 * s), (cx - 22 * s, cy - 68 * s), (cx - 9 * s, cy - 42 * s)], fill="#f472b6", alpha=a)
+        canvas.polygon([(cx + 16 * s, cy - 35 * s), (cx + 24 * s, cy - 75 * s), (cx + 8 * s, cy - 40 * s)], fill="#ffffff", outline="#cbd5e1", width=2, alpha=a)
+        canvas.polygon([(cx + 15 * s, cy - 38 * s), (cx + 22 * s, cy - 68 * s), (cx + 9 * s, cy - 42 * s)], fill="#f472b6", alpha=a)
+        # Áo khoác vàng
+        canvas.circle((cx, cy + 18 * s), 32 * s, fill="#fbbf24", outline="#f59e0b", width=2, alpha=a)
+        # Đầu chibi
+        canvas.circle((cx, cy - 15 * s), 28 * s, fill="#fff1e6", outline="#fed7aa", width=1.5, alpha=a)
+        # Má hồng
+        canvas.circle((cx - 14 * s, cy - 10 * s), 5 * s, fill="#f472b6", alpha=int(a * 0.6))
+        canvas.circle((cx + 14 * s, cy - 10 * s), 5 * s, fill="#f472b6", alpha=int(a * 0.6))
+        # Mắt to tròn anime
+        canvas.circle((cx - 9 * s, cy - 16 * s), 4.5 * s, fill="#0f172a", alpha=a)
+        canvas.circle((cx + 9 * s, cy - 16 * s), 4.5 * s, fill="#0f172a", alpha=a)
+        canvas.circle((cx - 8 * s, cy - 18 * s), 1.6 * s, fill="#ffffff", alpha=a)
+        canvas.circle((cx + 10 * s, cy - 18 * s), 1.6 * s, fill="#ffffff", alpha=a)
+
+
+# ---------------------------------------------------------------- Stickman
+class Stickman(Drawable):
+    """Người que đồ họa kỹ thuật cao (StykAnimate-powered Stick Figure) cho MathViz.
+
+    Hỗ trợ IK 2-khớp chính xác, rig chuẩn Pivot, và các pose diễn hoạt:
+    - idle: đứng thở nhịp nhàng
+    - walk / run: chu kỳ bước đi/chạy với chân cắm mốc IK
+    - pointing: chỉ tay deictic vào bảng/biểu thức/code với que laser neon
+    - confused: gãi đầu nghiêng đầu, dấu hỏi trôi nổi
+    - idea: nhảy cẫng mừng rỡ, bóng đèn phát sáng
+    - coding: ngồi gõ bàn phím laptop holographic
+    - celebrate: giơ nắm đấm chiến thắng
+    - pushing: gồng mình đẩy vật cản
+    """
+
+    def __init__(
+        self,
+        center: tuple[float, float],
+        pose: str = "pointing",
+        scale: float = 1.0,
+        color: Optional[str] = None,
+        target_point: Optional[tuple[float, float]] = None,
+    ) -> None:
+        super().__init__()
+        self.center = center
+        self.pose = pose
+        self.stick_scale = scale
+        self.color = color or THEME.accent
+        self.target_point = target_point
+        self.t: float = 0.0
+
+    def bounds_center(self) -> tuple[float, float]:
+        cx, cy = self.center
+        return (cx + self.dx, cy + self.dy)
+
+    def draw(self, canvas: Canvas) -> None:
+        from ..stick_animate import DEFAULT_STICKMAN_RIG
+
+        cx, cy = self.bounds_center()
+        a = int(255 * self.opacity)
+        s = self.scale * self.stick_scale
+        if a <= 0 or s <= 0:
+            return
+
+        ground_x = cx
+        ground_y = cy + 80 * s
+
+        # Tính toán toạ độ khớp xương bằng bộ giải IK của StykAnimate
+        pose_data = DEFAULT_STICKMAN_RIG.evaluate_pose(
+            ground_x=ground_x,
+            ground_y=ground_y,
+            pose_name=self.pose,
+            t=self.t,
+            scale=s,
+            target_point=self.target_point,
+            color=self.color,
+        )
+
+        col = self.color
+        lw = max(2, int(4 * s))
+
+        # 1. Bóng đổ ellipse dưới sàn
+        canvas.circle((ground_x, ground_y), 32 * s, fill="#000000", alpha=int(a * 0.35))
+
+        # 2. Hào quang Aura nếu có
+        if pose_data.aura_intensity > 0.05:
+            aura_r = (pose_data.head_radius + 40 * s) * pose_data.aura_intensity
+            canvas.circle(pose_data.head, aura_r, fill=pose_data.aura_color, alpha=int(a * 0.18 * pose_data.aura_intensity))
+
+        # 3. Vẽ hai chân (Left & Right Leg) qua IK
+        # Chân trái (phía sau)
+        canvas.line(pose_data.left_hip, pose_data.left_knee, col, width=lw, alpha=a)
+        canvas.line(pose_data.left_knee, pose_data.left_foot, col, width=lw, alpha=a)
+        canvas.circle(pose_data.left_knee, lw * 0.6, fill=col, alpha=a)
+        canvas.circle(pose_data.left_foot, lw * 0.8, fill=col, alpha=a)
+
+        # Chân phải (phía trước)
+        canvas.line(pose_data.right_hip, pose_data.right_knee, col, width=lw, alpha=a)
+        canvas.line(pose_data.right_knee, pose_data.right_foot, col, width=lw, alpha=a)
+        canvas.circle(pose_data.right_knee, lw * 0.6, fill=col, alpha=a)
+        canvas.circle(pose_data.right_foot, lw * 0.8, fill=col, alpha=a)
+
+        # 4. Thân mình (Pelvis -> Neck) & Khung xương
+        canvas.line(pose_data.pelvis, pose_data.neck, col, width=lw * 1.15, alpha=a)
+        canvas.line(pose_data.left_shoulder, pose_data.right_shoulder, col, width=lw * 0.9, alpha=a)
+        canvas.line(pose_data.left_hip, pose_data.right_hip, col, width=lw * 0.9, alpha=a)
+
+        # 5. Hai tay (Left & Right Arm) qua IK
+        # Tay trái
+        canvas.line(pose_data.left_shoulder, pose_data.left_elbow, col, width=lw * 0.9, alpha=a)
+        canvas.line(pose_data.left_elbow, pose_data.left_hand, col, width=lw * 0.9, alpha=a)
+        canvas.circle(pose_data.left_elbow, lw * 0.5, fill=col, alpha=a)
+        canvas.circle(pose_data.left_hand, lw * 0.7, fill=col, alpha=a)
+
+        # Tay phải
+        canvas.line(pose_data.right_shoulder, pose_data.right_elbow, col, width=lw * 0.9, alpha=a)
+        canvas.line(pose_data.right_elbow, pose_data.right_hand, col, width=lw * 0.9, alpha=a)
+        canvas.circle(pose_data.right_elbow, lw * 0.5, fill=col, alpha=a)
+        canvas.circle(pose_data.right_hand, lw * 0.7, fill=col, alpha=a)
+
+        # 6. Đầu (Head) với viền neon + mắt nhìn định hướng
+        canvas.circle(pose_data.head, pose_data.head_radius, fill="#0a0d14", outline=col, width=lw, alpha=a)
+        # Mắt / kính nhìn công nghệ
+        eye_x = pose_data.head[0] + pose_data.eye_offset[0]
+        eye_y = pose_data.head[1] + pose_data.eye_offset[1]
+        canvas.circle((eye_x, eye_y), 3.5 * s, fill=THEME.secondary, alpha=a)
+
+        # 7. Vật phẩm tương tác (Props)
+        if pose_data.prop_type == "laser_pointer":
+            # Tia laser chỉ vào target_point
+            tx = self.target_point[0] if self.target_point else (cx + 120 * s)
+            ty = self.target_point[1] if self.target_point else (cy - 30 * s)
+            canvas.line(pose_data.right_hand, (tx, ty), THEME.secondary, width=2.5 * s, alpha=int(a * 0.85))
+            canvas.circle((tx, ty), 5 * s, fill=THEME.secondary, alpha=a)
+        elif pose_data.prop_type == "bulb":
+            # Bóng đèn phát sáng
+            bx, by = pose_data.prop_pos
+            canvas.circle((bx, by), 12 * s, fill="#ffe600", outline="#ffffff", width=2, alpha=a)
+            # Tia sáng toả ra 8 hướng
+            for i in range(6):
+                ang = i * (math.pi / 3) + self.t * 2.0
+                r0 = 16 * s
+                r1 = 24 * s
+                p0 = (bx + math.cos(ang) * r0, by + math.sin(ang) * r0)
+                p1 = (bx + math.cos(ang) * r1, by + math.sin(ang) * r1)
+                canvas.line(p0, p1, "#ffe600", width=2 * s, alpha=int(a * 0.9))
+        elif pose_data.prop_type == "question":
+            # Dấu hỏi trôi nổi
+            qx, qy = pose_data.prop_pos
+            canvas.circle((qx, qy), 14 * s, fill="#ffe600", alpha=int(a * 0.9))
+            canvas.circle((qx, qy), 11 * s, fill="#0a0d14", alpha=a)
+            canvas.circle((qx, qy + 10 * s), 2.5 * s, fill="#ffe600", alpha=a)
+        elif pose_data.prop_type == "laptop":
+            # Laptop holographic
+            lx, ly = pose_data.prop_pos
+            canvas.line((lx - 16 * s, ly + 8 * s), (lx + 20 * s, ly + 8 * s), "#00f0ff", width=3 * s, alpha=a)
+            canvas.line((lx + 18 * s, ly + 8 * s), (lx + 28 * s, ly - 16 * s), "#00f0ff", width=2.5 * s, alpha=a)
+
 

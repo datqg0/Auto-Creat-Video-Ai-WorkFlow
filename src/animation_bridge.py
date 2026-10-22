@@ -181,10 +181,19 @@ def build_animation_scene(scene: ModelScene, duration: float):
         elif preset in ("mascot", "mascot_tip"):
             sc = mv_scenes.mascot_scene(
                 title or "Lời khuyên & Best Practice",
-                mascot=str(cfg.get("mascot", "duck")),
+                mascot=str(cfg.get("mascot", "bunny_girl")),
                 bubble_title=str(cfg.get("badge", "Pro-Tip")),
                 tips=cfg.get("tips", scene.bullets or ["Chia nhỏ vấn đề", "Tối ưu hóa logic"]),
                 subtitle=subtitle,
+            )
+        elif preset in ("stickman", "stickman_explainer", "stick_figure"):
+            sc = mv_scenes.stickman_scene(
+                title or "Trực quan hóa & Phân tích",
+                pose=str(cfg.get("pose", "pointing")),
+                bullets=cfg.get("bullets", scene.bullets),
+                code_snippet=str(cfg.get("code_snippet", "")),
+                subtitle=subtitle,
+                duration=duration,
             )
         elif preset in ("math_equation", "formula", "equation"):
             latex = (
@@ -272,13 +281,13 @@ def build_procedural_fallback_scene(scene: ModelScene, duration: float):
             subtitle=subtitle[:60],
         )
 
-    # 2. Phát hiện Mascot / Linh vật cute / Mẹo lập trình
+    # 2. Phát hiện Mascot / Linh vật (Bunny Girl & Stickman)
     mascot_indicators = [
-        "mẹo", "pro-tip", "lời khuyên", "best practice", "vịt", "mèo", "chó", "duck", "mascot", "debug"
+        "mẹo", "pro-tip", "lời khuyên", "best practice", "bunny", "tai thỏ", "thỏ", "mascot", "linh vật", "stickman", "người que"
     ]
     if any(mi in text_corpus for mi in mascot_indicators):
         tips = [b[:40] for b in scene.bullets[:3]] if scene.bullets else ["Chia nhỏ vấn đề để gỡ lỗi", "Kiểm tra log chi tiết", "Đơn giản hóa logic"]
-        m_kind = "duck" if any(w in text_corpus for w in ("duck", "vịt", "debug")) else "cat" if any(w in text_corpus for w in ("mèo", "cat")) else "dog"
+        m_kind = "stickman" if any(w in text_corpus for w in ("stickman", "người que", "nguoi que", "stick")) else "bunny_girl"
         return mv_scenes.mascot_scene(
             title=title,
             mascot=m_kind,

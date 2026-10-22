@@ -1187,20 +1187,16 @@ def _d_calculus_curve(scene: Scene, lang: str) -> dict | None:
 
 
 def _pick_mascot(scene: Scene) -> str:
-    """Tự động chọn linh vật cute (mặc định là Bunny Girl mascot chính của kênh)."""
+    """Tự động chọn linh vật: Bunny Girl (mặc định) hoặc Stickman (StykAnimate IK)."""
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''}".lower()
-    if any(w in corpus for w in ("bunny", "tai thỏ", "thỏ", "tho", "cô bé", "co be", "girl", "anime")):
-        return "bunny_girl"
-    if re.search(r"\b(?:chó|cún|con chó|shiba|corgi|puppy|dog|dogs)\b", corpus):
-        return "dog"
-    if re.search(r"\b(?:mèo|con mèo|neko|kitty|kitten|cat|cats)\b", corpus):
-        return "cat"
-    if re.search(r"\b(?:vịt|con vịt|rubber duck|duck|ducks)\b", corpus):
-        return "duck"
-    if re.search(r"\b(?:chim|con chim|bird|birds|kurz)\b", corpus):
-        return "bird"
-    if re.search(r"\b(?:robot|người máy|cyber bot|bot)\b", corpus):
-        return "bot"
+    vt = str(_g(scene, "visual_type", "")).lower()
+    preset = str(_anim(scene).get("preset", "")).lower()
+    if (
+        any(w in corpus for w in ("stickman", "người que", "nguoi que", "stick", "pivot"))
+        or preset in ("stickman", "stickman_explainer", "stick_figure")
+        or vt in ("stickman", "challenge")
+    ):
+        return "stickman"
     return "bunny_girl"
 
 
@@ -1243,13 +1239,10 @@ def _d_mascot_tip(scene: Scene, lang: str) -> dict | None:
         return None
     mascot = _pick_mascot(scene)
     mascot_names = {
-        "duck": "Chú Vịt Coder",
-        "cat": "Mèo Tech Coder",
-        "dog": "Cún Shiba",
-        "bird": "Chim Kurzgesagt",
-        "bot": "Cyber Bot",
+        "bunny_girl": "Bunny Girl",
+        "stickman": "Người Que StykAnimate",
     }
-    title = scene.heading or f"Lời khuyên hữu ích từ {mascot_names.get(mascot, 'Linh vật')}"
+    title = scene.heading or f"Lời khuyên hữu ích từ {mascot_names.get(mascot, 'Bunny Girl')}"
     return {
         "mascot_tip": {
             "title": title,
@@ -1421,12 +1414,14 @@ def _structural_scores(scene: Scene) -> dict[str, int]:
         add("algo_trace", 20)
     elif vt == "algorithm" and algo == "neural_network":
         add("neural_flow", 20)
-    elif vt == "challenge":
-        add("stickman", 25)
+    elif vt in ("challenge", "stickman"):
+        add("stickman", 30)
     elif vt in ("mascot_tip", "mascot", "tip", "pro_tip"):
         add("mascot_tip", 25)
 
-    if preset == "matrix_op":
+    if preset in ("stickman", "stickman_explainer", "stick_figure"):
+        add("stickman", 35)
+    elif preset == "matrix_op":
         add("matrix_op", 25)
     elif preset == "visual_algo":
         add("visual_algo", 25)
@@ -1887,403 +1882,284 @@ function drawBrackets(x, y, w, h, col) {
   ctx.restore();
 }
 
-// ---------- Người que & Kho Linh Vật Động Vật Cute ----------
+// ---------- Người que StykAnimate (IK 2-Bone + Rig Chuẩn Pivot) ----------
+function solveIK2Bone(bx, by, tx, ty, l1, l2, bendDir) {
+  const dx = tx - bx, dy = ty - by, d = Math.hypot(dx, dy) || 1e-6;
+  const tot = l1 + l2, eps = 1e-6;
+  const ux = dx / d, uy = dy / d;
+  if (d >= tot - eps) {
+    return { mx: bx + ux * l1, my: by + uy * l1, ex: bx + ux * tot, ey: by + uy * tot };
+  }
+  const minD = Math.abs(l1 - l2);
+  const cd = Math.max(d, minD + eps);
+  const along = (l1 * l1 - l2 * l2 + cd * cd) / (2 * cd);
+  const h = Math.sqrt(Math.max(0, l1 * l1 - along * along)) * (bendDir || 1);
+  return {
+    mx: bx + ux * along - uy * h,
+    my: by + uy * along + ux * h,
+    ex: bx + ux * cd,
+    ey: by + uy * cd
+  };
+}
+
 function drawStickman(x, groundY, sc, pose, t, color) {
-  const headR = 24, spine = 65;
-  let tilt = 0, la = 0.5, ra = -0.5, lf = 0.8, rf = -0.8, ll = 0.25, rl = -0.25, jump = 0;
-  const bob = Math.sin(t * 5) * 3;
-  const oy = groundY - 152 * sc;
-  ctx.save(); ctx.translate(x, oy); ctx.scale(sc, sc);
-  // bóng đổ
-  ctx.save(); ctx.fillStyle = 'rgba(0,240,255,0.16)'; ctx.beginPath(); ctx.ellipse(0, 152, 34, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  if (pose === 'confused') {
-    tilt = 0.22 + Math.sin(t * 3) * 0.08; ra = -2.2; rf = -1.4 + Math.sin(t * 8) * 0.28; la = 0.6; lf = -1.1;
-    for (let q = 0; q < 3; q++) {
-      const p = (t * 0.5 + q * 0.33) % 1, qa = Math.sin(p * Math.PI);
-      ctx.save(); ctx.fillStyle = `rgba(255,230,0,${qa})`; ctx.font = font(26, 'bold'); ctx.textAlign = 'center';
-      ctx.shadowColor = YELLOW; ctx.shadowBlur = 14; ctx.fillText('?', (q - 1) * 24 + Math.sin(t * 3 + q) * 12, -headR - 22 - p * 55); ctx.restore();
-    }
-  } else if (pose === 'idea') {
-    jump = -Math.abs(Math.sin(t * 6)) * 14; tilt = -0.05; la = -2.3; lf = -0.3; ra = 2.3; rf = 0.3;
-    ctx.save(); ctx.translate(0, -headR - 50 + jump + bob);
-    const rays = 8, rl2 = 16 + Math.sin(t * 8) * 6;
-    ctx.strokeStyle = YELLOW; ctx.lineWidth = 2.5; ctx.shadowColor = YELLOW; ctx.shadowBlur = 18;
-    for (let i = 0; i < rays; i++) { const a = i * Math.PI * 2 / rays + t * 0.6; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 20, Math.sin(a) * 20); ctx.lineTo(Math.cos(a) * (20 + rl2), Math.sin(a) * (20 + rl2)); ctx.stroke(); }
-    ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, -2, 6, 0, 7); ctx.fill(); ctx.restore();
-  }
-  const cy = bob + jump;
-  ctx.save(); ctx.translate(0, cy); ctx.rotate(tilt);
-  ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.fillStyle = BG; ctx.shadowColor = color; ctx.shadowBlur = 16;
-  ctx.beginPath(); ctx.arc(0, 0, headR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = YELLOW; ctx.shadowColor = YELLOW; ctx.shadowBlur = 10; ctx.fillRect(-12, -4, 24, 7); ctx.restore();
-  const neck = cy + headR, hip = neck + spine, sh = neck + 14;
-  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 4.5; ctx.lineCap = 'round'; ctx.shadowColor = color; ctx.shadowBlur = 14;
-  ctx.beginPath(); ctx.moveTo(0, neck); ctx.lineTo(0, hip); ctx.stroke();
-  const limb = (a, f, len1, len2, x0, y0) => { const ex = x0 + Math.sin(a) * len1, ey = y0 + Math.cos(a) * len1;
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(ex, ey); ctx.lineTo(ex + Math.sin(a + f) * len2, ey + Math.cos(a + f) * len2); ctx.stroke(); };
-  limb(la, lf, 30, 26, 0, sh); limb(ra, rf, 30, 26, 0, sh);
-  [ll, rl].forEach(a => { const kx = Math.sin(a) * 34, ky = hip + Math.cos(a) * 34; ctx.beginPath(); ctx.moveTo(0, hip); ctx.lineTo(kx, ky); ctx.lineTo(kx, ky + 30); ctx.stroke(); });
-  ctx.restore(); ctx.restore();
-}
+  const p = String(pose || 'idle').toLowerCase();
+  const hr = 20, tl = 65, ual = 32, fal = 30, thl = 38, shl = 36, sw = 14, hw = 10;
+  const col = color || '#00f0ff';
 
-// 1. Chú Vịt Vàng Coder (Rubber Duck Debugging Mascot)
-function drawCuteDuck(x, groundY, sc, pose, t, color) {
-  const oy = groundY - 110 * sc;
-  const bob = Math.sin(t * 6) * 3;
-  ctx.save(); ctx.translate(x, oy + bob); ctx.scale(sc, sc);
-
-  // Bóng đổ dưới đất
-  ctx.save(); ctx.fillStyle = 'rgba(251, 191, 36, 0.22)';
-  ctx.beginPath(); ctx.ellipse(0, 110 - bob / sc, 42, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-
-  // Thân vịt bầu dục vàng ấm
   ctx.save();
-  ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.ellipse(-4, 38, 38, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.translate(x, groundY);
+  ctx.scale(sc, sc);
 
-  // Đuôi vịt vểnh lên
-  ctx.beginPath(); ctx.moveTo(-36, 32); ctx.quadraticCurveTo(-54, 18, -48, 10); ctx.quadraticCurveTo(-38, 22, -26, 26);
-  ctx.fillStyle = '#fbbf24'; ctx.fill(); ctx.stroke();
-
-  // Cánh vịt (vỗ nhẹ)
-  const wingAngle = Math.sin(t * 8) * 0.12 + (pose === 'idea' ? -0.3 : 0);
-  ctx.save(); ctx.translate(-2, 36); ctx.rotate(wingAngle);
-  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.ellipse(0, 0, 20, 14, 0.2, 0, Math.PI * 2); ctx.fill();
-  ctx.restore(); ctx.restore();
-
-  // Đầu vịt tròn xoe
+  // 1. Bóng đổ ellipse dưới mặt đất
   ctx.save();
-  ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(14, -8, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-
-  // Má hồng dễ thương
-  ctx.fillStyle = 'rgba(244, 63, 94, 0.45)';
-  ctx.beginPath(); ctx.ellipse(14, 3, 7, 4.5, 0, 0, Math.PI * 2); ctx.fill();
-
-  // Mắt vịt to tròn chớp mắt
-  const isBlink = (Math.sin(t * 3.5) > 0.94);
-  if (isBlink) {
-    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(22, -12, 6, 0.2, Math.PI - 0.2); ctx.stroke();
-  } else {
-    ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(22, -12, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(24, -14, 2.2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(20.5, -9.5, 1.2, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Mỏ vịt cam tươi
-  ctx.fillStyle = '#f97316'; ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(34, -6); ctx.quadraticCurveTo(52, -4, 46, 4); ctx.quadraticCurveTo(34, 6, 30, 2); ctx.closePath();
-  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 36, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 
-  // Pose effects
-  if (pose === 'confused') {
-    for (let q = 0; q < 3; q++) {
-      const p = (t * 0.5 + q * 0.33) % 1, qa = Math.sin(p * Math.PI);
-      ctx.save(); ctx.fillStyle = `rgba(255,230,0,${qa})`; ctx.font = font(26, 'bold'); ctx.textAlign = 'center';
-      ctx.shadowColor = YELLOW; ctx.shadowBlur = 14;
-      ctx.fillText('?', (q - 1) * 22 + Math.sin(t * 3 + q) * 10 + 14, -38 - p * 50); ctx.restore();
-    }
-  } else if (pose === 'idea') {
+  // 2. Tính toán các toạ độ khớp theo pose bằng IK
+  let pelX = 0, pelY = -72, torsoTilt = 0, headTilt = 0;
+  let lfX = -hw - 6, lfY = 0, rfX = hw + 6, rfY = 0;
+  let lhX = -sw - 12, lhY = -40, rhX = sw + 12, rhY = -40;
+  let propType = '', propPos = [0, 0], eyeOffset = [2, 0];
+  let aura = 0, auraCol = col;
+
+  if (p.includes('walk')) {
+    const sp = 5.0, ph = t * sp;
+    const stride = 24, lift = 14;
+    pelY += Math.abs(Math.sin(ph)) * 5 - 4;
+    torsoTilt = 4;
+    lfX = -hw + Math.sin(ph) * stride;
+    lfY = -Math.max(0, -Math.cos(ph)) * lift;
+    rfX = hw + Math.sin(ph + Math.PI) * stride;
+    rfY = -Math.max(0, -Math.cos(ph + Math.PI)) * lift;
+    lhX = -sw - Math.sin(ph) * 20;
+    lhY = pelY - tl + 10 + 40;
+    rhX = sw - Math.sin(ph + Math.PI) * 20;
+    rhY = pelY - tl + 10 + 40;
+    eyeOffset = [4, 0];
+  } else if (p.includes('run')) {
+    const sp = 8.5, ph = t * sp;
+    const stride = 36, lift = 20;
+    pelY += Math.abs(Math.sin(ph)) * 8 - 8;
+    torsoTilt = 12;
+    lfX = -hw + Math.sin(ph) * stride;
+    lfY = -Math.max(0, -Math.cos(ph)) * lift;
+    rfX = hw + Math.sin(ph + Math.PI) * stride;
+    rfY = -Math.max(0, -Math.cos(ph + Math.PI)) * lift;
+    lhX = -sw - Math.sin(ph) * 28;
+    lhY = pelY - tl + 15 - Math.cos(ph) * 12;
+    rhX = sw - Math.sin(ph + Math.PI) * 28;
+    rhY = pelY - tl + 15 - Math.cos(ph + Math.PI) * 12;
+    eyeOffset = [6, 1];
+  } else if (p.includes('confused') || p.includes('problem') || p.includes('doubt')) {
+    const sway = Math.sin(t * 2.5) * 4;
+    pelX += sway * 0.5;
+    torsoTilt = sway;
+    headTilt = 8 + Math.sin(t * 3.0) * 3;
+    lhX = -sw - 18; lhY = pelY - tl + 45;
+    const scratch = Math.sin(t * 8.0) * 3;
+    rhX = headTilt + hr * 0.8;
+    rhY = pelY - tl - hr * 1.3 + scratch;
+    propType = 'question';
+    propPos = [headTilt, pelY - tl - hr * 2.2];
+    eyeOffset = [1, -3];
+  } else if (p.includes('idea') || p.includes('solution') || p.includes('aha')) {
+    const jump = -Math.abs(Math.sin(t * 6.0)) * 16;
+    pelY += jump;
+    lfY += jump * 0.5; rfY += jump * 0.5;
+    lhX = -sw - 26; lhY = pelY - tl - 30;
+    rhX = sw + 26; rhY = pelY - tl - 30;
+    propType = 'bulb';
+    propPos = [0, pelY - tl - hr * 2.5];
+    aura = 1.0;
+    auraCol = '#ffe600';
+    eyeOffset = [0, -2];
+  } else if (p.includes('code') || p.includes('laptop') || p.includes('typing')) {
+    pelY = -48;
+    torsoTilt = 8;
+    lfX = 18; lfY = 0; rfX = 22; rfY = 0;
+    const lX = 34, lY = pelY - 12;
+    lhX = lX - 4; lhY = lY + Math.sin(t * 18.0) * 3;
+    rhX = lX + 8; rhY = lY + Math.cos(t * 18.0) * 3;
+    propType = 'laptop';
+    propPos = [lX, lY];
+    eyeOffset = [4, 3];
+  } else if (p.includes('point') || p.includes('explain') || p.includes('present')) {
+    const breath = Math.sin(t * 3.0) * 2;
+    pelY += breath;
+    lhX = -hw - 8; lhY = pelY - 4;
+    rhX = sw + 55; rhY = pelY - tl - 15;
+    propType = 'laser_pointer';
+    propPos = [rhX, rhY];
+    eyeOffset = [5, -1];
+  } else if (p.includes('celebrate') || p.includes('win')) {
+    const bob = Math.sin(t * 5.0) * 4;
+    pelY += bob;
+    rhX = sw + 16; rhY = pelY - tl - 36;
+    lhX = -sw + 6; lhY = pelY - tl + 12;
+    aura = 0.8;
+    auraCol = '#39ff14';
+    eyeOffset = [2, -4];
+  } else {
+    const breath = Math.sin(t * 3.0) * 3;
+    pelY += breath;
+    const armSw = Math.sin(t * 2.5) * 4;
+    lhX = -sw - 12; lhY = pelY - tl + 50 + armSw;
+    rhX = sw + 12; rhY = pelY - tl + 50 - armSw;
+    eyeOffset = [2, 0];
+  }
+
+  const neckX = pelX + torsoTilt, neckY = pelY - tl;
+  const headX = neckX + headTilt, headY = neckY - hr * 1.05;
+  const lShX = neckX - sw, lShY = neckY + 4;
+  const rShX = neckX + sw, rShY = neckY + 4;
+  const lHipX = pelX - hw, lHipY = pelY;
+  const rHipX = pelX + hw, rHipY = pelY;
+
+  // Giải IK 2 chân
+  const lLeg = solveIK2Bone(lHipX, lHipY, lfX, lfY, thl, shl, 1);
+  const rLeg = solveIK2Bone(rHipX, rHipY, rfX, rfY, thl, shl, 1);
+
+  // Giải IK 2 tay
+  const lArm = solveIK2Bone(lShX, lShY, lhX, lhY, ual, fal, -1);
+  const rArm = solveIK2Bone(rShX, rShY, rhX, rhY, ual, fal, 1);
+
+  // Hào quang StykAnimate Aura
+  if (aura > 0.05) {
     ctx.save();
-    // Nón Beret lập trình viên
-    ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.ellipse(12, -32, 22, 8, -0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(26, -34, 3, 0, Math.PI * 2); ctx.fill();
-    // Bóng đèn sáng
-    ctx.translate(14, -65);
-    const rays = 8, rl = 16 + Math.sin(t * 8) * 5;
-    ctx.strokeStyle = YELLOW; ctx.lineWidth = 2.5; ctx.shadowColor = YELLOW; ctx.shadowBlur = 18;
-    for (let i = 0; i < rays; i++) {
-      const a = i * Math.PI * 2 / rays + t * 0.6;
-      ctx.beginPath(); ctx.moveTo(Math.cos(a) * 18, Math.sin(a) * 18);
-      ctx.lineTo(Math.cos(a) * (18 + rl), Math.sin(a) * (18 + rl)); ctx.stroke();
-    }
-    ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(-2, -3, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = auraCol;
+    ctx.shadowColor = auraCol;
+    ctx.shadowBlur = 28 * aura;
+    ctx.globalAlpha = 0.22 * aura;
+    ctx.beginPath();
+    ctx.arc(headX, headY, hr + 18, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
-  ctx.restore();
-}
 
-// 2. Chú Mèo Công Nghệ (Cyber Neko Coder)
-function drawCuteCat(x, groundY, sc, pose, t, color) {
-  const oy = groundY - 110 * sc;
-  const bob = Math.sin(t * 5) * 2.5;
-  ctx.save(); ctx.translate(x, oy + bob); ctx.scale(sc, sc);
+  ctx.strokeStyle = col;
+  ctx.fillStyle = col;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = col;
+  ctx.shadowBlur = 14;
 
-  // Bóng đổ
-  ctx.save(); ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
-  ctx.beginPath(); ctx.ellipse(0, 110 - bob / sc, 40, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  // Vẽ 2 chân
+  // Chân trái
+  ctx.beginPath();
+  ctx.moveTo(lHipX, lHipY); ctx.lineTo(lLeg.mx, lLeg.my); ctx.lineTo(lLeg.ex, lLeg.ey);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(lLeg.mx, lLeg.my, 2.5, 0, Math.PI * 2); ctx.fill();
 
-  // Đuôi mèo ve vẩy
+  // Chân phải
+  ctx.beginPath();
+  ctx.moveTo(rHipX, rHipY); ctx.lineTo(rLeg.mx, rLeg.my); ctx.lineTo(rLeg.ex, rLeg.ey);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(rLeg.mx, rLeg.my, 2.5, 0, Math.PI * 2); ctx.fill();
+
+  // Khung thân & Vai, Hông
+  ctx.beginPath(); ctx.moveTo(pelX, pelY); ctx.lineTo(neckX, neckY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lShX, lShY); ctx.lineTo(rShX, rShY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lHipX, lHipY); ctx.lineTo(rHipX, rHipY); ctx.stroke();
+
+  // Vẽ 2 tay
+  // Tay trái
+  ctx.beginPath();
+  ctx.moveTo(lShX, lShY); ctx.lineTo(lArm.mx, lArm.my); ctx.lineTo(lArm.ex, lArm.ey);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(lArm.mx, lArm.my, 2.2, 0, Math.PI * 2); ctx.fill();
+
+  // Tay phải
+  ctx.beginPath();
+  ctx.moveTo(rShX, rShY); ctx.lineTo(rArm.mx, rArm.my); ctx.lineTo(rArm.ex, rArm.ey);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(rArm.mx, rArm.my, 2.2, 0, Math.PI * 2); ctx.fill();
+
+  // Đầu với viền neon và nền tối
   ctx.save();
-  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 7; ctx.lineCap = 'round';
-  const tailWave = Math.sin(t * 3.5) * 18;
-  ctx.beginPath(); ctx.moveTo(-22, 42); ctx.bezierCurveTo(-46, 35, -50 + tailWave, 10, -42 + tailWave, -4); ctx.stroke();
+  ctx.fillStyle = '#0a0d14';
+  ctx.beginPath();
+  ctx.arc(headX, headY, hr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Kính visor / Mắt phát sáng công nghệ
+  ctx.fillStyle = YELLOW;
+  ctx.shadowColor = YELLOW;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(headX + eyeOffset[0], headY + eyeOffset[1], 3.5, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 
-  // Thân mèo mập tròn
-  ctx.save();
-  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.ellipse(0, 36, 32, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, 36, 20, 20, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  // Đầu mèo bo tròn
-  ctx.save();
-  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.ellipse(0, -10, 30, 25, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-
-  // Tai nhọn có bên trong hồng
-  const earTwitch = Math.sin(t * 5) * 0.08;
-  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(-24, -24); ctx.lineTo(-28 + earTwitch * 10, -46); ctx.lineTo(-10, -32); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#f472b6';
-  ctx.beginPath(); ctx.moveTo(-21, -26); ctx.lineTo(-24 + earTwitch * 8, -40); ctx.lineTo(-12, -31); ctx.closePath(); ctx.fill();
-
-  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(10, -32); ctx.lineTo(28 - earTwitch * 10, -46); ctx.lineTo(24, -24); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#f472b6';
-  ctx.beginPath(); ctx.moveTo(12, -31); ctx.lineTo(24 - earTwitch * 8, -40); ctx.lineTo(21, -26); ctx.closePath(); ctx.fill();
-
-  // Má hồng
-  ctx.fillStyle = 'rgba(244, 114, 182, 0.55)';
-  ctx.beginPath(); ctx.ellipse(-18, -2, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(18, -2, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
-
-  // Mắt mèo to tròn
-  const isBlink = (Math.sin(t * 3.2) > 0.94);
-  if (isBlink) {
-    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(-11, -12, 6, 0.2, Math.PI - 0.2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(11, -12, 6, 0.2, Math.PI - 0.2); ctx.stroke();
-  } else {
-    [-11, 11].forEach((mx, i) => {
-      ctx.fillStyle = '#06b6d4'; ctx.beginPath(); ctx.arc(mx, -12, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(mx, -12, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(mx + (i ? 2 : -2), -14, 2.4, 0, Math.PI * 2); ctx.fill();
-    });
-  }
-
-  // Mũi tam giác & miệng :3
-  ctx.fillStyle = '#f472b6';
-  ctx.beginPath(); ctx.moveTo(-2.5, -4); ctx.lineTo(2.5, -4); ctx.lineTo(0, -1.5); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(-3.5, 2, 4, Math.PI, 0, true); ctx.stroke();
-  ctx.beginPath(); ctx.arc(3.5, 2, 4, Math.PI, 0, true); ctx.stroke();
-
-  // Râu mèo
-  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(-20, -4); ctx.lineTo(-38, -8); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-20, 1); ctx.lineTo(-40, 3); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(20, -4); ctx.lineTo(38, -8); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(20, 1); ctx.lineTo(40, 3); ctx.stroke();
-  ctx.restore();
-
-  // Laptop mini & Chân gõ phím
-  ctx.save();
-  panel(-17, 42, 34, 18, { r: 4, fill: '#0f172a', stroke: CYAN, lw: 1.5, glow: px(10) });
-  const pawOffset = Math.sin(t * 12) * 2;
-  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(-10, 42 + pawOffset, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.arc(10, 42 - pawOffset, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.restore();
-
-  if (pose === 'idea') {
-    const hp = (t * 0.8) % 1;
-    ctx.save(); ctx.fillStyle = PINK; ctx.font = font(22, 'bold');
-    ctx.shadowColor = PINK; ctx.shadowBlur = 12;
-    ctx.fillText('♥', Math.sin(t * 4) * 8, -48 - hp * 40); ctx.restore();
-  } else if (pose === 'confused') {
-    ctx.save(); ctx.fillStyle = YELLOW; ctx.font = font(22, 'bold');
-    ctx.shadowColor = YELLOW; ctx.shadowBlur = 12;
-    ctx.fillText('?', 18, -44); ctx.restore();
-  }
-  ctx.restore();
-}
-
-// 3. Chú Cún Shiba / Corgi Tech Mascot
-function drawCuteDog(x, groundY, sc, pose, t, color) {
-  const oy = groundY - 110 * sc;
-  const bob = Math.sin(t * 6) * 3;
-  ctx.save(); ctx.translate(x, oy + bob); ctx.scale(sc, sc);
-
-  // Bóng đổ
-  ctx.save(); ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
-  ctx.beginPath(); ctx.ellipse(0, 110 - bob / sc, 42, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-
-  // Đuôi ngoe nguẩy tít mù
-  ctx.save();
-  const tailWag = Math.sin(t * 14) * 16;
-  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 8; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-24, 38); ctx.quadraticCurveTo(-46 + tailWag, 18, -38 + tailWag, -4); ctx.stroke();
-  ctx.restore();
-
-  // Thân cún
-  ctx.save();
-  ctx.fillStyle = '#f59e0b'; ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.ellipse(0, 36, 34, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, 36, 22, 22, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  // Đầu cún Shiba má trắng
-  ctx.save();
-  ctx.fillStyle = '#f59e0b'; ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.ellipse(0, -10, 32, 26, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath(); ctx.ellipse(-14, 0, 16, 14, 0.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(14, 0, 16, 14, -0.2, 0, Math.PI * 2); ctx.fill();
-
-  // Tai Shiba tam giác
-  ctx.fillStyle = '#f59e0b'; ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(-24, -22); ctx.lineTo(-26, -46); ctx.lineTo(-10, -28); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(10, -28); ctx.lineTo(26, -46); ctx.lineTo(24, -22); ctx.closePath(); ctx.fill(); ctx.stroke();
-
-  // Mắt cún
-  const isBlink = (Math.sin(t * 3.4) > 0.94);
-  if (isBlink) {
-    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(-12, -10, 5, 0.2, Math.PI - 0.2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(12, -10, 5, 0.2, Math.PI - 0.2); ctx.stroke();
-  } else {
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath(); ctx.arc(-12, -10, 5.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(12, -10, 5.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(-10.5, -12, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(13.5, -12, 2, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Mũi & Lưỡi thở vui vẻ
-  ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.ellipse(0, -2, 4.5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
-  const tonguePant = Math.sin(t * 10) * 1.5;
-  ctx.fillStyle = '#fb7185'; ctx.beginPath(); ctx.ellipse(0, 8 + tonguePant, 5.5, 7, 0, 0, Math.PI * 2); ctx.fill();
-
-  ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(-4, 3, 4, 0, Math.PI * 0.8); ctx.stroke();
-  ctx.beginPath(); ctx.arc(4, 3, 4, Math.PI * 0.2, Math.PI); ctx.stroke();
-
-  // Vòng cổ công nghệ & Huy hiệu sao
-  panel(-18, 16, 36, 7, { r: 3.5, fill: CYAN, stroke: null });
-  ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 24, 5, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  if (pose === 'idea') {
-    ctx.save(); ctx.fillStyle = YELLOW; ctx.font = font(24, 'bold');
-    ctx.shadowColor = YELLOW; ctx.shadowBlur = 14;
-    ctx.fillText('★', Math.sin(t * 5) * 10, -50); ctx.restore();
-  } else if (pose === 'confused') {
-    ctx.save(); ctx.fillStyle = YELLOW; ctx.font = font(24, 'bold');
-    ctx.shadowColor = YELLOW; ctx.shadowBlur = 14;
-    ctx.fillText('?', 16, -48); ctx.restore();
-  }
-  ctx.restore();
-}
-
-// 4. Chim Kurzgesagt (Kurzgesagt Duck / Bird Mascot)
-function drawKurzBird(x, groundY, sc, pose, t, color) {
-  const jump = -Math.abs(Math.sin(t * 6)) * 10;
-  const oy = groundY - 110 * sc;
-  ctx.save(); ctx.translate(x, oy + jump); ctx.scale(sc, sc);
-
-  // Bóng đổ
-  ctx.save(); ctx.fillStyle = 'rgba(2, 132, 199, 0.2)';
-  const shadowScale = clamp(1 - (-jump) / 30, 0.5, 1);
-  ctx.beginPath(); ctx.ellipse(0, 110 - jump / sc, 36 * shadowScale, 10 * shadowScale, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-
-  // Chân que màu cam
-  ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-8, 54); ctx.lineTo(-8, 88); ctx.lineTo(-16, 92); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(8, 54); ctx.lineTo(8, 88); ctx.lineTo(16, 92); ctx.stroke();
-
-  // Thân chim quả lê mập
-  ctx.save();
-  ctx.fillStyle = '#0284c7'; ctx.strokeStyle = '#0369a1'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.ellipse(0, 16, 36, 42, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.ellipse(4, 22, 24, 30, 0.1, 0, Math.PI * 2); ctx.fill();
-
-  // Cánh chim vỗ phành phạch
-  const flap = Math.sin(t * 12) * 12;
-  ctx.fillStyle = '#0369a1';
-  ctx.beginPath(); ctx.ellipse(-24, 18, 14, 20 + flap * 0.3, 0.2, 0, Math.PI * 2); ctx.fill();
-
-  // Mắt to tròn đen ngơ ngác
-  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(16, -4, 11, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(18, -4, 6.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(19.5, -6, 2.2, 0, Math.PI * 2); ctx.fill();
-
-  // Mỏ nhọn cam
-  ctx.fillStyle = '#f97316';
-  ctx.beginPath(); ctx.moveTo(27, -6); ctx.lineTo(46, -1); ctx.lineTo(25, 6); ctx.closePath(); ctx.fill();
-  ctx.restore();
-
-  if (pose === 'idea') {
-    ctx.save(); ctx.translate(14, -40);
-    const rays = 8, rl = 14 + Math.sin(t * 8) * 5;
-    ctx.strokeStyle = YELLOW; ctx.lineWidth = 2.5; ctx.shadowColor = YELLOW; ctx.shadowBlur = 18;
-    for (let i = 0; i < rays; i++) {
-      const a = i * Math.PI * 2 / rays + t * 0.6;
-      ctx.beginPath(); ctx.moveTo(Math.cos(a) * 16, Math.sin(a) * 16);
-      ctx.lineTo(Math.cos(a) * (16 + rl), Math.sin(a) * (16 + rl)); ctx.stroke();
-    }
-    ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+  // Props (Vật phẩm đi kèm)
+  if (propType === 'laser_pointer') {
+    ctx.save();
+    ctx.strokeStyle = '#ffe600';
+    ctx.shadowColor = '#ffe600';
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(rArm.ex, rArm.ey);
+    ctx.lineTo(rArm.ex + 70, rArm.ey - 35);
+    ctx.stroke();
+    ctx.fillStyle = '#ffe600';
+    ctx.beginPath();
+    ctx.arc(rArm.ex + 70, rArm.ey - 35, 4.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
-  } else if (pose === 'confused') {
+  } else if (propType === 'bulb') {
+    const bx = propPos[0], by = propPos[1];
+    ctx.save();
+    ctx.fillStyle = YELLOW;
+    ctx.shadowColor = YELLOW;
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(bx, by, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = YELLOW;
+    ctx.lineWidth = 2.5;
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4 + t * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(bx + Math.cos(a) * 18, by + Math.sin(a) * 18);
+      ctx.lineTo(bx + Math.cos(a) * 28, by + Math.sin(a) * 28);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if (propType === 'question') {
+    const qx = propPos[0], qy = propPos[1];
     for (let q = 0; q < 3; q++) {
       const p = (t * 0.5 + q * 0.33) % 1, qa = Math.sin(p * Math.PI);
-      ctx.save(); ctx.fillStyle = `rgba(255,230,0,${qa})`; ctx.font = font(24, 'bold');
-      ctx.shadowColor = YELLOW; ctx.shadowBlur = 12;
-      ctx.fillText('?', (q - 1) * 20 + 10, -28 - p * 45); ctx.restore();
+      ctx.save();
+      ctx.fillStyle = `rgba(255, 230, 0, ${qa})`;
+      ctx.font = font(26, 'bold');
+      ctx.textAlign = 'center';
+      ctx.shadowColor = YELLOW;
+      ctx.shadowBlur = 14;
+      ctx.fillText('?', qx + (q - 1) * 24 + Math.sin(t * 3 + q) * 10, qy - p * 40);
+      ctx.restore();
     }
+  } else if (propType === 'laptop') {
+    const lx = propPos[0], ly = propPos[1];
+    ctx.save();
+    ctx.strokeStyle = CYAN;
+    ctx.shadowColor = CYAN;
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(lx - 16, ly + 8); ctx.lineTo(lx + 20, ly + 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx + 18, ly + 8); ctx.lineTo(lx + 28, ly - 18); ctx.stroke();
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.15)';
+    ctx.beginPath();
+    ctx.moveTo(lx + 26, ly - 18); ctx.lineTo(lx + 18, ly + 8); ctx.lineTo(neckX + 8, neckY - 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
-  ctx.restore();
-}
 
-// 5. Robot Mini Linh Vật Công Nghệ (Cyber Bot Companion)
-function drawCyberBot(x, groundY, sc, pose, t, color) {
-  const hover = Math.sin(t * 4) * 7;
-  const oy = groundY - 100 * sc;
-  ctx.save(); ctx.translate(x, oy + hover); ctx.scale(sc, sc);
-
-  // Tia đẩy hạt ion phản lực
-  ctx.save();
-  ctx.fillStyle = CYAN; ctx.shadowColor = CYAN; ctx.shadowBlur = 16;
-  const flameH = 14 + Math.sin(t * 16) * 6;
-  ctx.beginPath(); ctx.moveTo(-10, 48); ctx.lineTo(10, 48); ctx.lineTo(0, 48 + flameH); ctx.closePath(); ctx.fill();
-  ctx.restore();
-
-  // Thân kim loại tròn trịa
-  panel(-32, -15, 64, 60, { r: 20, fill: 'rgba(15, 23, 42, 0.95)', stroke: CYAN, lw: 2.5, glow: px(14) });
-  // Màn hình LED mặt biểu cảm
-  panel(-24, -6, 48, 34, { r: 12, fill: '#050811', stroke: 'rgba(56, 189, 248, 0.4)', lw: 1.5 });
-
-  // Mắt LED biểu cảm
-  ctx.save();
-  ctx.fillStyle = CYAN; ctx.shadowColor = CYAN; ctx.shadowBlur = 10;
-  if (pose === 'idea') {
-    ctx.font = font(18, 'bold', MONO); ctx.textAlign = 'center'; ctx.fillText('^  ^', 0, 16);
-  } else if (pose === 'confused') {
-    ctx.font = font(16, 'bold', MONO); ctx.textAlign = 'center'; ctx.fillText('o_O', 0, 16);
-  } else {
-    ctx.beginPath(); ctx.arc(-10, 10, 4.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(10, 10, 4.5, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-
-  // Ăng-ten phát sóng xoay tròn
-  ctx.strokeStyle = CYAN; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, -32); ctx.stroke();
-  ctx.fillStyle = (Math.floor(t * 4) % 2 === 0 ? PINK : CYAN);
-  ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
-  ctx.beginPath(); ctx.arc(0, -35, 5, 0, Math.PI * 2); ctx.fill();
-
-  // Hai tai phone bán cầu phát sáng
-  ctx.fillStyle = 'rgba(56, 189, 248, 0.3)'; ctx.strokeStyle = CYAN; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(-33, 15, 7, Math.PI * 0.5, Math.PI * 1.5); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.arc(33, 15, 7, -Math.PI * 0.5, Math.PI * 0.5); ctx.fill(); ctx.stroke();
   ctx.restore();
 }
 
@@ -2291,7 +2167,7 @@ function drawCyberBot(x, groundY, sc, pose, t, color) {
 function drawBunnyGirl(x, groundY, sc, pose, t, color) {
   const img = MASCOT_IMGS[pose] || MASCOT_IMGS.idle || MASCOT_IMGS.idea;
   if (!img || !img.complete || img.naturalWidth === 0) {
-    return drawCuteDuck(x, groundY, sc, pose, t, color);
+    return drawStickman(x, groundY, sc, pose, t, color);
   }
 
   // Physics Animation siêu mượt 60 FPS (Breathing, Squash & Stretch, Bobbing, Jumps)
@@ -2438,18 +2314,13 @@ function drawBunnyGirl(x, groundY, sc, pose, t, color) {
   ctx.restore();
 }
 
-// Router điều hướng linh vật thông minh
+// Router điều hướng linh vật: Bunny Girl & Stickman
 function drawMascot(type, x, groundY, sc, pose, t, color) {
   const m = String(type || 'bunny_girl').toLowerCase();
-  if (m.includes('bunny') || m.includes('girl') || m.includes('tho') || m.includes('anime') || m.includes('mascot') || m.includes('stickman') || m.includes('human')) {
+  if (m.includes('bunny') || m.includes('girl') || m.includes('tho') || m.includes('thỏ') || m.includes('anime')) {
     return drawBunnyGirl(x, groundY, sc, pose, t, color);
   }
-  if (m.includes('duck') || m.includes('vit')) return drawCuteDuck(x, groundY, sc, pose, t, color);
-  if (m.includes('cat') || m.includes('meo') || m.includes('neko')) return drawCuteCat(x, groundY, sc, pose, t, color);
-  if (m.includes('dog') || m.includes('cho') || m.includes('shiba') || m.includes('corgi')) return drawCuteDog(x, groundY, sc, pose, t, color);
-  if (m.includes('bird') || m.includes('chim') || m.includes('kurz')) return drawKurzBird(x, groundY, sc, pose, t, color);
-  if (m.includes('bot') || m.includes('robot') || m.includes('ai')) return drawCyberBot(x, groundY, sc, pose, t, color);
-  return drawBunnyGirl(x, groundY, sc, pose, t, color);
+  return drawStickman(x, groundY, sc, pose, t, color);
 }
 
 // ================= TEMPLATES (t, box) =================
@@ -2765,7 +2636,7 @@ TEMPLATES.stickman = function (t, box) {
   let pxL, pyT, pw, ph, gy, fx;
   if (IS_VERTICAL) { fx = box.x + box.w / 2; gy = box.y + px(365); pxL = box.x; pyT = gy + px(35); pw = box.w; ph = box.h - (pyT - box.y); }
   else { fx = box.x + box.w * 0.13; gy = box.y + box.h * 0.8; pxL = box.x + box.w * 0.28; pyT = box.y; pw = box.w * 0.72; ph = box.h; }
-  const mascotType = s.mascot || 'duck';
+  const mascotType = s.mascot || 'stickman';
   drawMascot(mascotType, fx, gy, sc, resolved ? 'idea' : 'confused', t, col);
   const items = resolved ? s.solution : s.problem, th = resolved ? GREEN : RED, title = resolved ? L.solution : L.problem;
   const flash = resolved ? 1 - progress(t, tsw, tsw + 0.5) : 0;
@@ -2786,7 +2657,7 @@ TEMPLATES.stickman = function (t, box) {
 // --- mascot_tip: Linh vật chia sẻ mẹo công nghệ & Best Practice (Speech Bubble) ---
 TEMPLATES.mascot_tip = function (t, box) {
   const mt = D.mascot_tip; if (!mt) return TEMPLATES.architecture(t, box);
-  const mascotType = mt.mascot || 'duck';
+  const mascotType = mt.mascot || 'bunny_girl';
   const tips = mt.tips || ['Chia nhỏ vấn đề thành các hàm đơn giản', 'Viết test case trước khi tối ưu', 'Đọc kỹ log lỗi thay vì đoán mò'];
   const nTips = tips.length;
   const cardH = px(IS_VERTICAL ? 120 : 96);

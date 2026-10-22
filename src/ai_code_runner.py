@@ -341,6 +341,7 @@ def generate_manim_from_prompt(
         f"     * var_panel(items, pos=UL, title='STATE'): HUD card for multiple variables with auto-stacking.\n"
         f"     * vram_meter(used_gb, max_gb=32, pos=RIGHT*5.6): vertical VRAM capacity thermometer (red when OOM, green when fits).\n"
         f"     * gpu_column(idx, layers=None, pos=ORIGIN, w=2.0): GPU hardware node card with partitioned memory slots.\n"
+        f"     * Stickman(pos=ORIGIN, pose='pointing|confused|idea|coding|idle|celebrate', color=CY, scale=1.0, target=None): StykAnimate-powered articulated stick figure with IK limbs. Use Stickman to guide the viewer, point at formulas/diagrams (pose='pointing', target=eq.get_center()), or react to problems/solutions.\n"
         f"5. VISUAL ALGORITHMS, HARDWARE & MEMORY (ZE-RO / DEEP-ML STYLE):\n"
         f"   - For distributed training / GPU memory: use `gpu_column(idx, layers, pos)` for multi-node sharding, and `vram_meter(used_gb, max_gb)` to show capacity vs OOM limit.\n"
         f"   - Formula color-binding: when writing formulas like '2P + 2P + 12P/4', match colors with memory slices (2P params: CY, 2P grads: GR, 12P opt states: OR/YE).\n"
@@ -684,6 +685,138 @@ def gpu_column(idx, layers=None, pos=ORIGIN, w=2.0):
     lbl = Text("Shard " + str(idx), font_size=16, color="#8b949e").next_to(card_bg, DOWN, buff=0.15)
     full_card = VGroup(card_bg, top_badge, box_group, lbl).move_to(pos)
     return full_card
+
+def solve_ik_2bone_manim(base, target, l1, l2, bend_dir=1):
+    dx = float(target[0] - base[0])
+    dy = float(target[1] - base[1])
+    d = float(np.hypot(dx, dy))
+    if d < 1e-6:
+        d = 1e-6
+    tot = l1 + l2
+    ux, uy = dx / d, dy / d
+    if d >= tot - 1e-5:
+        return np.array([base[0] + ux * l1, base[1] + uy * l1, 0.0]), np.array([base[0] + ux * tot, base[1] + uy * tot, 0.0])
+    min_d = abs(l1 - l2)
+    cd = max(d, min_d + 1e-5)
+    along = (l1 * l1 - l2 * l2 + cd * cd) / (2.0 * cd)
+    height = float(np.sqrt(max(0.0, l1 * l1 - along * along))) * bend_dir
+    mx = base[0] + ux * along - uy * height
+    my = base[1] + uy * along + ux * height
+    ex = base[0] + ux * cd
+    ey = base[1] + uy * cd
+    return np.array([mx, my, 0.0]), np.array([ex, ey, 0.0])
+
+class Stickman(VGroup):
+    """Người que kỹ thuật cao (StykAnimate Stick Figure) cho Manim.
+
+    Hỗ trợ IK 2-khớp chính xác và các pose: pointing, confused, idea, coding, idle, celebrate.
+    """
+    def __init__(self, pos=ORIGIN, pose="pointing", color=CY, scale=1.0, target=None, **kw):
+        super().__init__(**kw)
+        self.char_color = color
+        self.char_scale = scale
+        self.current_pose = pose
+        self.target_pos = target
+        self.build_stickman(pos, pose, color, scale, target)
+
+    def build_stickman(self, pos=ORIGIN, pose="pointing", color=CY, scale=1.0, target=None):
+        self.submobjects.clear()
+        s = scale
+        gx, gy = pos[0], pos[1]
+        hr = 0.22 * s
+        tl = 0.75 * s
+        ual, fal = 0.38 * s, 0.34 * s
+        thl, shl = 0.44 * s, 0.42 * s
+        sw, hw = 0.28 * s, 0.16 * s
+
+        py = gy + 0.8 * s
+        pelvis = np.array([gx, py, 0.0])
+        neck = np.array([gx, py + tl, 0.0])
+        head_c = np.array([gx, neck[1] + hr * 1.15, 0.0])
+
+        l_sh = np.array([neck[0] - sw, neck[1] - 0.04 * s, 0.0])
+        r_sh = np.array([neck[0] + sw, neck[1] - 0.04 * s, 0.0])
+        l_hip = np.array([pelvis[0] - hw, pelvis[1], 0.0])
+        r_hip = np.array([pelvis[0] + hw, pelvis[1], 0.0])
+
+        p = pose.lower()
+        if "point" in p or "explain" in p:
+            tgt = target if target is not None else np.array([gx + 1.6 * s, neck[1] + 0.3 * s, 0.0])
+            r_hand_tgt = tgt
+            l_hand_tgt = np.array([l_hip[0] - 0.1 * s, l_hip[1] - 0.05 * s, 0.0])
+            l_foot = np.array([l_hip[0] - 0.15 * s, gy, 0.0])
+            r_foot = np.array([r_hip[0] + 0.18 * s, gy, 0.0])
+        elif "confused" in p:
+            head_c = np.array([gx + 0.1 * s, neck[1] + hr * 1.1, 0.0])
+            r_hand_tgt = np.array([head_c[0] + hr * 0.9, head_c[1] + hr * 0.2, 0.0])
+            l_hand_tgt = np.array([l_sh[0] - 0.22 * s, pelvis[1] + 0.1 * s, 0.0])
+            l_foot = np.array([l_hip[0] - 0.18 * s, gy, 0.0])
+            r_foot = np.array([r_hip[0] + 0.12 * s, gy, 0.0])
+        elif "idea" in p:
+            head_c = np.array([gx, neck[1] + hr * 1.15, 0.0])
+            l_hand_tgt = np.array([l_sh[0] - 0.32 * s, neck[1] + 0.45 * s, 0.0])
+            r_hand_tgt = np.array([r_sh[0] + 0.32 * s, neck[1] + 0.45 * s, 0.0])
+            l_foot = np.array([l_hip[0] - 0.12 * s, gy + 0.15 * s, 0.0])
+            r_foot = np.array([r_hip[0] + 0.12 * s, gy + 0.15 * s, 0.0])
+        elif "code" in p or "typing" in p:
+            pelvis[1] = gy + 0.45 * s
+            neck[1] = pelvis[1] + tl * 0.9
+            head_c = np.array([neck[0] + 0.08 * s, neck[1] + hr * 1.1, 0.0])
+            l_sh[1] = neck[1] - 0.04 * s
+            r_sh[1] = neck[1] - 0.04 * s
+            l_hip[1] = pelvis[1]
+            r_hip[1] = pelvis[1]
+            l_foot = np.array([gx + 0.3 * s, gy, 0.0])
+            r_foot = np.array([gx + 0.35 * s, gy, 0.0])
+            l_hand_tgt = np.array([gx + 0.45 * s, pelvis[1] - 0.05 * s, 0.0])
+            r_hand_tgt = np.array([gx + 0.55 * s, pelvis[1] - 0.05 * s, 0.0])
+        else:
+            l_hand_tgt = np.array([l_sh[0] - 0.15 * s, pelvis[1] + 0.1 * s, 0.0])
+            r_hand_tgt = np.array([r_sh[0] + 0.15 * s, pelvis[1] + 0.1 * s, 0.0])
+            l_foot = np.array([l_hip[0] - 0.08 * s, gy, 0.0])
+            r_foot = np.array([r_hip[0] + 0.08 * s, gy, 0.0])
+
+        l_knee, l_end = solve_ik_2bone_manim(l_hip, l_foot, thl, shl, bend_dir=1)
+        r_knee, r_end = solve_ik_2bone_manim(r_hip, r_foot, thl, shl, bend_dir=1)
+        l_elb, l_hand = solve_ik_2bone_manim(l_sh, l_hand_tgt, ual, fal, bend_dir=-1)
+        r_elb, r_hand = solve_ik_2bone_manim(r_sh, r_hand_tgt, ual, fal, bend_dir=1)
+
+        lw = 3.5 * s
+        head = Circle(radius=hr, color=color, fill_color=BG, fill_opacity=0.9, stroke_width=lw).move_to(head_c)
+        torso = Line(pelvis, neck, color=color, stroke_width=lw * 1.2)
+        sh_line = Line(l_sh, r_sh, color=color, stroke_width=lw * 0.9)
+        hip_line = Line(l_hip, r_hip, color=color, stroke_width=lw * 0.9)
+
+        l_arm1 = Line(l_sh, l_elb, color=color, stroke_width=lw * 0.9)
+        l_arm2 = Line(l_elb, l_hand, color=color, stroke_width=lw * 0.9)
+        r_arm1 = Line(r_sh, r_elb, color=color, stroke_width=lw * 0.9)
+        r_arm2 = Line(r_elb, r_hand, color=color, stroke_width=lw * 0.9)
+
+        l_leg1 = Line(l_hip, l_knee, color=color, stroke_width=lw)
+        l_leg2 = Line(l_knee, l_end, color=color, stroke_width=lw)
+        r_leg1 = Line(r_hip, r_knee, color=color, stroke_width=lw)
+        r_leg2 = Line(r_knee, r_end, color=color, stroke_width=lw)
+
+        self.add(head, torso, sh_line, hip_line, l_arm1, l_arm2, r_arm1, r_arm2, l_leg1, l_leg2, r_leg1, r_leg2)
+
+        if "point" in p and target is not None:
+            laser = Line(r_hand, target, color=YE, stroke_width=2.5 * s).set_opacity(0.85)
+            self.add(laser)
+        elif "idea" in p:
+            bulb = VGroup(
+                Circle(radius=0.14 * s, fill_color=YE, fill_opacity=0.95, stroke_color="#ffffff", stroke_width=1.5).move_to(head_c + UP * 0.45 * s),
+                NeonDot(color=YE, radius=0.08 * s).move_to(head_c + UP * 0.45 * s)
+            )
+            self.add(bulb)
+        elif "confused" in p:
+            q_mark = sym("?", YE, int(26 * s)).move_to(head_c + UP * 0.42 * s + RIGHT * 0.1 * s)
+            self.add(q_mark)
+        elif "code" in p:
+            laptop = VGroup(
+                Line(np.array([gx + 0.3 * s, gy + 0.38 * s, 0]), np.array([gx + 0.7 * s, gy + 0.38 * s, 0]), color=CY, stroke_width=3),
+                Line(np.array([gx + 0.68 * s, gy + 0.38 * s, 0]), np.array([gx + 0.82 * s, gy + 0.65 * s, 0]), color=CY, stroke_width=3)
+            )
+            self.add(laptop)
 
 # ================= CODE AI (MANIM) BÊN DƯỚI =================
 '''

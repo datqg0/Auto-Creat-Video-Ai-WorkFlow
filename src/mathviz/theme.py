@@ -52,6 +52,8 @@ class Theme:
         self.muted: str = "#8b949e"
         self.panel: str = "#161b22"
         self.grid: str = "#21262d"
+        self.secondary: str = "#00f0ff"
+        self.yellow: str = "#ffe600"
 
         # Bảng màu phụ, xoay vòng cho các phần tử.
         self.palette: list[str] = [
