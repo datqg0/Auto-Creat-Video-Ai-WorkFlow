@@ -52,3 +52,4 @@
 2026-10-21T16:14:18.592836	Nghịch lý GPS: Tại sao không có Einstein, bản đồ điện thoại sẽ dẫn bạn lệch 11km mỗi ngày?
 2026-10-22T01:41:25.660328	Màu sắc và phép toán: Diffie‑Hellman pha màu tạo khóa chung trong 5 bước
 2026-10-22T02:54:25.121353	RSA – Khi các số nguyên tố khổng lồ trở thành chìa khóa mở cửa số
+2026-10-22T10:47:54.388438	Bóng bán dẫn: Khi một transistor quyết định cuộc sống máy tính
