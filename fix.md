@@ -257,6 +257,44 @@ Fix: Kiem tra va them neu thieu:
 
 ---
 
+## [FIX-19] HIGH - Motion Graphics: Template gán sai chủ đề (Calculus, Matrix, Stats cho RSA)
+
+File: src/motion_graphics.py
+
+Van de: Video RSA bị hiển thị đồ thị đạo hàm 3Blue1Brown, bảng tính hiệp phương sai Kem & Ánh nắng, ma trận Deep-ML.
+Nguyen nhan: Các hàm `_d_calculus_curve`, `_d_matrix_op`, `_d_visual_algo`, `_d_tree_graph`, `_d_system_layers` tự động fallback vẽ dữ liệu giả lập của bài khác khi LLM chọn preset hoặc không có dữ liệu custom.
+Fix: Yêu cầu bắt buộc có dữ liệu hàm/bảng thực tế hoặc từ khóa chuyên môn mới kích hoạt template; đồng thời thay thế breadcrumb tĩnh 3Blue1Brown bằng tiêu đề của chính scene.
+
+---
+
+## [FIX-20] HIGH - Script Writer: Ảo giác toán học và TTS đọc sai công thức
+
+File: src/script_writer.py
+
+Van de: LLM tính nhầm $5^7 \pmod{187} = 56$ (đúng là 146), giải mã $56^{23} \pmod{187}$ sai kết quả; TTS đọc thô các ký hiệu `9^5`, `e*d % phi == 1`, `(e,n)`.
+Fix: Thêm quy tắc bắt buộc tính toán số học chính xác 100% vào prompt, chuẩn hóa phát âm ngữ âm tiếng Việt cho TTS toán học, nghiêm cấm gán bừa preset giải tích cho chủ đề mật mã học.
+
+---
+
+## [FIX-21] HIGH - Visual Engine: Cắt cụt câu hỏi thử thách (Text Truncation)
+
+File: src/visual_engine.py
+
+Van de: Câu hỏi trong card thử thách (challenge) bị cắt mất đoạn cuối (chỉ hiển thị tới `khóa bí`).
+Nguyen nhan: `_render_challenge()` cố định tối đa 4 dòng (`[:4]`) với font lớn 40px dù panel còn nhiều khoảng trống.
+Fix: Tự động co kích thước font (xuống 80%) và giảm line-height khi số dòng vượt quá 4 để hiển thị trọn vẹn tới 6 dòng.
+
+---
+
+## [FIX-22] MEDIUM - Matplotlib Animation: Tràn lề cắt mất tiêu đề và trục tọa độ
+
+File: src/ai_code_runner.py
+
+Van de: Tiêu đề trên cùng bị đẩy trồi khỏi khung hình, trục hoành dưới đáy bị cắt mất khi ghép video Ken Burns.
+Fix: Bổ sung quy tắc căn lề an toàn (`fig.subplots_adjust(top=0.86, bottom=0.14)`) vào prompt sinh code Matplotlib.
+
+---
+
 ## Tom tat uu tien thuc hien
 
 | Ma      | Mo ta ngan                              | Uu tien | File chinh              |
@@ -268,6 +306,10 @@ Fix: Kiem tra va them neu thieu:
 | FIX-10  | W/H cache - Short render sai kich thuoc | HIGH    | compositor.py           |
 | FIX-11  | W/H cache - Short render sai kich thuoc | HIGH    | visual_engine.py        |
 | FIX-16  | clean_narration dung sai bien text      | HIGH    | script_writer.py        |
+| FIX-19  | Template gán sai chủ đề đồ họa          | HIGH    | motion_graphics.py      |
+| FIX-20  | Ảo giác toán RSA & TTS đọc sai          | HIGH    | script_writer.py        |
+| FIX-21  | Cắt cụt câu hỏi thử thách               | HIGH    | visual_engine.py        |
+| FIX-22  | Matplotlib tràn lề cắt chữ              | MEDIUM  | ai_code_runner.py       |
 | FIX-06  | Vi du trong prompt chua du cu the       | MEDIUM  | script_writer.py        |
 | FIX-07  | visual_prompt mau thieu phan nhip       | MEDIUM  | script_writer.py        |
 | FIX-08  | Short min_words qua thap                | MEDIUM  | script_writer.py        |

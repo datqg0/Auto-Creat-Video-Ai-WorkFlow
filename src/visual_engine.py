@@ -431,16 +431,22 @@ def _render_challenge(scene: Scene, out: Path) -> None:
         draw.text((cx0 + 80, cy0 + 66), "?", font=_font(42, bold=True), fill="#000000")
         qx = cx0 + 150
 
-    # Câu hỏi
-    q_font = _font(40 if not _is_vertical() else 34, bold=True)
+    # Câu hỏi - Tự động co font và tăng số dòng nếu dài để không bị cắt cụt
+    base_fsize = 40 if not _is_vertical() else 34
+    q_font = _font(base_fsize, bold=True)
     bullets = scene.bullets or [scene.narration]
     question_text = bullets[0] if bullets else "Hãy suy nghĩ giải pháp cho bài toán này."
     qy = cy0 + 65
     max_qw = cx1 - qx - 60
     q_lines = _wrap_lines(draw, question_text, q_font, max_qw)
-    for ql in q_lines[:4]:
+    line_h = 56
+    if len(q_lines) > 4:
+        q_font = _font(max(24, int(base_fsize * 0.8)), bold=True)
+        q_lines = _wrap_lines(draw, question_text, q_font, max_qw)
+        line_h = 44
+    for ql in q_lines[:6]:
         _draw_text_with_fallback(draw, (qx, qy), ql, font=q_font, fill="#ffffff")
-        qy += 56
+        qy += line_h
 
     # Call to action ở đáy (phân biệt quiz vs tình huống lý thuyết)
     if is_quiz:

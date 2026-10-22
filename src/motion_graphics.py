@@ -562,7 +562,7 @@ def _d_matrix_op(scene: Scene, lang: str) -> dict | None:
                 break
 
     illustrative = False
-    if not matrix_a and not has_matrix_kw and not is_explicit:
+    if not matrix_a and not has_matrix_kw:
         return None
 
     if not matrix_a:
@@ -593,7 +593,7 @@ def _d_matrix_op(scene: Scene, lang: str) -> dict | None:
             })
         result_matrix.append(res_row)
 
-    bc = a.get("breadcrumb") or f"DEEP-ML / PROBLEM 05 / WORKED EXAMPLE"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / MATRIX OP" if scene.heading else "LINEAR ALGEBRA / MATRIX MULTIPLICATION")
     diff = a.get("difficulty") or "Easy"
     cat = a.get("category") or "Linear Algebra"
 
@@ -626,7 +626,7 @@ def _d_visual_algo(scene: Scene, lang: str) -> dict | None:
     formula = a.get("formula")
 
     illustrative = False
-    if not table and not has_algo_kw and not is_explicit:
+    if not table and not has_algo_kw:
         return None
 
     if not table:
@@ -641,7 +641,7 @@ def _d_visual_algo(scene: Scene, lang: str) -> dict | None:
         formula = formula or "Cov(X, Y) = Σ [(X - X̄)(Y - Ȳ)] / (N - 1) = 8 / 2 = 4"
         illustrative = True
 
-    bc = a.get("breadcrumb") or f"DEEP-ML / PROBLEM 10 / STEP BY STEP"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / WORKED EXAMPLE" if scene.heading else "STATISTICS / STEP BY STEP")
     diff = a.get("difficulty") or "Easy"
     cat = a.get("category") or "Statistics"
 
@@ -664,7 +664,8 @@ def _d_tree_graph(scene: Scene, lang: str) -> dict | None:
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
     has_kw = any(w in corpus for w in ("cây nhị phân", "bst", "binary search tree", "binary tree", "cây", "tree", "đồ thị", "graph", "dfs", "bfs", "duyệt cây"))
 
-    if not is_explicit and not has_kw:
+    has_tree_data = bool(a.get("nodes"))
+    if not has_tree_data and not has_kw:
         return None
 
     target = a.get("target") or 12
@@ -679,7 +680,7 @@ def _d_tree_graph(scene: Scene, lang: str) -> dict | None:
     ]
     path = a.get("path") or [10, 15, 12]
 
-    bc = a.get("breadcrumb") or "DEEP-ML / PROBLEM 08 / BINARY SEARCH TREE"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / TREE GRAPH" if scene.heading else "DATA STRUCTURES / BINARY TREE")
     diff = a.get("difficulty") or "Medium"
     cat = a.get("category") or "Data Structures"
 
@@ -858,7 +859,8 @@ def _d_system_layers(scene: Scene, lang: str) -> dict | None:
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
     has_kw = any(w in corpus for w in ("phân tầng", "system layers", "kiến trúc phân tầng", "multi-tier", "clean architecture", "tầng kiến trúc", "layer", "tier"))
 
-    if not is_explicit and not has_kw:
+    has_layer_data = bool(a.get("layers"))
+    if not has_layer_data and not has_kw and len(_bullets(scene, 4)) < 3:
         return None
 
     layers = a.get("layers")
@@ -866,15 +868,17 @@ def _d_system_layers(scene: Scene, lang: str) -> dict | None:
         bullets = _bullets(scene, 4)
         if len(bullets) >= 3:
             layers = [{"name": _truncate(b, 25), "components": ["Core Module", "Sub-system"]} for b in bullets]
-        else:
+        elif has_kw:
             layers = [
                 {"name": "Client Layer", "components": ["Web SPA", "Mobile App", "CLI"]},
                 {"name": "Gateway Tier", "components": ["Rate Limiter", "Auth Service", "Reverse Proxy"]},
                 {"name": "Core Services", "components": ["Business Logic", "Event Bus", "Workers"]},
                 {"name": "Data Storage", "components": ["Redis Cache", "PostgreSQL", "S3 Storage"]},
             ]
+        else:
+            return None
 
-    bc = a.get("breadcrumb") or "SYSTEM ARCHITECTURE / MULTI-TIER LAYERS"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / ARCHITECTURE" if scene.heading else "SYSTEM ARCHITECTURE / MULTI-TIER LAYERS")
     diff = a.get("difficulty") or "Design Pattern"
     cat = a.get("category") or "System Design"
 
@@ -896,11 +900,13 @@ def _d_comparison_matrix(scene: Scene, lang: str) -> dict | None:
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
     has_kw = any(w in corpus for w in ("bảng so sánh", "ma trận", "bảng biểu", "tiêu chí", "feature matrix", "so sánh chi tiết", "đặc tính kỹ thuật", "matrix table"))
 
-    if not is_explicit and not has_kw:
-        return None
-
     headers = a.get("headers") or (a.get("table", {}).get("headers") if isinstance(a.get("table"), dict) else None)
     rows = a.get("rows") or (a.get("table", {}).get("rows") if isinstance(a.get("table"), dict) else None)
+
+    has_table_data = bool(headers and rows)
+    colon_bullets = [b for b in _bullets(scene, 5) if ":" in b]
+    if not has_table_data and not has_kw and len(colon_bullets) < 2:
+        return None
 
     if not headers or not rows:
         bullets = _bullets(scene, 5)
@@ -912,7 +918,7 @@ def _d_comparison_matrix(scene: Scene, lang: str) -> dict | None:
         if len(parsed_rows) >= 2:
             headers = ["Tiêu chí", "Phương pháp A", "Phương pháp B"]
             rows = parsed_rows
-        else:
+        elif has_kw:
             headers = ["Tiêu chí", "Giải pháp Cũ (Naive)", "Giải pháp Mới (Modern)"]
             rows = [
                 ["Độ phức tạp thời gian", "O(N²)", "O(N log N) ✔"],
@@ -920,8 +926,10 @@ def _d_comparison_matrix(scene: Scene, lang: str) -> dict | None:
                 ["Khả năng mở rộng (Scale)", "Kém ✖", "Cực tốt ✔"],
                 ["Độ trễ phản hồi (P99)", "450 ms", "12 ms ✔"],
             ]
+        else:
+            return None
 
-    bc = a.get("breadcrumb") or "COMPARISON MATRIX / TECHNICAL BENCHMARK"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / COMPARISON" if scene.heading else "COMPARISON MATRIX / TECHNICAL BENCHMARK")
     diff = a.get("difficulty") or "Trade-off"
     cat = a.get("category") or "Analysis"
 
@@ -1163,13 +1171,14 @@ def _d_calculus_curve(scene: Scene, lang: str) -> dict | None:
     corpus = f"{scene.heading or ''} {scene.visual_prompt or ''} {scene.narration or ''} {' '.join(_bullets(scene))}".lower()
     has_kw = any(w in corpus for w in ("đạo hàm", "tiếp tuyến", "tích phân", "calculus", "derivative", "tangent", "hệ số góc", "giải tích", "riemann"))
 
-    if not is_explicit and not has_kw:
+    has_func_data = bool(a.get("func_str") or a.get("func_name"))
+    if not has_func_data and not has_kw:
         return None
 
-    func_str = a.get("func_str") or "f(x) = x³ - 2x + 1"
-    x_val = a.get("x_val") or 1.2
-    slope = a.get("slope") or 2.32
-    bc = a.get("breadcrumb") or "3BLUE1BROWN / ESSENCE OF CALCULUS / DERIVATIVES"
+    func_str = a.get("func_str") or a.get("func_name") or "f(x) = x³ - 2x + 1"
+    x_val = a.get("x_val") or a.get("x0") or 1.2
+    slope = a.get("slope") or a.get("tangent_slope") or 2.32
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / CALCULUS" if scene.heading else "MATHEMATICAL VISUALIZATION / CALCULUS")
     diff = a.get("difficulty") or "Medium"
     cat = a.get("category") or "Calculus"
 

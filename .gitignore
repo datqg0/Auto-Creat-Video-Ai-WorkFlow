@@ -22,6 +22,7 @@ output/*
 # Caches tải ảnh và video
 assets/image_cache/
 assets/video_cache/
+downloaded_video/
 
 # Thư mục clone tham khảo nghiên cứu
 _ref_*/

@@ -95,8 +95,12 @@ _SYSTEM_VI = (
     "(3) DEICTIC NARRATION: lời đọc 'trỏ tay vào hình vẽ' (màu sắc, con trỏ, mũi tên, khối tín hiệu); "
     "(4) NGHỊCH LÝ & ĐÒN BẨY: chỉ rõ điểm bế tắc của cách làm ngây thơ trước khi hé lộ cơ chế giải cứu "
     "và phân tích sự đánh đổi. "
-    "ĐỘ CHÍNH XÁC TUYỆT ĐỐI (ZERO HALLUCINATION): Số liệu và nguyên lý phải chuẩn xác; không dùng thuật ngữ hàn lâm "
-    "xa lạ mà không giải thích bằng ẩn dụ. Bạn luôn trả về JSON hợp lệ, không kèm giải thích ngoài."
+    "ĐỘ CHÍNH XÁC TOÁN HỌC TUYỆT ĐỐI (ZERO HALLUCINATION): Mọi phép tính số học, lũy thừa, modulo (ví dụ RSA: 5^7 mod 187 = 146, TUYỆT ĐỐI KHÔNG tính nhầm thành 56) "
+    "phải được tính toán chính xác 100%. "
+    "CHUẨN HÓA LỜI THOẠI CHO TTS TIẾNG VIỆT: Tuyệt đối KHÔNG viết nguyên biểu thức toán/code trần trụi vào narration "
+    "(không viết '9^5' làm TTS đọc 'chín mươi lăm' -> phải viết '9 mũ 5'; không viết 'e*d % phi == 1' -> phải viết 'e nhân d chia dư cho phi bằng 1'; "
+    "không viết '(e, n)' -> viết 'cặp số e và n'; viết rõ 'hàm băm một chiều', 'thuật toán SHA-256' thay vì viết tắt làm TTS phát âm sai lệch). "
+    "Bạn luôn trả về JSON hợp lệ, không kèm giải thích ngoài."
 )
 
 _SYSTEM_EN = (
@@ -231,6 +235,7 @@ _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - BẮT BUỘC có ÍT NHẤT 1 scene "challenge" hoặc "stickman_explainer" (Người Que StykAnimate với khớp IK sống động hoặc Mascot Cô Bé Áo Khoác Tai Thỏ) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
 - Với bài toán ma trận, đại số tuyến tính, mảng, thống kê, bảng tính: ƯU TIÊN preset "matrix_op" hoặc "visual_algo" (kiểu Deep-ML) để hiển thị chi tiết từng bước tính toán.
 - Với chủ đề GPU, Huấn luyện phân tán, LLM, Bộ nhớ AI: ƯU TIÊN preset "gpu_sharding" hoặc "manim" (vẽ cụm GPU #1..#4, thước đo VRAM meter, phân mảnh tham số/gradient, công thức 2P+2P+12P màu đồng bộ với hình khối).
+- ĐÚNG CHUYÊN MÔN THEO CHỦ ĐỀ (NON-NEGOTIABLE): Tuyệt đối KHÔNG gán bừa preset giải tích (calculus_curve), nhân ma trận (matrix_op), sơ đồ web (system_layers), hay hiệp phương sai (visual_algo) cho các chủ đề Mật mã học (RSA, AES, Diffie-Hellman), Số nguyên tố, hoặc bài toán không liên quan! Với Mật mã / Số học: dùng "math_equation", "diagram"/"flowchart", "code" (pseudocode), hoặc "pycode"/"manim" mô tả chính xác cơ chế toán học.
 - Scene 1 (HOOK) BẮT BUỘC là "animation" hoặc "challenge", vẽ chuyển động ngay từ giây đầu tiên.
 - "visual_prompt" của scene animation PHẢI mô tả 3 yếu tố, đồng bộ với deictic narration:
   1. DỮ LIỆU CỤ THỂ (3 lệnh CPU, mảng 4 số, ma trận 2x3, 3 node mạng, cụm 4 GPU...).

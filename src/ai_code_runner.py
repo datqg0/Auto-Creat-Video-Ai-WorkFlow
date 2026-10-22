@@ -258,6 +258,7 @@ def generate_matplotlib_from_prompt(
         f"4. CLEANLINESS & ANTI-COLLISION:\n"
         f"   - Minimalist styling, subtle grid, clear annotations for key points.\n"
         f"   - ANTI-COLLISION: Ensure all text annotations (ax.annotate / ax.text) have distinct coordinates so they NEVER overlap. When tracking multiple variables, format them into a single multiline status box in a corner.\n"
+        f"   - SAFE MARGINS & NO CLIPPING: Always ensure margins via fig.subplots_adjust(top=0.86, bottom=0.14, left=0.10, right=0.92). Never place titles or labels near edges (keep y < 0.88 and y > 0.12) to prevent camera crop.\n"
         f"   - Do NOT render episode titles or banners ('Tập X/Y') on the figure canvas.\n\n"
         f"CRITICAL TECHNICAL RULES:\n"
         f"- The runner already injects: WIDTH, HEIGHT, FPS, DURATION, OUT_PATH = 'out.mp4', and sets dark background. DO NOT REDEFINE THEM.\n"
