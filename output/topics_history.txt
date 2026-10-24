@@ -63,3 +63,4 @@
 2026-10-24T03:23:39.927662	Bubble Sort: Tại sao bong bóng lại chậm hơn tốc độ ánh sáng?
 2026-10-24T03:25:00.443916	QuickSort: Không ngờ một cú cắt đôi có thể làm dữ liệu bay hết tốc độ!
 2026-10-24T03:26:48.344359	Merge Sort: Khi hai dãy hợp nhất, tốc độ tăng gấp đôi?
+2026-10-24T03:36:35.296461	Mạng Nơ‑ron Đa Lớp (MLP) & Ma thuật Backpropagation: Học sâu từ đầu đến cuối
