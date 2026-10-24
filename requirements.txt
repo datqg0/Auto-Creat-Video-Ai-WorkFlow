@@ -43,3 +43,5 @@ duckduckgo_search>=8.0.0
 pydantic>=2.5.0
 json-repair>=0.30.0
 psycopg2-binary>=2.9.0
+beautifulsoup4>=4.12.0
+pypdf>=4.0.0

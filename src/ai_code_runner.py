@@ -227,11 +227,28 @@ def generate_matplotlib_from_prompt(
         return None
 
     context_section = ""
-    if topic or narration:
+    research_section = ""
+    if topic:
+        try:
+            from .research_engine import gather_research
+            res_doc = gather_research(topic)
+            if res_doc:
+                parts = []
+                if res_doc.math_formulas:
+                    parts.append("Exact Formulas: " + ", ".join(res_doc.math_formulas[:4]))
+                if res_doc.sample_data:
+                    parts.append("Sample Data / Verified Walkthrough:\n  " + res_doc.sample_data[:400].replace("\n", "\n  "))
+                if parts:
+                    research_section = f"- FACT-CHECKED RESEARCH REFERENCE (COMPLY 100%):\n  " + "\n  ".join(parts) + "\n"
+        except Exception:
+            pass
+
+    if topic or narration or research_section:
         context_section = (
             f"SCENE CONTEXT:\n"
             f"- Video Topic: {topic}\n"
-            f"- Voiceover Narration: \"{narration}\"\n\n"
+            f"- Voiceover Narration: \"{narration}\"\n"
+            f"{research_section}\n"
         )
 
     prompt = (
@@ -241,7 +258,8 @@ def generate_matplotlib_from_prompt(
         f"VISUAL CONCEPT TO RENDER: {description}\n"
         f"TARGET DURATION: {duration:.1f} seconds.\n\n"
         f"PRECISION & CYBERPUNK VISUAL QUALITY GUIDELINES:\n"
-        f"1. ACCURACY FIRST: Faithfully model the exact mechanism, mathematical formula, or algorithm progression.\n"
+        f"1. ACCURACY FIRST (RESEARCH COMPLIANCE): Faithfully model the exact mechanism, mathematical formula, or algorithm progression.\n"
+        f"   - If research reference or narration specifies numbers, formulas, or arrays, ANIMATE THOSE EXACT VALUES.\n"
         f"   - Synchronize with the voiceover narration so the graphic visually matches what is being explained.\n"
         f"   - For data structures/algorithms: accurately simulate state changes (comparisons, pointers, swaps, traversal).\n"
         f"   - For math/physics/signals: plot exact functions, vectors, phase changes, or distributions.\n"
@@ -291,11 +309,28 @@ def generate_manim_from_prompt(
         return None
 
     context_section = ""
-    if topic or narration:
+    research_section = ""
+    if topic:
+        try:
+            from .research_engine import gather_research
+            res_doc = gather_research(topic)
+            if res_doc:
+                parts = []
+                if res_doc.math_formulas:
+                    parts.append("Exact Formulas: " + ", ".join(res_doc.math_formulas[:4]))
+                if res_doc.sample_data:
+                    parts.append("Sample Data / Verified Walkthrough:\n  " + res_doc.sample_data[:400].replace("\n", "\n  "))
+                if parts:
+                    research_section = f"- FACT-CHECKED RESEARCH REFERENCE (COMPLY 100%):\n  " + "\n  ".join(parts) + "\n"
+        except Exception:
+            pass
+
+    if topic or narration or research_section:
         context_section = (
             f"SCENE CONTEXT:\n"
             f"- Video Topic: {topic}\n"
-            f"- Voiceover Narration: \"{narration}\"\n\n"
+            f"- Voiceover Narration: \"{narration}\"\n"
+            f"{research_section}\n"
         )
 
     prompt = (
@@ -307,7 +342,8 @@ def generate_manim_from_prompt(
         f"{description}\n\n"
         f"TARGET DURATION: {duration:.1f} seconds.\n\n"
         f"PEDAGOGICAL & VISUAL RULES FOR MAXIMUM PRECISION:\n"
-        f"1. EXACT DYNAMIC MECHANISM: Faithfully depict the exact state transitions of the algorithm or mathematical concept.\n"
+        f"1. EXACT DYNAMIC MECHANISM (RESEARCH COMPLIANCE): Faithfully depict the exact state transitions of the algorithm or mathematical concept.\n"
+        f"   - If research reference specifies formulas, numbers, or arrays, ANIMATE THOSE EXACT VALUES.\n"
         f"   - Synchronize with the voiceover narration so the graphic visually matches what is being explained.\n"
         f"   - For data structures: clearly position nodes/elements, highlight active pointers, animate swaps/inserts/traversals.\n"
         f"   - For systems/networks: show sender, receiver, and data packets flowing across channels with send(a, b).\n"

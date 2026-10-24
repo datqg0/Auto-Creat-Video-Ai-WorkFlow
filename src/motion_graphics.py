@@ -722,7 +722,7 @@ def _d_two_pointers(scene: Scene, lang: str) -> dict | None:
         {"left": 2, "right": 4, "sum": 16, "action": "5 + 11 = 16 == TARGET (MATCH FOUND!)", "matched": True},
     ]
 
-    bc = a.get("breadcrumb") or "DEEP-ML / PROBLEM 03 / TWO POINTERS"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / TWO POINTERS" if scene.heading else "ALGORITHMS / TWO POINTERS")
     diff = a.get("difficulty") or "Easy"
     cat = a.get("category") or "Algorithms"
 
@@ -758,7 +758,7 @@ def _d_stack_queue(scene: Scene, lang: str) -> dict | None:
         {"op": "PUSH", "val": 55},
     ]
 
-    bc = a.get("breadcrumb") or (f"DEEP-ML / PROBLEM 04 / {kind.upper()} ({'LIFO' if kind == 'stack' else 'FIFO'})")
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / {kind.upper()}" if scene.heading else f"DATA STRUCTURES / {kind.upper()} ({'LIFO' if kind == 'stack' else 'FIFO'})")
     diff = a.get("difficulty") or "Easy"
     cat = a.get("category") or "Data Structures"
 
@@ -788,7 +788,7 @@ def _d_dp_grid(scene: Scene, lang: str) -> dict | None:
     cols = a.get("cols") or 4
     formula = a.get("formula") or "dp[i][j] = dp[i-1][j] + dp[i][j-1]"
 
-    bc = a.get("breadcrumb") or "DEEP-ML / PROBLEM 12 / DYNAMIC PROGRAMMING"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / DYNAMIC PROGRAMMING" if scene.heading else "ALGORITHMS / DYNAMIC PROGRAMMING")
     diff = a.get("difficulty") or "Medium"
     cat = a.get("category") or "Algorithms"
 
@@ -1146,7 +1146,7 @@ def _d_linear_transform(scene: Scene, lang: str) -> dict | None:
 
     matrix = a.get("matrix") or [[2, 1], [0.5, 1.5]]
     det = a.get("det") or (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0])
-    bc = a.get("breadcrumb") or "3BLUE1BROWN / LINEAR ALGEBRA / MATRIX TRANSFORMATION"
+    bc = a.get("breadcrumb") or (f"{scene.heading.upper()} / MATRIX TRANSFORMATION" if scene.heading else "LINEAR ALGEBRA / MATRIX TRANSFORMATION")
     diff = a.get("difficulty") or "Medium"
     cat = a.get("category") or "Linear Algebra"
 

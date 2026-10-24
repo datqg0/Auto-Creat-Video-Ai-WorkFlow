@@ -19,9 +19,10 @@ output/*
 !output/state.db
 !output/topics_history.txt
 
-# Caches tải ảnh và video
+# Caches tải ảnh, video và research
 assets/image_cache/
 assets/video_cache/
+assets/cache/
 downloaded_video/
 
 # Thư mục clone tham khảo nghiên cứu

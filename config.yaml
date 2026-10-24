@@ -401,3 +401,19 @@ series:
   default_episodes: 5
   short_episodes: 5     # Số tập cho mỗi chuỗi Shorts (60-180s, dọc 9:16)
   long_episodes: 5      # Số tập cho mỗi chuỗi Video Dài (5-15p, ngang 16:9)
+
+# ---- Nghiên cứu tài liệu khoa học & thực nghiệm (Research & Fact-checking Engine) ----
+research:
+  enabled: true
+  max_chars: 4000            # Giới hạn ký tự tài liệu đưa vào prompt
+  cache_enabled: true
+  cache_dir: "assets/cache/research"
+  # 3 tầng fallback:
+  #   tier1_auto_search: Tự động tìm & tải trên mạng (Wikipedia, DuckDuckGo, ArXiv, TinyFish)
+  #   tier2_backup_link: Tải từ danh sách link backup uy tín trong assets/docs/sources.yaml
+  #   tier3_offline_doc: Sử dụng kho tài liệu chuẩn bị sẵn offline trong assets/docs/
+  fallback_tiers:
+    - auto_search
+    - backup_links
+    - offline_docs
+  enforce_strict_accuracy: true # Bắt buộc kịch bản và animation phải bám sát công thức/số liệu thật

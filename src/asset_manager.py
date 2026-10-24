@@ -99,7 +99,8 @@ def icon_to_png(svg_path: Path, out_png: Path, size: int = 160) -> Path | None:
 
     out_png.parent.mkdir(parents=True, exist_ok=True)
 
-    if os.path.exists(_EDGE_PATH):
+    browser = get_browser_path()
+    if browser and os.path.exists(browser):
         try:
             # Tạo file HTML bọc SVG
             svg_content = svg_path.read_text(encoding="utf-8")
@@ -115,7 +116,7 @@ def icon_to_png(svg_path: Path, out_png: Path, size: int = 160) -> Path | None:
             tmp_html.write_text(html, encoding="utf-8")
 
             cmd = [
-                _EDGE_PATH,
+                browser,
                 "--headless",
                 "--disable-gpu",
                 f"--screenshot={out_png.resolve()}",
