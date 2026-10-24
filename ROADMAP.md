@@ -54,8 +54,8 @@ topic_selector → script_writer (LLM) → tts → visual_engine / mathviz
 - [ ] Validate JSON kịch bản chặt hơn (schema) trước khi render.
 
 ### 3.3 Dọn dẹp
-- [ ] Xóa các file test tạm trong `output/preview/*.png`.
-- [ ] Gộp/điền bảng trống trong `Architecture.md`.
+- [x] Xóa các file test tạm trong `output/preview/*.png` và các thư mục test thừa trong `output/` (đã giải phóng 17.44 MB).
+- [x] Điền đầy đủ tài liệu kiến trúc thực tế, xóa bảng placeholder trống trong `Architecture.md`.
 
 ---
 

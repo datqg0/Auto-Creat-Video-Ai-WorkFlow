@@ -8,7 +8,7 @@ import logging
 import random
 
 from . import db
-from .config import CONFIG
+from .config import CONFIG, ROOT
 
 log = logging.getLogger(__name__)
 
@@ -39,21 +39,30 @@ def pick_topic() -> str:
     domains: list[str] = topics_cfg["domains"]
     dedup_days = int(topics_cfg.get("dedup_days", 30))
     priority_indices: list[int] = topics_cfg.get("priority_domain_indices", [])
+    active_mode = CONFIG.get("active_mode", "long")
 
     used = db.recent_topics(dedup_days)
 
-    # Quyết định dùng priority domain hay random domain
-    use_priority = priority_indices and _should_use_priority_domain()
-
-    if use_priority:
-        valid_priority = [i for i in priority_indices if 0 <= i < len(domains)]
-        if valid_priority:
-            domain = domains[random.choice(valid_priority)]
-            log.info("🎯 Chọn PRIORITY domain (GitHub/AI/thuật toán): %s", domain)
+    # 1. Chế độ VIDEO DÀI (long / mega) -> Chuyên AI & Machine Learning từ số 0 (Deep-ML)
+    if active_mode in ("long", "mega"):
+        domain = "Trí tuệ nhân tạo & Học máy từ số 0 (Deep-ML & AI from Scratch: Transformers, Attention, Neural Networks, CNN, Loss Functions, Gradient Descent, Backpropagation, Optimizers)"
+        log.info("🎯 [Video Dài / Mega] Định tuyến chuyên đề AI & Học máy từ số 0 (Deep-ML): %s", domain)
+    # 2. Chế độ VIDEO NGẮN (short) -> Chuẩn phong cách Shorts @onjsdev (Visual Algorithms, Sorting, Pathfinding, Math)
+    elif active_mode == "short":
+        domain = "Thuật toán trực quan & Kỳ quan toán học (Phong cách Shorts @onjsdev: Sorting Algorithms, Pathfinding & Mazes, Fast Pi Formulas, Graph Traversals)"
+        log.info("🎯 [Video Ngắn / Shorts] Định tuyến phong cách @onjsdev: %s", domain)
+    else:
+        # Quyết định dùng priority domain hay random domain cho các trường hợp khác
+        use_priority = priority_indices and _should_use_priority_domain()
+        if use_priority:
+            valid_priority = [i for i in priority_indices if 0 <= i < len(domains)]
+            if valid_priority:
+                domain = domains[random.choice(valid_priority)]
+                log.info("🎯 Chọn PRIORITY domain (GitHub/AI/thuật toán): %s", domain)
+            else:
+                domain = random.choice(domains)
         else:
             domain = random.choice(domains)
-    else:
-        domain = random.choice(domains)
 
     used_block = "\n".join(f"- {t}" for t in used) if used else "(chua co)"
     lang = CONFIG.get("language", "vi")
@@ -232,15 +241,44 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
                 "\n  + 'Nén ảnh JPEG / MP3: Máy tính đã đánh lừa mắt và tai của chúng ta tinh vi như thế nào?'"
                 "\n  + 'Nhiếp ảnh điện toán: Tại sao camera điện thoại bé tí lại chụp đêm sáng rõ hơn cả mắt người?'"
             )
-        elif any(k in domain.lower() for k in ("trí tuệ nhân tạo", "ai", "machine learning", "ml", "attention", "diffusion", "nơ-ron")):
+        elif any(k in domain.lower() for k in ("trí tuệ nhân tạo", "ai", "machine learning", "ml", "attention", "diffusion", "nơ-ron", "deep-ml")):
+            # Đọc ngẫu nhiên 5 đề bài thực tế từ kho Deep-ML để gợi ý
+            sample_deepml_hints = ""
+            deepml_idx_file = ROOT / "assets" / "docs" / "deepml" / "problems_index.json"
+            if deepml_idx_file.exists():
+                try:
+                    import json
+                    with open(deepml_idx_file, "r", encoding="utf-8") as f:
+                        probs = json.load(f)
+                    avail = [p for p in probs if p.get("title", "") not in used_block]
+                    sampled = random.sample(avail, min(5, len(avail)))
+                    sample_deepml_hints = "\n- Một số bài toán Deep-ML từ số 0 để bạn tham khảo hoặc phát triển chủ đề:\n" + "\n".join(
+                        f"  + #{p.get('id')}: {p.get('title')} ({p.get('category')} - {p.get('difficulty')})" for p in sampled
+                    )
+                except Exception:
+                    pass
+
             github_hint = (
-                "\n\nGỢI Ý CHỦ ĐỀ TRÍ TUỆ NHÂN TẠO & HỌC MÁY TRỰC QUAN (AI VISUALIZED):"
-                "\n- Cốt lõi: Mổ xẻ cơ chế toán học và hình học đằng sau các mô hình AI đột phá nhất hiện nay."
-                "\n  + 'Attention Mechanism: Ma trận chú ý thực sự giúp ChatGPT hiểu được ngữ cảnh câu nói con người ra sao?'"
-                "\n  + 'Mô hình Diffusion: Làm sao AI vẽ nên bức tranh tuyệt mỹ chỉ từ một màn hình đầy nhiễu hạt tuyết?'"
-                "\n  + 'Vector Embeddings: Làm thế nào máy tính đo được khoảng cách ý nghĩa giữa từ Vua, Nữ hoàng và Vương miện?'"
-                "\n  + 'Gradient Descent: Trực giác hình học về quả bóng lăn xuống thung lũng giúp AI tự học từ sai lầm'"
-                "\n  + 'Mạng nơ-ron CNN: Thị giác máy tính bóc tách từng đường nét để nhận diện khuôn mặt con người như thế nào?'"
+                "\n\nGỢI Ý CHỦ ĐỀ CHUYÊN BIỆT AI & MACHINE LEARNING TỪ SỐ 0 (DEEP-ML & FOUNDATIONS):"
+                "\n- Cốt lõi: Mổ xẻ toán học, trực giác hình học và hướng dẫn tự code thuật toán từ số 0 bằng Python/NumPy (không dùng thư viện đen)."
+                "\n  + 'Tự viết Masked Self-Attention từ số 0 bằng NumPy (Bản chất lõi của Transformers & ChatGPT)'"
+                "\n  + 'Bên trong Gradient Descent: Tự lập trình thuật toán tối ưu hóa xương sống của AI từ số 0'"
+                "\n  + 'Softmax Regression & Cross-Entropy: Giải mã hàm mất mát và phân loại đa lớp từ số 0'"
+                "\n  + 'Tự code Convolutional Layer & Max Pooling: Cách thị giác máy tính nhận diện ảnh từ ma trận số'"
+                "\n  + 'Adam Optimizer: Tại sao thuật toán tối ưu hóa này lại áp đảo toàn bộ nền công nghiệp AI?'"
+                "\n  + 'Tự cài đặt K-Means Clustering & PCA: Thuật toán nén chiều dữ liệu và phân cụm không gian'"
+                + sample_deepml_hints
+            )
+        elif any(k in domain.lower() for k in ("onjsdev", "kỳ quan toán học")):
+            github_hint = (
+                "\n\nGỢI Ý CHỦ ĐỀ Y HỆT PHONG CÁCH YOUTUBE SHORTS CỦA @ONJSDEV (VISUAL ALGORITHMS & MATH WONDERS):"
+                "\n- Cốt lõi: Trực quan hóa thuật toán bằng chuyển động màu sắc cao độ (thanh neon, so sánh pointer i/j, mê cung, công thức toán kỳ thú)."
+                "\n  + 'Bubble Sort vs QuickSort: Tại sao thuật toán chia để trị lại nhanh hơn gấp 1.000 lần?'"
+                "\n  + 'Thuật toán tạo mê cung Hunt and Kill: Cách máy tính vừa săn tìm vừa đục đường đi siêu mượt'"
+                "\n  + 'Công thức tính Pi siêu tốc của anh em nhà Chudnovsky: Mỗi bước cộng ra thêm 14 chữ số Pi'"
+                "\n  + 'A* Pathfinding: Thuật toán tìm đường ngắn nhất đánh bại Dijkstra trong game như thế nào?'"
+                "\n  + 'Merge Sort: Điệu nhảy chia để trị mượt mà nhất trong thế giới thuật toán'"
+                "\n  + 'Phương pháp Babylon tính căn bậc 2: Thuật toán cổ xưa chuẩn xác đến kinh ngạc'"
             )
         elif any(k in domain.lower() for k in ("ngôn ngữ lập trình", "programming language", "so sánh", "rust", "c++", "python", "golang", "go", "javascript", "compiler")):
             github_hint = (

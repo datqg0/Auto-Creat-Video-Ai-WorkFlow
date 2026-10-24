@@ -52,7 +52,7 @@ _BASE_PRESETS = {
     "matrix_op", "visual_algo", "tree_graph", "two_pointers", "stack_queue", "dp_grid",
     "flowchart", "system_layers", "comparison_matrix", "radar_chart",
     "trie_tree", "graph_network", "donut_chart", "math_equation", "linear_transform", "calculus_curve",
-    "stickman", "stickman_explainer",
+    "stickman", "stickman_explainer", "onjsdev_visualizer",
 }
 
 _BAD_TITLE_PREFIXES = (
@@ -166,74 +166,43 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
-_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML & TECH STUDIO & 3BLUE1BROWN):
-  * linear_transform (Biến đổi tuyến tính 2D / Không gian lưới 3Blue1Brown):
-    {"preset": "linear_transform", "matrix": [[2, 1], [0.5, 1.5]], "det_label": "det(A) = 2.5", "vector_i": "î = [2, 0.5]ᵀ (Xanh lá)", "vector_j": "ĵ = [1, 1.5]ᵀ (Hồng tím)"}
-    (Kinh điển 3Blue1Brown: lưới toạ độ Cartesian biến dạng mượt, vector cơ sở î và ĵ chuyển động và kéo giãn diện tích det(A)).
-  * calculus_curve (Giải tích đạo hàm / Tiếp tuyến trượt 3Blue1Brown):
-    {"preset": "calculus_curve", "func_name": "f(x) = x³ - 3x + 2", "derivative_name": "f'(x) = 3x² - 3", "x0": 1.2, "tangent_slope": "f'(1.2) = 1.32", "insight": "Đạo hàm là hệ số góc tức thời của tiếp tuyến"}
-    (Kinh điển 3Blue1Brown: đường cong hàm số mượt, tiếp điểm P trượt dọc đồ thị, tiếp tuyến xoay theo hệ số góc f'(x)).
-  * math_equation (Công thức bóc tách 4 màu neon 3Blue1Brown):
-    {"preset": "math_equation", "title": "Scaled Dot-Product Attention", "latex": "Attention(Q, K, V) = softmax(Q·Kᵀ / √dₖ) · V", "parts": [{"symbol": "Q · Kᵀ", "name": "Độ tương quan", "desc": "Tích vô hướng Query và Key", "color": "#ffe600"}, {"symbol": "/ √dₖ", "name": "Co giãn", "desc": "Ổn định phương sai", "color": "#00f0ff"}, {"symbol": "softmax(...)", "name": "Xác suất", "desc": "Chuẩn hoá tổng trọng số về 1.0", "color": "#ff2bd6"}, {"symbol": "· V", "name": "Tổng hợp", "desc": "Nhân với Value lấy ngữ cảnh quan trọng", "color": "#39ff14"}], "insight": "Bản chất là phép tra cứu mềm (Soft Lookup)"}
-    (Công thức trung tâm nổi bật, 4 card bóc tách từng ký hiệu bằng màu neon tương ứng).
-  * trie_tree (Cây tiền tố Trie & Tìm kiếm chuỗi):
-    {"preset": "trie_tree", "words": ["CAT", "CAR", "CARD", "DO", "DOG"], "query": "CAR"}
-    (Cây tiền tố nhiều tầng, đường duyệt từng ký tự sáng vàng neon, kết quả tìm thấy sáng xanh lá).
-  * graph_network (Đồ thị trọng số & Dijkstra Shortest Path):
-    {"preset": "graph_network", "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}, {"id": "D"}], "edges": [{"from": "A", "to": "B", "weight": 4}, {"from": "A", "to": "C", "weight": 2}, {"from": "C", "to": "B", "weight": 1}, {"from": "B", "to": "D", "weight": 5}], "path": ["A", "C", "B", "D"]}
-    (Đồ thị mạng lưới trọng số, đường đi ngắn nhất phát sáng cyan viền vàng).
-  * donut_chart (Biểu đồ Donut bung nổ neon):
-    {"preset": "donut_chart", "slices": [{"label": "Attention", "value": 55, "color": "#00f0ff"}, {"label": "FFN", "value": 25, "color": "#ffe600"}, {"label": "Embedding", "value": 20, "color": "#ff2bd6"}], "center_label": "ATTENTION 55%"}
-    (Lát cắt phần trăm phát quang dạng vòng tròn donut neon, lát lớn nhất bung tách ra ngoài).
-  * flowchart (Sơ đồ luồng Pipeline xử lý dữ liệu):
-    {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client App"}, {"id": 1, "label": "API Gateway"}, {"id": 2, "label": "Message Queue"}, {"id": 3, "label": "Worker Service"}, {"id": 4, "label": "Database Cache"}]}
-    (Khối chức năng nối bằng mũi tên phát sáng, hạt dữ liệu photon di chuyển qua từng trạm).
-  * system_layers (Sơ đồ phân tầng kiến trúc Multi-Tier):
-    {"preset": "system_layers", "layers": [{"name": "Client Tier", "components": ["Web SPA", "Mobile App"]}, {"name": "Service Tier", "components": ["Core Engine", "Workers"]}, {"name": "Storage Tier", "components": ["WAL Log", "Postgres"]}]}
-    (Các tầng kiến trúc xếp chồng với luồng dữ liệu hai chiều Request-Response).
-  * comparison_matrix (Bảng ma trận so sánh tiêu chí & Big-O):
-    {"preset": "comparison_matrix", "headers": ["Tiêu chí", "Giải pháp Cũ (Naive)", "Giải pháp Mới (Optimal)"], "rows": [["Độ phức tạp thời gian", "O(N²)", "O(N log N) ✔"], ["Bộ nhớ phụ trợ", "O(N)", "O(1) ✔"], ["Khả năng mất điện", "Mất toàn bộ ✖", "Bất tử với WAL ✔"]]}
-    (Bảng so sánh đa cột kỹ thuật với icon ✔, ✖ highlight cột tối ưu chiến thắng).
-  * radar_chart (Mạng nhện đánh giá đa chỉ số Trade-offs):
-    {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"], "series": [{"name": "Truyền thống", "values": [40, 80, 45, 85, 90]}, {"name": "Hiện đại", "values": [95, 85, 90, 95, 60]}]}
-    (Lưới đa giác mạng nhện phát sáng 2 màu neon so sánh sự đánh đổi trade-offs).
-  * gpu_sharding (Phân mảnh bộ nhớ GPU, ZeRO & FSDP - Chuẩn ZeRO/3Blue1Brown):
-    {"preset": "gpu_sharding", "num_gpus": 4, "stage": "zero_3", "model_params": "7.5B", "used_gb": 30, "max_gb": 32, "formula": "(2P + 2P + 12P) / 4"}
-    (4 cột GPU node Shard 1..4, các dải bộ nhớ Parameters CY, Gradients GR, Optimizer states OR/PU được phân mảnh đều, thước đo VRAM kế bên chuyển xanh an toàn < 32GB).
-  * matrix_op (Ma trận & Đại số tuyến tính - Giống Lesson.mp4):
-    {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×"}
-    (Phép toán ma trận: ô đang tính sáng vàng neon, công thức hiện bên dưới, ô kết quả hiện sáng xanh lá).
-  * visual_algo (Bảng tính vi mô từng bước - Giống Lesson (1).mp4):
-    {"preset": "visual_algo", "table": {"headers": ["Ngày", "X", "Y", "dx", "dy", "Tích dx*dy"], "rows": [[1, 2, 4, -2, -2, 4], [2, 4, 6, 0, 0, 0]]}, "formula": "Cov(X, Y) = Σ(dx · dy) / (N - 1) = 4"}
-    (Bảng tính từng bước khớp deictic narration).
-  * tree_graph (Cây nhị phân BST / Duyệt cây):
-    {"preset": "tree_graph", "target": 12}
-    (Cây BST: node đang xét sáng vàng neon, đường traversal sáng cyan, node tìm thấy sáng xanh lá).
-  * two_pointers (Hai con trỏ / Sliding Window):
-    {"preset": "two_pointers", "data": [2, 3, 5, 7, 11, 15], "target": 16}
-    (Mảng 1D, con trỏ L và R di chuyển, khung cửa sổ sáng vàng neon).
-  * stack_queue (Ngăn xếp Stack LIFO / Hàng đợi Queue FIFO):
-    {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "PUSH 17", "POP -> 17", "PUSH 99"]}
-    (Phần tử push rơi vào và pop nảy ra trực quan sinh động).
-  * dp_grid (Bảng Quy hoạch động 2D DP Table):
-    {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]"}
-    (Bảng DP 2D: ô đang tính sáng vàng, mũi tên nhận giá trị từ ô phụ thuộc).
-  * stickman_explainer (Người que diễn hoạt StykAnimate - IK & Hành động trực quan):
-    {"preset": "stickman_explainer", "pose": "pointing", "topic_heading": "Cơ chế then chốt", "bullet": "Con trỏ chỉ thẳng vào trọng tâm thuật toán", "code_snippet": "Q @ K.T"}
-    (Người que phong cách StykAnimate: tay dùng IK chỉ laser vào công thức/sơ đồ, pose 'pointing'|'confused'|'idea'|'coding'|'walk', giải thích deictic narration).
-  * function : {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
+_CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML, ONJSDEV & 3BLUE1BROWN):
+  * linear_transform: {"preset": "linear_transform", "matrix": [[2, 1], [0.5, 1.5]], "det_label": "det(A) = 2.5", "vector_i": "î = [2, 0.5]ᵀ", "vector_j": "ĵ = [1, 1.5]ᵀ"}
+  * calculus_curve: {"preset": "calculus_curve", "func_name": "f(x) = x³ - 3x + 2", "derivative_name": "f'(x) = 3x² - 3", "x0": 1.2, "tangent_slope": "f'(1.2) = 1.32"}
+  * math_equation: {"preset": "math_equation", "title": "Loss / Attention", "latex": "L = -[y log p + (1-y) log(1-p)]", "parts": [{"symbol": "y log p", "name": "True class loss", "desc": "Khi y=1", "color": "#ffe600"}]}
+  * trie_tree: {"preset": "trie_tree", "words": ["CAT", "CAR", "CARD", "DO", "DOG"], "query": "CAR"}
+  * graph_network: {"preset": "graph_network", "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}], "edges": [{"from": "A", "to": "B", "weight": 4}], "path": ["A", "B"]}
+  * donut_chart: {"preset": "donut_chart", "slices": [{"label": "Attention", "value": 55, "color": "#00f0ff"}, {"label": "FFN", "value": 45, "color": "#ffe600"}], "center_label": "ATTENTION 55%"}
+  * flowchart: {"preset": "flowchart", "nodes": [{"id": 0, "label": "Client App"}, {"id": 1, "label": "API Gateway"}, {"id": 2, "label": "Database"}]}
+  * system_layers: {"preset": "system_layers", "layers": [{"name": "Client Tier", "components": ["Web SPA"]}, {"name": "Service Tier", "components": ["Core Engine"]}]}
+  * comparison_matrix: {"preset": "comparison_matrix", "headers": ["Tiêu chí", "Naive", "Optimal"], "rows": [["Thời gian", "O(N²)", "O(N log N) ✔"]]}
+  * radar_chart: {"preset": "radar_chart", "axes": ["Tốc độ", "Bộ nhớ", "Mở rộng", "Tin cậy", "Chi phí"], "series": [{"name": "Cũ", "values": [40, 80, 45, 85, 90]}, {"name": "Mới", "values": [95, 85, 90, 95, 60]}]}
+  * gpu_sharding: {"preset": "gpu_sharding", "num_gpus": 4, "stage": "zero_3", "model_params": "7.5B", "used_gb": 30, "max_gb": 32, "formula": "(2P + 2P + 12P) / 4"}
+  * matrix_op: {"preset": "matrix_op", "scalar": 3, "matrix": [[2, 5, 1], [4, 0, 3]], "op": "×"}
+  * visual_algo: {"preset": "visual_algo", "table": {"headers": ["X", "Y", "dx", "dy", "Tích"], "rows": [[2, 4, -2, -2, 4], [4, 6, 0, 0, 0]]}, "formula": "Cov(X,Y)=4"}
+  * tree_graph: {"preset": "tree_graph", "target": 12}
+  * two_pointers: {"preset": "two_pointers", "data": [2, 3, 5, 7, 11, 15], "target": 16}
+  * stack_queue: {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "POP -> 42"]}
+  * dp_grid: {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]"}
+  * stickman_explainer: {"preset": "stickman_explainer", "pose": "pointing", "topic_heading": "Trọng tâm", "bullet": "Chỉ vào thuật toán", "code_snippet": "Q @ K.T"}
+  * onjsdev_visualizer: {"preset": "onjsdev_visualizer", "algorithm": "bubble_sort", "array": [45, 12, 89, 34, 67, 23, 91, 55], "complexity": "O(n²)", "code_snippet": "arr[j], arr[j+1] = arr[j+1], arr[j]"}
+  * function: {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
   * neural_net: {"preset": "neural_net", "layers": [3, 5, 4, 2]}
-  * bar_chart : {"preset": "bar_chart", "values": [3, 7, 5, 9], "labels": ["A", "B", "C", "D"]}
-  * sorting   : {"preset": "sorting", "data": [5, 2, 8, 1, 9, 3]}
-  * counter   : {"preset": "counter", "to_value": 1000000, "unit": "ops/s"}
-  * steps     : {"preset": "steps", "steps": ["Bước 1", "Bước 2", "Bước 3"]}
-  * custom    : {"preset": "custom", "objects": [{"id":"t1","type":"text","text":"E=mc²","x":"0.5W","y":160,"color":"accent"}, {"id":"ax","type":"axes","x_range":[-6,6],"y_range":[-2,2]}], "timeline": [{"play": [{"anim":"write","target":"t1","run_time":1.0}]}]}
-    (objects: text, axes, graph, formula, rect, circle, arrow, dot; anims: fade_in, fade_out, write, draw, grow, move, camera, transform)."""
+  * bar_chart: {"preset": "bar_chart", "values": [3, 7, 5, 9], "labels": ["A", "B", "C", "D"]}
+  * sorting: {"preset": "sorting", "data": [5, 2, 8, 1, 9, 3]}
+  * counter: {"preset": "counter", "to_value": 1000000, "unit": "ops/s"}
+  * steps: {"preset": "steps", "steps": ["Bước 1", "Bước 2", "Bước 3"]}
+  * custom: {"preset": "custom", "objects": [{"id":"t1","type":"text","text":"E=mc²","x":"0.5W","y":160,"color":"accent"}], "timeline": [{"play": [{"anim":"write","target":"t1","run_time":1.0}]}]}"""
 
 _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" hoặc "challenge" do AI vẽ.
 - BẮT BUỘC có ÍT NHẤT 1 scene "challenge" hoặc "stickman_explainer" (Người Que StykAnimate với khớp IK sống động hoặc Mascot Cô Bé Áo Khoác Tai Thỏ) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
-- Với bài toán ma trận, đại số tuyến tính, mảng, thống kê, bảng tính: ƯU TIÊN preset "matrix_op" hoặc "visual_algo" (kiểu Deep-ML) để hiển thị chi tiết từng bước tính toán.
+- VỚI VIDEO DÀI (CHUYÊN ĐỀ AI & DEEP LEARNING TỪ SỐ 0 - DEEP-ML):
+  * BẮT BUỘC lấy dữ liệu từ khối <research> (chứa đề bài, công thức toán và code NumPy từ deep-ml.com).
+  * ƯU TIÊN preset "matrix_op" (nhân ma trận), "neural_flow" / "neural_net", "math_equation" (bóc tách 4 màu công thức), "visual_algo" hoặc "manim" để hiển thị chính xác các bước tính toán và đường cong đạo hàm.
+- VỚI VIDEO NGẮN (YOUTUBE SHORTS - PHONG CÁCH @ONJSDEV):
+  * BẮT BUỘC dùng preset "onjsdev_visualizer" hoặc "sorting" / "tree_graph" / "algo_trace" theo phong cách @onjsdev.
+  * Hiển thị thanh dữ liệu neon, thẻ độ phức tạp O(n²)/O(n log n), và hộp code VS Code mô phỏng từng bước kèm SFX click/swap.
 - Với chủ đề GPU, Huấn luyện phân tán, LLM, Bộ nhớ AI: ƯU TIÊN preset "gpu_sharding" hoặc "manim" (vẽ cụm GPU #1..#4, thước đo VRAM meter, phân mảnh tham số/gradient, công thức 2P+2P+12P màu đồng bộ với hình khối).
 - ĐÚNG CHUYÊN MÔN THEO CHỦ ĐỀ (NON-NEGOTIABLE): Tuyệt đối KHÔNG gán bừa preset giải tích (calculus_curve), nhân ma trận (matrix_op), sơ đồ web (system_layers), hay hiệp phương sai (visual_algo) cho các chủ đề Mật mã học (RSA, AES, Diffie-Hellman), Số nguyên tố, hoặc bài toán không liên quan! Với Mật mã / Số học: dùng "math_equation", "diagram"/"flowchart", "code" (pseudocode), hoặc "pycode"/"manim" mô tả chính xác cơ chế toán học.
 - Scene 1 (HOOK) BẮT BUỘC là "animation" hoặc "challenge", vẽ chuyển động ngay từ giây đầu tiên.
@@ -843,7 +812,7 @@ def _research_block(research: str) -> str:
         return ""
     if "<research>" in text:
         return f"\n{text}\n"
-    limit = _int_cfg("research_max_chars", 4000, 500, 30000)
+    limit = _int_cfg("research_max_chars", 2000, 500, 30000)
     if len(text) > limit:
         text = text[:limit]
         cut = text.rfind("\n")

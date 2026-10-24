@@ -92,10 +92,6 @@ def _is_quota_or_auth_error(e: Exception) -> bool:
         "unauthorized",
         "401",
         "403",
-        "413",
-        "payload too large",
-        "request too large",
-        "tokens per minute",
         "account behind this api key",
         "billing not active",
         "model_not_found",
@@ -231,7 +227,7 @@ def _call_groq(provider: dict, prompt: str, system: str, temperature: float) -> 
     from groq import Groq
 
     api_key = _api_key(provider, "GROQ_API_KEY")
-    kwargs: dict = {"api_key": api_key}
+    kwargs: dict = {"api_key": api_key, "max_retries": 0}
     timeout = provider.get("timeout", _DEFAULT_TIMEOUT)
     if timeout is not None:
         kwargs["timeout"] = float(timeout)
@@ -239,17 +235,35 @@ def _call_groq(provider: dict, prompt: str, system: str, temperature: float) -> 
     if base_url:
         kwargs["base_url"] = base_url
     client = Groq(**kwargs)
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
-    resp = client.chat.completions.create(
-        model=provider["model"],
-        max_tokens=int(provider.get("max_output_tokens", 8192)),
-        temperature=temperature,
-        messages=messages,
-    )
-    text = (resp.choices[0].message.content or "").strip()
+
+    def _exec(p_user: str, p_sys: str):
+        msgs = []
+        if p_sys:
+            msgs.append({"role": "system", "content": p_sys})
+        msgs.append({"role": "user", "content": p_user})
+        return client.chat.completions.create(
+            model=provider["model"],
+            max_tokens=int(provider.get("max_output_tokens", 4096)),
+            temperature=temperature,
+            messages=msgs,
+        )
+
+    try:
+        resp = _exec(prompt, system)
+    except Exception as e:
+        err_msg = str(e).lower()
+        if any(w in err_msg for w in ("payload too large", "413", "tokens per minute", "tpm", "rate_limit_exceeded")):
+            log.warning("Groq %s chạm giới hạn TPM, tự động tinh giản context và thử lại...", provider["model"])
+            compact_sys = system[:1200] if system else ""
+            compact_user = prompt[:10000] if len(prompt) > 10000 else prompt
+            resp = _exec(compact_user, compact_sys)
+        else:
+            raise
+
+    choice = resp.choices[0]
+    text = (choice.message.content or "").strip()
+    if not text and hasattr(choice.message, "reasoning") and choice.message.reasoning:
+        text = str(choice.message.reasoning).strip()
     if not text:
         raise LLMError("Groq trả về rỗng")
     return _validate_response_text(provider["name"], text)

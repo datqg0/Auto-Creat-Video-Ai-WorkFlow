@@ -9,6 +9,9 @@ language: vi
 # Độ dài video mục tiêu (giây). ~300 = 5 phút (bị mode ghi đè khi chạy)
 target_duration_seconds: 300
 
+# Giới hạn ký tự tài liệu nghiên cứu đưa vào prompt kịch bản
+research_max_chars: 1800
+
 # ---- Chế độ video theo buổi ----
 # Sáng làm video dài (ngang 16:9), tối làm short (dọc 9:16, tối đa 3 phút / 180s).
 # pipeline chọn mode qua --mode; nếu không có thì dùng default_mode.
@@ -18,14 +21,17 @@ modes:
     target_duration_seconds: 300
     width: 1920
     height: 1080
+    focus: "ai_deep_ml"            # Video dài chuyên sâu AI & Machine Learning từ số 0 (Deep-ML)
   short:
-    target_duration_seconds: 175   # Tối đa YouTube Shorts cho phép là 3 phút (180s). Đặt 175s để có biên an toàn không bị vượt 180s.
+    target_duration_seconds: 60    # 60s Shorts chuẩn phong cách kênh @onjsdev (Visual Algorithms & Math)
     width: 1080
     height: 1920
+    style: "onjsdev"
   mega:
-    target_duration_seconds: 900   # 15 phút (siêu dài, chia chương tự động)
+    target_duration_seconds: 900   # 15 phút chuyên sâu toàn diện AI từ số 0
     width: 1920
     height: 1080
+    focus: "ai_deep_ml"
 
 # ---- LLM ----
 # Chuỗi fallback nhiều tầng: thử provider đầu, lỗi thì rớt sang tầng kế.
@@ -41,18 +47,19 @@ llm:
     topic:
       - gemini_37
       - gemini_latest
-      - groq
       - groq_fast
+      - groq
       - github_models
 
-    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq -> Cerebras -> GitHub Models -> Pollinations
+    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq Fast (Qwen) -> Groq (GPT OSS 120B)
     script:
       - anthropic
       - gemini_37
       - gemini_latest
-      - groq
-      - cerebras
       - groq_fast
+      - groq
+      - groq_20b
+      - cerebras
       - github_models
       - openrouter
       - pollinations
@@ -101,21 +108,21 @@ llm:
       type: groq
       model: openai/gpt-oss-120b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 4096
+      max_output_tokens: 2000
       timeout: 60
 
     - name: groq_fast
       type: groq
       model: qwen/qwen3.8-27b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 4096
+      max_output_tokens: 950
       timeout: 45
 
     - name: groq_20b
       type: groq
       model: openai/gpt-oss-20b
       api_key_env: GROQ_API_KEY
-      max_output_tokens: 4096
+      max_output_tokens: 2000
       timeout: 45
 
     # Tier 2.2 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
@@ -347,29 +354,29 @@ youtube:
 topics:
   # Lĩnh vực bao quát để AI tự do sáng tạo và chọn chủ đề phong phú, không bị lặp lại
   domains:
-    # 1. LẬP TRÌNH ĐỒ HỌA & SHADERS (Graphic Programming)
+    # 1. TRÍ TUỆ NHÂN TẠO & DEEP LEARNING TỪ SỐ 0 (AI & Deep-ML from Scratch - Trọng tâm Video Dài)
+    - "Trí tuệ nhân tạo & Deep Learning từ số 0 (Deep-ML & AI from Scratch: Attention Mechanism, Transformer, Neural Networks, CNN, Loss Functions, Gradient Descent, Backpropagation, Adam Optimizer, K-Means, PCA, Softmax Regression)"
+
+    # 2. THUẬT TOÁN TRỰC QUAN & KỲ QUAN TOÁN HỌC (onjsdev Shorts Style - Trọng tâm Video Ngắn)
+    - "Thuật toán trực quan & Tư duy logic (onjsdev style: Bubble Sort, QuickSort, Merge Sort, Insertion Sort, A* Pathfinding, Dijkstra, Mê cung Hunt and Kill, Công thức Pi Chudnovsky, Cấu trúc dữ liệu)"
+
+    # 3. LẬP TRÌNH ĐỒ HỌA & SHADERS (Graphic Programming)
     - "Lập trình đồ họa & Shaders (Graphic Programming: Ray Tracing, Rasterization, Pixel & Vertex Shaders, Signed Distance Functions SDF, Raymarching, Voxel engines, Compute Shaders mô phỏng hạt, Render Pipeline, WebGPU/OpenGL)"
 
-    # 2. THUẬT TOÁN TRỰC QUAN & TƯ DUY LOGIC (Algorithms & Logic)
-    - "Thuật toán trực quan & Tư duy logic (Algorithms: Thuật toán tìm đường A*/Dijkstra trong mê cung, Boids mô phỏng bầy đàn tự nhiên, Cấu trúc phân chia không gian Quadtree/BVH, Thuật toán nén dữ liệu Huffman/LZW, Sắp xếp trực quan Quicksort/Merge sort, Đồ thị & mạng lưới)"
-
-    # 3. PHẦN CỨNG MÁY TÍNH & CÔNG NGHỆ BÁN DẪN (Hardware & Silicon)
+    # 4. PHẦN CỨNG MÁY TÍNH & CÔNG NGHỆ BÁN DẪN (Hardware & Silicon)
     - "Phần cứng máy tính & Bán dẫn (Hardware: Bóng bán dẫn Transistor, Cổng logic số, CPU đa nhân & chu kỳ lệnh, Cache L1/L2/L3, Băng thông RAM, Kiến trúc GPU vs CPU, Chip bán dẫn 3nm & máy quang khắc ASML, Ổ SSD vs HDD, Cảm biến ảnh CMOS)"
 
-    # 4. MÃ HÓA & AN TOÀN SỐ (Cryptography & Security)
+    # 5. MÃ HÓA & AN TOÀN SỐ (Cryptography & Security)
     - "Mã hóa & An toàn số (Cryptography: Trao đổi khóa Diffie-Hellman pha màu, Mã hóa bất đối xứng RSA & số nguyên tố khổng lồ, Hàm băm một chiều SHA-256, Bằng chứng không tiết lộ tri thức Zero-Knowledge Proofs, Giấu tin trong ảnh Steganography, Chữ ký số điện tử & HTTPS)"
 
-    # 5. ĐỒ HỌA MÁY TÍNH & THỊ GIÁC (Computer Graphics & Visual Computing)
+    # 6. ĐỒ HỌA MÁY TÍNH & THỊ GIÁC (Computer Graphics & Visual Computing)
     - "Đồ họa máy tính & Thị giác (Computer Graphics: Đường cong Bézier trong vector & font chữ, Thuật toán khử răng cưa Anti-Aliasing/DLSS, Chiếu sáng vật lý PBR, Không gian màu RGB/CMYK/HDR, Occlusion Culling, Đổ bóng Shadow Mapping, Ma trận biến đổi không gian 3D)"
 
-    # 6. NGHỆ THUẬT CỦA TOÁN HỌC & MÔ PHỎNG TỰ NHIÊN (Art of Math & Simulation)
+    # 7. NGHỆ THUẬT CỦA TOÁN HỌC & MÔ PHỎNG TỰ NHIÊN (Art of Math & Simulation)
     - "Nghệ thuật của Toán học & Mô phỏng (Art of Math: Tập hợp Fractal Mandelbrot & Julia, Trò chơi cuộc sống Conway Game of Life, Biến đổi Fourier vẽ tranh bằng vòng tròn quay, Biểu đồ Voronoi trong tự nhiên, Tỷ lệ vàng Fibonacci, Hình học Tôpô Topology, Thuyết hỗn loạn Chaos Theory & Hấp dẫn tử lạ)"
 
-    # 7. CÔNG NGHỆ ĐỜI SỐNG & INTERNET CĂN BẢN (Everyday Tech & Internet Mysteries)
+    # 8. CÔNG NGHỆ ĐỜI SỐNG & INTERNET CĂN BẢN (Everyday Tech & Internet Mysteries)
     - "Công nghệ đời sống & Internet căn bản (Everyday Tech: Bí mật mã QR tự sửa lỗi Reed-Solomon, Cáp quang biển xuyên đại dương, Định vị GPS & Thuyết tương đối Einstein, Sóng Wifi vs Lò vi sóng 2.4GHz, Chai pin Lithium & sạc nhanh, Chế độ ẩn danh Incognito, Nén ảnh JPEG & MP3, Nhiếp ảnh điện toán)"
-
-    # 8. TRÍ TUỆ NHÂN TẠO & HỌC MÁY TRỰC QUAN (AI & Machine Learning Visualized)
-    - "Trí tuệ nhân tạo & Học máy trực quan (AI & Machine Learning: Cơ chế Attention Mechanism trong Transformer, Quá trình khuếch tán Diffusion tạo ảnh, Mạng nơ-ron nhận diện hình ảnh CNN, Không gian vector Embeddings, Tối ưu hóa Gradient Descent)"
 
     # 9. CÁC NGÔN NGỮ LẬP TRÌNH & SO SÁNH ĐỐI ĐẦU (Programming Languages & Showdowns)
     - "Ngôn ngữ lập trình & Cuộc chiến hiệu năng (Programming Languages: Rust vs C++, Tại sao Python chậm hơn C 100 lần, JavaScript V8 Engine & JIT Compiler, Go Goroutines vs Java Threads, Cơ chế dọn rác Garbage Collector vs Borrow Checker, Assembly vs C, Con trỏ Pointer trong C, Functional Programming Haskell/Lisp)"

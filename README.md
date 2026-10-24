@@ -17,7 +17,11 @@ Python plus FFmpeg.
 - [How It Works](#how-it-works)
 - [Tech Stack](#tech-stack)
 - [Series Engine & Auto-Curriculum Planning](#series-engine--auto-curriculum-planning)
+- [Research Engine & 3-Tier Fact-Checking](#research-engine--3-tier-fact-checking)
 - [AI Image & AI Video Generation](#ai-image--ai-video-generation)
+- [Motion Graphics Engine (HTML5/Canvas & MathJax)](#motion-graphics-engine-html5canvas--mathjax)
+- [StykAnimate 2D IK Stickman & Mascot Engine](#stykanimate-2d-ik-stickman--mascot-engine)
+- [AI-Coded Light Neon Manim Engine](#ai-coded-light-neon-manim-engine)
 - [The `mathviz` Animation Engine](#the-mathviz-animation-engine)
 - [Multi-Tier Fallbacks](#multi-tier-fallbacks)
 - [Local Setup](#local-setup)
@@ -34,11 +38,21 @@ Python plus FFmpeg.
 
 ## Highlights
 
-- **End-to-end automation** — series planning → script → animation → TTS →
+- **End-to-end automation** — series planning → research → script → animation → TTS →
   subtitles → compositing → thumbnail → upload, with zero human input.
+- **Research Engine with 3-Tier Fallback (Zero Hallucination)** — automatically researches
+  and fact-checks topics via Wikipedia REST API / DuckDuckGo / ArXiv → Curated backup links
+  (`assets/docs/sources.yaml`) → Bundled offline technical knowledge base (`assets/docs/*.md` & `.pdf`),
+  enforcing 100% mathematical accuracy (e.g. RSA $5^7 \pmod{187} = 146$) and real-world trace data.
 - **Series Engine & Auto-Curriculum Planning** — automatically plans multi-episode
   educational video series (3–7 episodes) when the database is empty or the previous
   series completes, threading narrative continuity hooks and `[Tập X/Y]` badges.
+- **Motion Graphics Engine (HTML5/Canvas & MathJax)** — renders studio-grade dynamic scenes
+  with smooth physics, binary trees, dynamic programming grids, and LaTeX-quality MathJax
+  via headless Edge/Chrome.
+- **StykAnimate 2D IK Stickman & Mascots** — integrates StykAnimate 2D Inverse Kinematics
+  (Law of Cosines, FABRIK) with procedural actions (walk, run, pointing with neon laser, idea,
+  coding, celebrate) and emotional Bunny Girl mascot reaction cards.
 - **Dual Database Backend (Neon Serverless PostgreSQL + SQLite)** — seamlessly syncs
   state across cloud CI/CD runners (GitHub Actions) via `DATABASE_URL` with automatic
   zero-config fallback to local SQLite (`output/state.db`).
@@ -57,7 +71,7 @@ Python plus FFmpeg.
   to prevent content clipping).
 - **Multi-tier image search** — Google Custom Search API → DuckDuckGo / Bing 16:9
   web search (100% free, no key needed) → Pexels → Openverse → AI FLUX illustration.
-- **Resilient by design** — 10-tier LLM fallback, multi-tier TTS, and multi-tier
+- **Resilient by design** — 10-tier LLM fallback, 3-tier research fallback, multi-tier TTS, and multi-tier
   image/video fallbacks keep the pipeline running indefinitely.
 - **Cost-aware** — runs 100% free on GitHub Actions using free-tier LLMs, Edge-TTS,
   and keyless image fallbacks.
@@ -117,7 +131,12 @@ Pipeline stages (all orchestrated by [`src/pipeline.py`](src/pipeline.py)):
 | LLM            | 10-tier fallback: Anthropic (Claude Opus) → Gemini → Groq → OpenRouter → Z.ai → Mistral → NVIDIA NIM → GitHub Models → SambaNova → Cloudflare |
 | Database       | Dual Backend: Neon Serverless PostgreSQL (`DATABASE_URL`) or SQLite Local (`output/state.db`) |
 | Series Engine  | Autonomous curriculum planning (`src/series_manager.py`) with episode continuity hooks |
+| Deep-ML AI     | 165 from-scratch verified ML/DL problems (`assets/docs/deepml/`) powering Long & Mega videos |
+| onjsdev Shorts | 9:16 vertical algorithm & math visualizer (`src/onjsdev_visualizer.py`) with ASMR audio sync |
+| Research Engine| 3-Tier Fact-Checking (`src/research_engine.py`): Wikipedia/DDG/ArXiv → Curated `sources.yaml` → Bundled offline KB (`assets/docs/`) |
 | TTS            | VieNeu-TTS → Edge-TTS (free); ElevenLabs available but disabled by default |
+| Motion Graphics| HTML5 Canvas + MathJax 3.x studio scenes via headless Edge/Chrome CLI (`src/motion_graphics.py`) |
+| 2D Stickman/IK | StykAnimate 2D Inverse Kinematics (Law of Cosines, FABRIK) + Procedural Actions & Mascot Cards (`src/stick_animate.py`) |
 | AI Animation   | Manim Community Edition (Light Neon / Cyberpunk style, zero LaTeX) with AI self-repair |
 | Math Animation | Self-written `mathviz` (Pillow + NumPy, zoom locked to 1.0)           |
 | Static visuals | Matplotlib (mathtext formulas, pure Python — no LaTeX)              |
@@ -158,6 +177,48 @@ python -m src.pipeline
 
 ---
 
+## Research Engine & 3-Tier Fact-Checking
+
+To prevent LLM hallucinations on mathematical proofs, algorithm traces, and technical specifications, the pipeline features an autonomous **Research Engine** ([`src/research_engine.py`](src/research_engine.py)). Before writing any script or generating animation code, the system gathers verified context using a strict **3-Tier Fallback Hierarchy**:
+
+```
+[Topic Query]
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Tier 1: Auto Search & Download                              │
+│ • Wikipedia REST & Action API (VI + EN, relevance-filtered) │
+│ • DuckDuckGo Instant Answer API                             │
+│ • ArXiv API (for ML & Distributed Systems papers)           │
+│ • TinyFish Web Search Fallback                              │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (if failed or low relevance)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Tier 2: Curated Backup Links (`assets/docs/sources.yaml`)   │
+│ • Categorized across 8 domains (DSA, Crypto, AI, OS, etc.)  │
+│ • Direct fetches from canonical docs (GeeksforGeeks, RFCs)  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (if offline or timeout)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Tier 3: Bundled Offline Technical Knowledge Base            │
+│ • 8 verified Markdown manuals in `assets/docs/*.md`         │
+│ • Concrete algorithm traces, exact formulas, Big-O tables   │
+│ • Local `.pdf` documentation parsing via `pypdf`            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1. Zero-Hallucination Pipeline Enforcement ("Làm Theo Tài Liệu")
+- **Script Generation ([`src/script_writer.py`](src/script_writer.py))**: Research findings are injected into the LLM system prompt inside `<research>` tags. The LLM is strictly instructed to use the verified formulas, specific trace inputs/outputs (e.g. RSA $5^7 \pmod{187} = 146$, Two Pointers array `[1, 2, 4, 7, 11]`, target $13$), and accurate Big-O complexities in both spoken narration and visual prompts.
+- **Visual & Animation Code ([`src/ai_code_runner.py`](src/ai_code_runner.py))**: Matplotlib and Manim code generation prompts ingest the research data directly. Graphs plot accurate numerical curves and animations reflect verified step-by-step state transitions rather than fabricated numbers.
+
+### 2. High-Speed Research Caching
+- Research results are normalized, hashed, and cached in `assets/cache/research/` (JSON format with configurable TTL).
+- Subsequent runs on related topics retrieve verified facts in $< 50\text{ms}$ with zero redundant network requests.
+
+---
+
 ## AI Image & AI Video Generation
 
 ### 1. Keyless AI Scene Illustration (`src/image_fetcher.py`)
@@ -171,6 +232,40 @@ Each video can feature up to 1 AI-generated video clip (`config.yaml → ai_vide
 - **Provider `ai_motion` (Default & 100% Free)**: Generates a high-resolution FLUX image and instantly renders a 5-second cinematic motion clip with smooth camera zoom, 3D pan, and cyber ambiance in ~2–3 seconds with zero credit costs.
 - **Provider `fal` (Diffusion Models)**: Connects to Fal.ai API (`FAL_KEY`) to generate real video diffusion clips using state-of-the-art models like **Wan 2.1**, **Kling**, or **LTX-Video**.
 - **Resilient Fallback**: If cloud video generation encounters rate limits or errors, it gracefully falls back to `ai_motion` to guarantee pipeline completion.
+
+---
+
+## Motion Graphics Engine (HTML5/Canvas & MathJax)
+
+For studio-quality computational layouts and complex algorithm representations, [`src/motion_graphics.py`](src/motion_graphics.py) renders high-definition scenes using **HTML5 Canvas 2D + MathJax 3.x** through headless Microsoft Edge or Google Chrome:
+
+- **Algorithmic & Data Structure Canvas Visualizations**:
+  - **Dynamic Programming Tables**: Multi-colored matrix cells with active row/column backtracking highlights and score updates.
+  - **Binary Trees & Graphs**: Auto-balanced node coordinates with animated edge pulses, BFS/DFS visitation colors, and pointer tags.
+  - **Sorting & Array Animations**: Distinct colored blocks, dual comparison markers ($L, R, mid$), and swap trails.
+  - **Neural Network Architectures**: Interactive input, hidden, and output layers with active synaptic weights and activation heatmaps.
+- **Native LaTeX Formulas via MathJax 3.x**: Math formulas (e.g. $\text{Softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}$, $\sigma(Wx+b)$, RSA modular equations) are rendered with pristine vector typography directly into the canvas without requiring bulky system LaTeX (`texlive`) installations.
+- **Dynamic Contextual HUD**: Auto-renders dynamic chapter breadcrumbs (`scene.heading`) and progress tracks in the upper HUD so viewers always know their position in the curriculum.
+- **Zero-Dependency Headless Rendering**: Utilizes standard Edge or Chrome CLI flags (`--headless`, `--screenshot`) discovered dynamically by [`src/asset_manager.py`](src/asset_manager.py) across Windows and Linux environments.
+
+---
+
+## StykAnimate 2D IK Stickman & Mascot Engine
+
+To maximize viewer engagement and provide relatable pedagogical cues, [`src/stick_animate.py`](src/stick_animate.py) introduces a lightweight 2D skeletal animation engine:
+
+- **2D Inverse Kinematics (IK)**:
+  - Solves two-bone joint angles (thigh–shin, bicep–forearm) in closed-form using the **Law of Cosines** with reach clamps.
+  - Employs **FABRIK** (Forward And Backward Reaching Inverse Kinematics) for multi-segment chains, ensuring natural poses without joint flipping or jitter.
+- **Procedural Action Loops**:
+  - `walk` / `run`: Full sinusoidal gait cycles with foot-strike, passing phase, and counter-balancing arm swings.
+  - `point_laser`: Stickman aims a high-visibility neon laser beam at key code blocks or math formulas on screen.
+  - `idea`: Sudden realization gesture with lightbulb glow, hand gesture, and energetic bounce.
+  - `coding`: Realistic keyboard typing posture at a futuristic glowing workstation.
+  - `celebrate`: Two-arm raised victory jump celebrating correct solutions and algorithmic insights.
+- **Bunny Girl Emotional Mascot Cards**:
+  - Rendered as discreet, expressive reaction overlays in the screen corner (e.g., *thinking*, *shocked at $O(n^2)$ complexity*, *proud of $O(n \log n)$ optimization*).
+  - Enhances educational warmth and personalizes technical deep-dives.
 
 ---
 
@@ -271,6 +366,12 @@ key and a successful response wins.
 2. **Local SQLite** (`output/state.db`) — Automatic zero-downtime fallback if Neon connection drops, network times out, credentials are invalid, or Neon database is paused/suspended.
 3. **In-Memory SQLite** (`:memory:`) — Automatic fallback if local file system is read-only, permissions fail, or SQLite file is locked by another process.
 4. **Append-Only File Backup & Safe Execution** (`output/topics_history.txt`) — Topic history is always written to plain text; all DB writes are safe-wrapped with timestamp fallback IDs so video rendering and YouTube upload **NEVER crash** due to database errors.
+
+**Research & Fact-Checking chain** (`src/research_engine.py`, 3-tier automatic fallback):
+
+1. **Tier 1 (Automated Web/API Search)** — Wikipedia REST & Action API (Vietnamese & English with keyword relevance matching) → DuckDuckGo Instant Answer API → ArXiv API → TinyFish.
+2. **Tier 2 (Curated Backup Links)** — Authoritative domain documentation specified in `assets/docs/sources.yaml` (8 technical categories).
+3. **Tier 3 (Bundled Offline Technical Knowledge Base)** — 8 comprehensive verified Markdown docs (`assets/docs/*.md`) + local technical `.pdf` parsing via `pypdf`.
 
 ---
 
@@ -438,6 +539,15 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | `series.auto_plan`               | Automatically plan a new 3–7 episode series when DB is empty/done.  |
 | `series.default_episodes_min`    | Minimum episodes for auto-planned curriculum (default: `3`).       |
 | `series.default_episodes_max`    | Maximum episodes for auto-planned curriculum (default: `7`).       |
+| `research.enabled`               | Enable 3-tier fact-checking & research engine before scripting.    |
+| `research.auto_download`         | Auto-search Wikipedia REST, DuckDuckGo & ArXiv (default: `true`).  |
+| `research.use_backup_links`      | Auto-fetch from curated `assets/docs/sources.yaml` when tier 1 fails.|
+| `research.use_bundled_docs`      | Auto-read bundled offline markdown docs in `assets/docs/*.md`.     |
+| `research.cache_enabled`         | Cache queries in `assets/cache/research/` to prevent latency.      |
+| `research.timeout`               | Network timeout in seconds for web research lookups (default: `10`).|
+| `motion_graphics.enabled`        | Enable HTML5/Canvas & MathJax studio rendering via headless browser.|
+| `stick_animate.enabled`          | Enable 2D Inverse Kinematics stickman procedural action loops.     |
+| `stick_animate.mascot`           | Enable emotional Bunny Girl reaction mascot overlay cards.         |
 | `animation.ai_code_primary`      | Prioritize AI-generated Python/Manim animations ($\ge 70\%$).      |
 | `animation.animate_from_start`   | Enforce animation from second 0 (Scene 1 Hook).                    |
 | `llm.providers`                  | Ordered fallback chain (model, base_url, key env, retries).        |
@@ -471,10 +581,18 @@ triggers, or set `videos_per_run: 2` with a single trigger.
 src/
 ├── pipeline.py          # Orchestrator (entry point: python -m src.pipeline)
 ├── series_manager.py    # Autonomous curriculum planner & series DB manager
+├── research_engine.py   # 3-tier fact-checking & research engine (Web → Links → Offline KB)
 ├── topic_selector.py    # Picks a fresh topic (LLM + DB dedup)
-├── script_writer.py     # LLM → structured Script (+ series context & hooks)
-├── ai_code_runner.py    # AI Python/Manim animation generator & self-repair
+├── script_writer.py     # LLM → structured Script (+ research context & series hooks)
+├── ai_code_runner.py    # AI Python/Manim animation generator & self-repair (+ research context)
 ├── ai_video.py          # Autonomous 1-clip AI video generator (ai_motion / fal)
+├── motion_graphics.py   # HTML5/Canvas & MathJax renderer via headless Edge/Chrome CLI
+├── stick_animate.py     # StykAnimate 2D IK stickman procedural actions & mascot cards
+├── onjsdev_visualizer.py# @onjsdev 9:16 Shorts engine (neon bars, code cards, ASMR sync)
+├── sfx_generator.py     # Sound effects synthesizer (click, pop, swap tones, whoosh)
+├── asset_manager.py     # Browser discovery (Edge/Chrome), fonts & asset downloader
+├── scrapers/            # Web & problem scrapers
+│   └── deepml_scraper.py# Downloads verified problems & code from deep-ml.com
 ├── mv_compat.py         # MoviePy 1.x & 2.x cross-version compatibility adapter
 ├── llm.py               # Multi-tier LLM client with fallback & quota handling
 ├── animation_bridge.py  # Safe (no eval/exec) bridge: Script → mathviz Scene
@@ -496,6 +614,17 @@ src/
     ├── custom_scene.py  # Declarative JSON → Scene interpreter
     ├── theme.py         # THEME singleton (palette, fonts, dimensions)
     └── easing.py        # Easing functions
+
+assets/docs/             # Offline technical knowledge base & sources
+├── sources.yaml         # Curated authoritative links across 8 technical domains
+├── deepml/              # 165 verified Machine Learning & Deep Learning from-scratch problems
+│   ├── problems_index.json # Master searchable index of all 165 Deep-ML problems
+│   ├── deep_learning.md    # Transformer, Attention, CNN, Backpropagation, MLP (48 problems)
+│   ├── machine_learning_fundamentals.md # Gradient Descent, Regression, SVM, K-Means (54 problems)
+│   └── linear_algebra.md   # Matrix operations, SVD, Eigenvalues, Covariance (33 problems)
+├── algorithms_dsa.md    # DSA verified traces (Two Pointers, Quicksort, Dijkstra, Big-O)
+├── cryptography_security.md # Crypto math (RSA modular steps, AES-GCM, Diffie-Hellman)
+└── *.md                 # Computer Architecture, Graphics, Networking...
 ```
 
 ---

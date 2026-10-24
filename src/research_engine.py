@@ -596,6 +596,58 @@ def _fetch_tier3_offline_docs(topic: str) -> ResearchDocument:
                     full_text=section,
                 )
 
+    # 1.5. Kiểm tra kho tri thức Deep-ML (assets/docs/deepml/)
+    deepml_dir = _DOCS_DIR / "deepml"
+    deepml_index_path = deepml_dir / "problems_index.json"
+    if deepml_index_path.exists():
+        try:
+            with open(deepml_index_path, "r", encoding="utf-8") as f:
+                deepml_problems = json.load(f)
+            
+            topic_words = set(w for w in re.findall(r"\w+", topic_lower) if len(w) > 2)
+            best_prob = None
+            best_prob_score = 0
+            
+            for p in deepml_problems:
+                title_lower = p.get("title", "").lower()
+                tags = [t.lower() for t in p.get("tags", [])]
+                score = sum(3 for w in topic_words if w in title_lower)
+                score += sum(2 for t in tags if any(w in t for w in topic_words))
+                if score > best_prob_score:
+                    best_prob_score = score
+                    best_prob = p
+
+            if best_prob and best_prob_score >= 3:
+                p_title = best_prob.get("title", "")
+                p_desc = best_prob.get("description", "")
+                p_learn = best_prob.get("learn", "")
+                p_sol = best_prob.get("solution", "")
+                p_tests = best_prob.get("tests", [])
+
+                math_formulas = re.findall(r"(?:\$\$[\s\S]*?\$\$|\$[^\n$]+?\$)", p_learn or p_desc)
+                cleaned_formulas = [f.strip().replace("\n", " ") for f in math_formulas[:10]]
+                sample_trace = json.dumps(p_tests[0], indent=2) if p_tests else ""
+                sample_data = f"```python\n{p_sol.strip()}\n```\n\n```json\n{sample_trace}\n```"
+
+                full_text = f"## {p_title} ({best_prob.get('category')})\n\n### Đề bài\n{p_desc}\n\n### Lý thuyết & Dẫn xuất\n{p_learn}\n\n### Mã nguồn NumPy chuẩn\n```python\n{p_sol}\n```"
+
+                log.info("✓ [Research Tầng 3] Khớp chính xác bài toán Deep-ML: '%s' (Điểm: %d)", p_title, best_prob_score)
+                return ResearchDocument(
+                    topic=topic,
+                    tier="tier3_offline_doc",
+                    source_name=f"Deep-ML Verified Problem #{best_prob.get('id', '')} ({p_title})",
+                    source_url=f"https://www.deep-ml.com/problems/{best_prob.get('id', '')}",
+                    title=p_title,
+                    concept=(p_desc + "\n\n" + p_learn)[:800],
+                    math_formulas=cleaned_formulas,
+                    sample_data=sample_data,
+                    steps=[s.strip() for s in re.split(r"\n###\s+", p_learn)[:5] if s.strip()],
+                    complexity=best_prob.get("difficulty", "medium"),
+                    full_text=full_text,
+                )
+        except Exception as e:
+            log.debug("Lỗi tra cứu Deep-ML index: %s", e)
+
     # 2. Quét file Markdown theo bảng chủ đề
     selected_filename = "algorithms_dsa.md"  # mặc định
     for keywords, fname in file_map:

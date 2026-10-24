@@ -61,7 +61,10 @@ def plan_new_series(
             "Ngôn ngữ lập trình & Cuộc chiến hiệu năng (Programming Languages: Rust vs C++, Python vs C, V8 JIT, Go vs Java)",
         ],
     )
-    sel_domain = domain or random.choice(domains)
+    if is_short:
+        sel_domain = domain or "Thuật toán trực quan & Kỳ quan toán học (Phong cách Shorts @onjsdev: Sorting Algorithms, Pathfinding & Mazes, Fast Pi Formulas, Graph Traversals)"
+    else:
+        sel_domain = domain or "Trí tuệ nhân tạo & Học máy từ số 0 (Deep-ML & AI from Scratch: Transformers, Attention, Neural Networks, CNN, Loss Functions, Gradient Descent, Backpropagation, Optimizers)"
 
     used_topics = db.recent_topics(days=60)
     used_block = "\n".join(f"- {t}" for t in used_topics[:25]) if used_topics else "(Chưa có chủ đề nào)"
@@ -72,20 +75,24 @@ def plan_new_series(
     lang_name = "tiếng Việt" if lang == "vi" else "English"
 
     if is_short:
-        format_instructions = f"""YÊU CẦU ĐẶC BIỆT CHO CHUỖI YOUTUBE SHORTS (9:16, 60–180 GIÂY MỖI TẬP):
-1. "series_name": Tên chuỗi ngắn gọn, giật gân, siêu kích thích tò mò bằng {lang_name} (Ví dụ: "60 Giây Hiểu Thuật Toán", "Bí Mật Phần Cứng AI", "Nghịch Lý Khoa Học Máy Tính", "Bí Ẩn RAM & CPU").
+        format_instructions = f"""YÊU CẦU ĐẶC BIỆT CHO CHUỖI YOUTUBE SHORTS (9:16, 60–180 GIÂY MỖI TẬP - PHONG CÁCH @ONJSDEV):
+1. "series_name": Tên chuỗi ngắn gọn, giật gân, siêu kích thích tò mò bằng {lang_name} theo phong cách @onjsdev (Ví dụ: "60 Giây Giải Thuật Trực Quan", "Cuộc Đua Thuật Toán Sắp Xếp", "Kỳ Quan Mê Cung & Đồ Thị", "Bí Mật Toán Học Máy Tính").
 2. Lộ trình {num_episodes} tập Shorts phải độc lập nhưng liên kết chặt chẽ (Series Hook):
-   - Mỗi tập giải quyết TRỌN VẸN 1 câu hỏi sốc, 1 mẹo bí mật, 1 nghịch lý vi mô hoặc 1 sự thật bất ngờ có thể giải thích trực quan trong 60-90 giây.
+   - Mỗi tập trực quan hóa TRỌN VẸN 1 thuật toán, 1 cấu trúc dữ liệu, hoặc 1 công thức toán học kỳ thú (Bubble Sort, QuickSort, Merge Sort, Dijkstra, A*, Mê cung Hunt and Kill, Công thức Pi Chudnovsky) có thể mô phỏng động trực quan trong 60 giây.
    - Tập 1: hook_from_previous để rỗng.
-   - Từ tập 2 trở đi: hook_from_previous là 1 câu ngắn gợi lại tập trước (Ví dụ: "Ở short trước chúng ta đã thấy vì sao 99% người hiểu sai về RAM...").
-   - hook_to_next: 1 câu kích thích người xem đón chờ short tiếp theo (Ví dụ: "Nhưng bí mật thực sự nằm ở cơ chế phân mảnh ở short sau!")."""
+   - Từ tập 2 trở đi: hook_from_previous là 1 câu ngắn gợi lại tập trước (Ví dụ: "Ở short trước chúng ta đã thấy vì sao Bubble Sort lại chậm chạp...").
+   - hook_to_next: 1 câu kích thích người xem đón chờ short tiếp theo (Ví dụ: "Nhưng thuật toán ở short sau còn nhanh hơn gấp 10 lần!")."""
     else:
-        format_instructions = f"""YÊU CẦU CHO CHUỖI VIDEO DÀI (16:9, CHIỀU SÂU BẢN CHẤT 5–15 PHÚT):
-1. "series_name": Tên chuỗi video ngắn gọn, ấn tượng, gây tò mò, viết bằng {lang_name} (Ví dụ: "Bí Mật Của Hệ Thống Phân Tán", "Kiến Trúc Transformer Từ A-Z").
-2. Lộ trình {num_episodes} tập phải có tính sư phạm kết nối chặt chẽ (scaffolding):
-   - Tập 1: Bản chất nguyên lý cốt lõi, dễ hiểu nhất, đặt ra bài toán lớn.
-   - Các tập kế tiếp: Đi sâu vào từng cơ chế kỹ thuật, tăng dần độ sâu.
-   - Tập cuối: Thực chiến quy mô lớn, tối ưu hóa hoặc tương lai.
+        format_instructions = f"""YÊU CẦU ĐẶC BIỆT CHO CHUỖI VIDEO DÀI CHUYÊN AI (16:9, CHIỀU SÂU BẢN CHẤT 5–15 PHÚT - PHONG CÁCH DEEP-ML):
+1. "series_name": Tên chuỗi video chuyên sâu AI & Deep Learning từ số 0 bằng {lang_name} (Ví dụ: "Xây Dựng Deep Learning Từ Số 0 Bằng NumPy", "Bí Mật Transformers & Attention Mechanism", "Toán Học Cốt Lõi Của Trí Tuệ Nhân Tạo", "Tự Lập Trình Mạng Nơ-ron Không Cần Framework").
+2. Lộ trình {num_episodes} tập xây dựng từ nền tảng đến kiến trúc tối tân dựa trên các bài toán chuẩn của Deep-ML (deep-ml.com):
+   - Tập 1: Trực giác Gradient Descent & Tự lập trình Hồi quy tuyến tính từ số 0
+   - Tập 2: Logistic Regression & Hàm mất mát Cross-Entropy
+   - Tập 3: Softmax Regression & Phân loại đa lớp
+   - Tập 4: Mạng nơ-ron nhiều lớp (MLP) & Thuật toán lan truyền ngược (Backpropagation)
+   - Tập 5: Lớp tích chập Convolution & Max Pooling (CNN từ số 0)
+   - Tập 6: Cơ chế Masked Self-Attention & Scaled Dot-Product (Trái tim của Transformer & LLM)
+   - Tập 7: Adam Optimizer & Kỹ thuật tối ưu hóa mô hình AI hiện đại
 3. Hook kết nối:
    - hook_from_previous: Nhắc lại nền tảng từ tập trước để người xem nắm bắt mạch kiến thức.
    - hook_to_next: Gợi mở bài toán nan giải sẽ giải quyết ở tập tiếp theo."""

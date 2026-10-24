@@ -1,482 +1,129 @@
-# Architecture
+# System Architecture — Auto-Create-Video-AI-WorkFlow
 
-## 1. Project Overview
-
-### Goal
-
-> Auto makeing video and upload to youtube
-
-### Users
-
-> Me
-
-### Main Features
-
-* Feature 1: cread insign and write it completely
-* Feature 2: write code 
-* Feature 3:
+Hệ thống tự động hóa sản xuất video giáo dục công nghệ & thuật toán trực quan chuẩn chất lượng cao (phong cách 3Blue1Brown, Kurzgesagt, NeetCode), tự động đăng tải lên YouTube.
 
 ---
 
-# 2. System Architecture
+## 1. Tổng Quan Hệ Thống
 
-## High-level Architecture
-
-```text
-                    ┌──────────────┐
-                    │    Client    │
-                    └──────┬───────┘
-                           │
-                           ▼
-                    ┌──────────────┐
-                    │  API Server  │
-                    └──────┬───────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │   Auth   │ │ AI Model │ │ Database │
-        └──────────┘ └──────────┘ └──────────┘
 ```
-
-### Components
-
-| Component  | Responsibility | Technology |
-| ---------- | -------------- | ---------- |
-| Client     |                |            |
-| API Server |                |            |
-| AI Model   |                |            |
-| Database   |                |            |
-| Cache      |                |            |
-
----
-
-# 3. Data Flow
-
-## Main Request
-
-```text
-User
- ↓
-Client
- ↓
-API
- ↓
-Validation
- ↓
-Preprocessing
- ↓
-AI Model
- ↓
-Postprocessing
- ↓
-Database
- ↓
-Response
- ↓
-Client
-```
-
-### Step-by-step
-
-1. User sends ...
-2. Client sends request to ...
-3. API validates ...
-4. Data is transformed by ...
-5. Model performs ...
-6. Result is ...
-7. Database stores ...
-8. API returns ...
-
----
-
-# 4. Control Flow
-
-> Thành phần nào gọi thành phần nào?
-
-```text
-Client
-  │
-  ▼
-API
-  │
-  ├──→ Auth
-  │
-  ├──→ Database
-  │
-  └──→ AI Service
-          │
-          └──→ Model
+                        ┌──────────────────────────────┐
+                        │       Series Manager         │
+                        │  (5-Episode Curriculum/Plan) │
+                        └──────────────┬───────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │      Topic Selector          │
+                        │ (Domain Rotation & DB Dedup) │
+                        └──────────────┬───────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │       Research Engine        │
+                        │  (3-Tier Fallback Knowledge) │
+                        │  1. Web/Wiki/ArXiv/DDG       │
+                        │  2. Curated sources.yaml     │
+                        │  3. assets/docs/ Offline DB  │
+                        └──────────────┬───────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │        Script Writer         │
+                        │  (LLM Prompting & Micro-trace│
+                        │   Part 1 + Part 2 Auto-split)│
+                        └──────────────┬───────────────┘
+                                       │
+        ┌──────────────────────────────┼──────────────────────────────┐
+        ▼                              ▼                              ▼
+ ┌──────────────┐             ┌──────────────────┐             ┌──────────────┐
+ │    TTS       │             │ Visual/Animation │             │ Image/Video  │
+ │ (VieNeu-TTS  │             │ 1. MotionGraphics│             │ 1. Pexels    │
+ │  / Edge-TTS) │             │ 2. Manim 3B1B    │             │ 2. FLUX AI   │
+ │              │             │ 3. Matplotlib    │             │ 3. AI Motion │
+ │              │             │ 4. StykAnimate IK│             │              │
+ └──────┬───────┘             └────────┬─────────┘             └──────┬───────┘
+        │                              │                              │
+        └──────────────────────────────┼──────────────────────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │         Compositor           │
+                        │ (MoviePy + FFmpeg Mastering) │
+                        │   Ken Burns + Audio Crossfade│
+                        └──────────────┬───────────────┘
+                                       │
+                        ┌──────────────┴───────────────┐
+                        ▼                              ▼
+         ┌──────────────────────────────┐ ┌──────────────────────────┐
+         │     Bilingual Subtitles      │ │     Thumbnail AI/SVG     │
+         │   (VI + EN .srt generation)  │ │ (Split Layout 40% / 60%) │
+         └──────────────┬───────────────┘ └────────────┬─────────────┘
+                        │                              │
+                        └──────────────┬───────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │       YouTube Uploader       │
+                        │ (YouTube Data API v3 Upload) │
+                        └──────────────────────────────┘
 ```
 
 ---
 
-# 5. Data
+## 2. Các Thành Phần Cốt Lõi (Core Components)
 
-## Input
-
-```text
-Input:
-- type:
-- format:
-- size:
-- source:
-```
-
-## Output
-
-```text
-Output:
-- type:
-- format:
-- destination:
-```
-
-## Database
-
-### Tables / Collections
-
-```text
-User
- ├── id
- ├── name
- └── created_at
-
-Prediction
- ├── id
- ├── user_id
- ├── input
- ├── result
- └── created_at
-```
+| Thành phần | File chính | Trách nhiệm | Công nghệ |
+|---|---|---|---|
+| **Series & Topic** | `series_manager.py`, `topic_selector.py` | Lập giáo trình chuỗi 5 tập, luân chuyển 9 domain, chống trùng lặp | SQLite, Neon DB, Python |
+| **Research Engine** | `research_engine.py` | Tra cứu tài liệu 3 tầng fallback, cung cấp công thức $0$ ảo giác | Wikipedia REST API, DuckDuckGo, ArXiv, Markdown/PDF |
+| **Script Writer** | `script_writer.py` | Tạo kịch bản JSON chia 2 phần (Long/Short), phân cảnh chi tiết | LLM Prompting, JSON-Repair |
+| **LLM Router** | `llm.py` | Điều phối multi-provider fallback theo tác vụ (Script/Code/Topic) | Opus, Gemini 3.7, Groq, Cerebras, Pollinations |
+| **TTS Engine** | `tts.py` | Chuyển văn bản thành giọng đọc truyền cảm, nhịp điệu chậm rãi | VieNeu-TTS v3 Turbo, Edge-TTS |
+| **Motion Graphics** | `motion_graphics.py` | Render đồ họa động HTML5/Canvas, công thức toán MathJax | Edge/Chrome Headless, Canvas API |
+| **AI Code Runner** | `ai_code_runner.py` | Sinh và tự sửa mã animation toán học (sandbox an toàn) | Manim Community, Matplotlib, FFmpeg |
+| **Stick Animation** | `stick_animate.py` | Hoạt họa người que diễn hoạt và linh vật hỗ trợ bài giảng | 2D IK (Law of Cosines, FABRIK), Mascot |
+| **Visual Engine** | `visual_engine.py` | Vẽ slide bài giảng, code card, challenge card | Pillow, Matplotlib |
+| **Media Fetcher** | `image_fetcher.py`, `ai_video.py` | Tải video footage B-roll và sinh ảnh minh họa nền | Pexels API, FLUX Schnell, Pollinations |
+| **Compositor** | `compositor.py` | Ghép audio/visual, zoom Ken Burns, hòa âm BGM/SFX, burn phụ đề | MoviePy, FFmpeg |
+| **Subtitles** | `subtitles.py` | Tự động tạo phụ đề song ngữ tiếng Việt & tiếng Anh | SRT Timings, LLM Translation |
+| **Thumbnail** | `thumbnail_ai.py`, `thumbnail_svg.py` | Tạo thumbnail chuẩn tỷ lệ vàng chia cột (Split 40/60) | FLUX AI, Edge Headless SVG, Pillow |
+| **Uploader** | `youtube_uploader.py` | Tự động đăng video, đặt lịch, gắn tags SEO và phụ đề | Google YouTube Data API v3 |
+| **Database** | `db.py` | Quản lý trạng thái video, tập phim chuỗi, và lịch sử upload | SQLite (cục bộ) / Neon PostgreSQL |
 
 ---
 
-# 6. State
+## 3. Luồng Dữ Liệu & Quy Trình 3 Tầng Fallback
 
-> Hệ thống cần nhớ những trạng thái nào?
+### 3.1 Luồng Nghiên Cứu Tài Liệu (Research Fallback)
+1. **Tầng 1 (Tự động tìm kiếm mạng)**: Tra cứu Wikipedia REST API (VI/EN) $\to$ DuckDuckGo API $\to$ ArXiv API $\to$ TinyFish Agent. Nếu độ tương đồng cao và có thông tin kỹ thuật, lưu cache và nạp vào prompt.
+2. **Tầng 2 (Link backup uy tín)**: Nếu Tầng 1 lỗi mạng hoặc không có kết quả, quét `assets/docs/sources.yaml` theo từ khóa domain và tải trực tiếp từ URL chuẩn (CP-Algorithms, Wikipedia Direct, RFCs).
+3. **Tầng 3 (Kho tài liệu tải sẵn offline)**: Nếu không có Internet hoặc cả 2 tầng trên thất bại, trích xuất tức thì từ `assets/docs/*.md` (hoặc `.pdf`) với công thức toán và bộ số liệu đã kiểm chứng 100%.
 
-```text
-User
- ↓
-logged_out
- ↓
-logged_in
- ↓
-processing
- ↓
-completed
-```
+### 3.2 Luồng LLM Fallback (Task Routing)
+- **Tác vụ viết kịch bản**: `Claude Opus` $\to$ `Gemini 3.7 Flash` $\to$ `Groq Llama 3.3` $\to$ `Cerebras` $\to$ `Pollinations`.
+- **Tác vụ viết code Animation**: `Claude Opus` $\to$ `Cerebras` $\to$ `Groq LPU` $\to$ `Gemini 3.7` $\to$ `Pollinations Coder`.
+- **Tác vụ chọn chủ đề**: `Gemini 3.7 Flash` $\to$ `Groq Fast` $\to$ `GitHub Models`.
 
-### Important State
-
-* User authentication state:
-* Processing state:
-* Model state:
-* Job state:
+### 3.3 Luồng Hoạt Họa (Animation Fallback)
+1. **Motion Graphics (HTML5/Canvas)**: Dành cho sơ đồ hệ thống, cây nhị phân, bảng dữ liệu, công thức MathJax.
+2. **Manim (3Blue1Brown)**: Dành cho biến đổi không gian, đại số tuyến tính, hình học trực quan, giải tích.
+3. **Matplotlib FuncAnimation**: Dành cho mô phỏng hàm số, phân bố xác suất, đồ thị đường cong neon.
+4. **MathViz (Procedural Engine)**: Fallback cuối cùng nội tại đảm bảo video không bao giờ thiếu chuyển động.
 
 ---
 
-# 7. Failure Cases
+## 4. Cơ Sở Dữ Liệu & Lưu Trữ (Data Storage)
 
-> Điều gì có thể hỏng?
-
-| Failure           | Effect | Handling |
-| ----------------- | ------ | -------- |
-| API down          |        |          |
-| Database down     |        |          |
-| AI model error    |        |          |
-| Invalid input     |        |          |
-| Network timeout   |        |          |
-| GPU unavailable   |        |          |
-| Too many requests |        |          |
-
-### Example
-
-```text
-AI Model
-   │
-   ├── Success → Return result
-   │
-   └── Failure
-          ↓
-       Retry?
-          ↓
-       Fallback?
-          ↓
-       Error response
-```
+### Bảng dữ liệu SQLite / Postgres (`db.py`):
+- `videos`: `id`, `topic`, `title`, `status` (`created`, `scripted`, `rendered`, `uploaded`), `youtube_id`, `created_at`.
+- `series`: `id`, `name`, `mode` (`short`, `long`), `total_episodes`, `status` (`in_progress`, `completed`), `created_at`.
+- `episodes`: `id`, `series_id`, `episode_num`, `topic`, `video_id`, `status`.
 
 ---
 
-# 8. Performance
-
-## Expected Load
-
-```text
-Users:
-Requests / second:
-Data / day:
-Concurrent requests:
-```
-
-## Bottlenecks
-
-> Thành phần nào có khả năng trở thành bottleneck?
-
-```text
-Client
- ↓
-API
- ↓
-Database       ← ?
- ↓
-AI Model       ← ?
- ↓
-Storage        ← ?
-```
-
-### Questions
-
-* Model inference mất bao lâu?
-* Database query mất bao lâu?
-* Có cần caching không?
-* Có cần batching không?
-* Có cần asynchronous processing không?
-
----
-
-# 9. Scaling
-
-## Current
-
-```text
-1 API Server
-1 Database
-1 AI Worker
-```
-
-## If traffic increases 10x
-
-```text
-             ┌── API Server
-Client ──────┼── API Server
-             └── API Server
-                    │
-                  Queue
-                    │
-             ┌──────┼──────┐
-             ▼      ▼      ▼
-           Worker Worker Worker
-             │      │      │
-             └──────┼──────┘
-                    ▼
-                  Model
-```
-
-### What changes?
-
-* API:
-* Database:
-* AI inference:
-* Queue:
-* Cache:
-* Storage:
-
----
-
-# 10. Security
-
-### Authentication
-
-> Làm thế nào xác thực user?
-
-### Authorization
-
-> User A có thể truy cập dữ liệu của User B không?
-
-### Input Validation
-
-> User có thể gửi dữ liệu độc hại không?
-
-### Secrets
-
-> API keys được lưu ở đâu?
-
-```text
-❌ Hardcode API key
-
-API_KEY = "abc123"
-```
-
-```text
-✅ Environment variable
-
-API_KEY = os.getenv("API_KEY")
-```
-
----
-
-# 11. Observability
-
-> Làm sao biết hệ thống đang hoạt động tốt hay không?
-
-### Logs
-
-* API request
-* Error
-* Model inference
-* Database error
-
-### Metrics
-
-* Requests / second
-* Latency
-* Error rate
-* CPU usage
-* GPU usage
-* Memory usage
-
-### Alerts
-
-```text
-Error rate > X%
-       ↓
-     Alert
-```
-
----
-
-# 12. Deployment
-
-## Environment
-
-```text
-Development
-     ↓
-Staging
-     ↓
-Production
-```
-
-### Infrastructure
-
-```text
-Frontend:
-Backend:
-Database:
-AI Model:
-Storage:
-Docker:
-Cloud:
-```
-
----
-
-# 13. Trade-offs
-
-> Không có architecture hoàn hảo. Ghi lại những quyết định quan trọng.
-
-## Decision 1
-
-### Problem
-
-...
-
-### Options
-
-```text
-A:
-B:
-C:
-```
-
-### Decision
-
-...
-
-### Why?
-
-...
-
-### Trade-off
-
-```text
-Pros:
--
-
-Cons:
--
-```
-
----
-
-# 14. Why This Architecture?
-
-> Đây là phần quan trọng nhất.
-
-Viết bằng lời của mình:
-
-```text
-Tôi chọn architecture này vì ...
-
-Nếu hệ thống nhỏ thì ...
-
-Nếu traffic tăng thì ...
-
-Nếu AI model trở thành bottleneck thì ...
-
-Nếu database chết thì ...
-
-Nếu cần scale lên 100x thì ...
-```
-
----
-
-# 15. Future Improvements
-
-```text
-[ ] Add caching
-[ ] Add queue
-[ ] Add monitoring
-[ ] Improve model inference
-[ ] Add load balancing
-[ ] Improve database
-[ ] Add automated deployment
-```
-
----
-
-# 16. Things I Don't Understand Yet
-
-> Đây là phần cực kỳ quan trọng khi học.
-
-* [ ] Tại sao cần Redis?
-* [ ] Tại sao cần Queue?
-* [ ] Tại sao model server tách khỏi API?
-* [ ] Khi nào dùng async?
-* [ ] Khi nào cần Load Balancer?
-* [ ] Database bottleneck nằm ở đâu?
-* [ ] Làm thế nào scale GPU?
-
----
-
-# 17. Lessons Learned
-
-Sau khi hoàn thành project, ghi lại:
-
-### Before
-
-> Ban đầu tôi nghĩ ...
-
-### After
-
-> Sau khi làm tôi hiểu rằng ...
-
-### Biggest Problem
-
-> Vấn đề lớn nhất là ...
-
-### Important Insight
-
-> Điều quan trọng nhất tôi học được là ...
+## 5. An Toàn Hệ Thống & Nguyên Tắc Bất Biến
+
+1. **Sandboxing cho AI Code**: Mọi mã Python sinh ra bởi LLM (Manim, Matplotlib) chỉ được chạy trong subprocess cô lập có giới hạn timeout cứng, tuyệt đối không chạy `eval()` / `exec()` trong tiến trình chính.
+2. **Zero Hallucination**: Toàn bộ công thức toán học, modulo, số mũ phải tuân theo dữ liệu chuẩn xác của Research Engine.
+3. **Safe Margins**: Vùng văn bản và phụ đề luôn cách đáy tối thiểu 18% để tránh bị che khuất bởi giao diện YouTube Shorts / Player Controls.

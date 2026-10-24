@@ -145,11 +145,33 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             preset = str(acfg.get("preset", ""))
             visual_desc = scene.visual_prompt or scene.heading or scene.narration[:120]
 
+            # Tầng 0: onjsdev Visualizer (Dành riêng cho Shorts 9:16 hoặc preset onjsdev_visualizer)
+            if (preset == "onjsdev_visualizer") or (is_short and any(k in visual_desc.lower() for k in ("sort", "bubble", "quick", "merge", "insertion", "selection", "cocktail", "dijkstra", "a*", "maze", "chudnovsky", "pi"))):
+                try:
+                    from .onjsdev_visualizer import generate_onjsdev_short_video
+                    onjs_path = workdir / f"onjsdev_{i:02d}.mp4"
+                    algo = "bubble_sort"
+                    for candidate in ("quick_sort", "quicksort", "merge_sort", "mergesort", "insertion_sort", "selection_sort", "bubble_sort"):
+                        if candidate.replace("_", "") in visual_desc.lower().replace("_", ""):
+                            algo = candidate
+                            break
+                    initial_arr = acfg.get("array") or acfg.get("data")
+                    code_video = generate_onjsdev_short_video(
+                        algorithm=algo,
+                        initial_array=initial_arr,
+                        output_path=onjs_path,
+                        fps=CONFIG["visual"]["fps"],
+                    )
+                    if code_video:
+                        log.info("Scene %d: Render thành công bằng onjsdev Visualizer (@onjsdev style)", i)
+                except Exception as e:
+                    log.warning("onjsdev visualizer scene %d lỗi: %s, chuyển sang fallback", i, e)
+
             explicit_manim = (preset == "manim") or bool(acfg.get("code")) or anim_cfg.get("manim_prefer", False)
 
             # Tầng 1 (CHỦ ĐẠO): Motion Graphics Engine (HTML5/Canvas qua Edge/Chrome Headless)
             # Ưu tiên Motion Graphics vì có MathJax xử lý công thức toán mượt mà, layout đẹp, không bị lỗi LaTeX/chữ đè
-            if not explicit_manim and anim_cfg.get("motion_graphics_enabled", True) and is_motion_graphics_available():
+            if code_video is None and not explicit_manim and anim_cfg.get("motion_graphics_enabled", True) and is_motion_graphics_available():
                 try:
                     mg_dir = workdir / f"motion_graphic_{i:02d}"
                     stock_img_path = None

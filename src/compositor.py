@@ -236,6 +236,8 @@ def _code_clip(video_path: Path, audio_path: Path):
     audio = AudioFileClip(str(audio_path))
     duration = audio.duration
     src = VideoFileClip(str(video_path))  # giữ nguồn để đóng sau, tránh rò rỉ ffmpeg reader
+    orig_sfx = src.audio
+
     bg = without_audio(src)
     if bg.duration < duration:
         bg = loop_video(bg, duration)
@@ -246,7 +248,19 @@ def _code_clip(video_path: Path, audio_path: Path):
         except Exception as e:
             log.warning("subclip code clip thất bại (%s), dùng clip gốc", e)
     bg = set_duration(_cover_video(bg, _W(), _H()), duration)
-    out = set_fps(set_audio(bg, audio), _FPS())
+
+    if orig_sfx is not None:
+        try:
+            sfx_dur = min(duration, orig_sfx.duration)
+            sfx_cut = orig_sfx.subclipped(0, sfx_dur) if hasattr(orig_sfx, "subclipped") else orig_sfx.subclip(0, sfx_dur)
+            final_audio = CompositeAudioClip([audio, volumex(sfx_cut, 0.4)])
+            out = set_fps(set_audio(bg, final_audio), _FPS())
+        except Exception as e:
+            log.warning("Mix SFX gốc thất bại (%s), dùng audio narration: ", e)
+            out = set_fps(set_audio(bg, audio), _FPS())
+    else:
+        out = set_fps(set_audio(bg, audio), _FPS())
+
     out._src_clips = [src, audio]  # moviepy không đóng đệ quy -> tự dọn ở compose()
     return out
 
