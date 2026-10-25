@@ -68,3 +68,4 @@
 2026-10-24T15:04:19.169021	Công thức Chudnovsky: Bí mật tính Pi vô hạn trong một phút
 2026-10-25T02:35:43.480656	lỗ hổng bảo mật mã CVE-2026-109618 và CVE-2026-109619 (gọi chung là PHP2Shell)
 2026-10-25T02:53:43.122529	CNN Từ Đầu – Convolution, Max Pooling và Cách AI “Nhìn” ảnh mà không cần thư viện
+2026-10-25T15:12:29.376218	Hóa ra máy tính 'sắp xếp' hộp đồ hộ bạn cũng giống như bạn đang ngụp lặn trong sa mạc dữ liệu?
