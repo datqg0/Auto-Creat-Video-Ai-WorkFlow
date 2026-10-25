@@ -66,3 +66,4 @@
 2026-10-24T03:36:35.296461	Mạng Nơ‑ron Đa Lớp (MLP) & Ma thuật Backpropagation: Học sâu từ đầu đến cuối
 2026-10-24T03:59:18.766162	Dijkstra trong mê cung: Đường ngắn nhất được khai phá trong 60 giây
 2026-10-24T15:04:19.169021	Công thức Chudnovsky: Bí mật tính Pi vô hạn trong một phút
+2026-10-25T02:35:43.480656	lỗ hổng bảo mật mã CVE-2026-109618 và CVE-2026-109619 (gọi chung là PHP2Shell)
