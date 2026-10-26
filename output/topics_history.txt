@@ -70,3 +70,4 @@
 2026-10-25T02:53:43.122529	CNN Từ Đầu – Convolution, Max Pooling và Cách AI “Nhìn” ảnh mà không cần thư viện
 2026-10-25T15:12:29.376218	Hóa ra máy tính 'sắp xếp' hộp đồ hộ bạn cũng giống như bạn đang ngụp lặn trong sa mạc dữ liệu?
 2026-10-26T02:46:09.148262	Tại sao máy tính lại 'biết' đường đi ngắn nhất để giảm sai số? Giải mã Gradient Descent bằng hình ảnh quả bóng lăn trong hang đá
+2026-10-26T17:47:17.949557	Bí mật hiệu suất: Tại sao việc 'chọn một phần tử ngẫu nhiên' lại nhanh hơn sắp xếp toàn bộ gấp hàng chục lần?
