@@ -72,3 +72,4 @@
 2026-10-26T02:46:09.148262	Tại sao máy tính lại 'biết' đường đi ngắn nhất để giảm sai số? Giải mã Gradient Descent bằng hình ảnh quả bóng lăn trong hang đá
 2026-10-26T17:47:17.949557	Bí mật hiệu suất: Tại sao việc 'chọn một phần tử ngẫu nhiên' lại nhanh hơn sắp xếp toàn bộ gấp hàng chục lần?
 2026-10-27T05:17:44.426321	Không ngờ: Một thuật toán cũ kỹ từ những năm 1950 lại là nền tảng của mọi mạng nơ-ron hiện đại - Hành trình của Logistic Regression
+2026-10-27T16:59:05.158536	Nghịch lý mê cung: Tại sao con đường 'ngược dòng' lại là cách xây dựng một mê cung phức tạp nhất chỉ trong vài giây?
