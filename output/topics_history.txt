@@ -74,3 +74,4 @@
 2026-10-27T05:17:44.426321	Không ngờ: Một thuật toán cũ kỹ từ những năm 1950 lại là nền tảng của mọi mạng nơ-ron hiện đại - Hành trình của Logistic Regression
 2026-10-27T16:59:05.158536	Nghịch lý mê cung: Tại sao con đường 'ngược dòng' lại là cách xây dựng một mê cung phức tạp nhất chỉ trong vài giây?
 2026-10-28T03:35:02.546803	Nghịch lý Softmax: Dùng liên kết số học phức tạp để biến xác suất thành cuộc đua tranh giành 'ghế trống' duy nhất
+2026-10-28T17:33:44.388175	Chốt hạ: Tại sao thuật toán 'tham lam' (Greedy) luôn thắng trong cuộc đua tìm đường nhưng lại 'tổn thương' ý định của người lập trình?
