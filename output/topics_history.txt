@@ -75,3 +75,4 @@
 2026-10-27T16:59:05.158536	Nghịch lý mê cung: Tại sao con đường 'ngược dòng' lại là cách xây dựng một mê cung phức tạp nhất chỉ trong vài giây?
 2026-10-28T03:35:02.546803	Nghịch lý Softmax: Dùng liên kết số học phức tạp để biến xác suất thành cuộc đua tranh giành 'ghế trống' duy nhất
 2026-10-28T17:33:44.388175	Chốt hạ: Tại sao thuật toán 'tham lam' (Greedy) luôn thắng trong cuộc đua tìm đường nhưng lại 'tổn thương' ý định của người lập trình?
+2026-10-29T03:56:15.258457	Backpropagation: Giải bài toán 'ai là người có lỗi?' trong mạng nơ-ron sâu bằng quy tắc chuỗi và phép đạo hàm
