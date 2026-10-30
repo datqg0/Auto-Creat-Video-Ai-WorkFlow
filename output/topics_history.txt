@@ -78,3 +78,4 @@
 2026-10-29T03:56:15.258457	Backpropagation: Giải bài toán 'ai là người có lỗi?' trong mạng nơ-ron sâu bằng quy tắc chuỗi và phép đạo hàm
 2026-10-29T17:43:58.203216	Kỳ quan toán học: Hóa ra công thức Chudnovsky đang 'nhân đôi' tốc độ tính Pi chỉ nhờ vào ma thuật của các chuỗi vô hạn?
 2026-10-30T03:58:35.710036	CNN từ số 0: Tại sao máy tính nhìn ảnh theo 'mảnh' thay vì toàn cục? Giải mã ma thuật của Convolution & Max Pooling
+2026-10-30T17:25:05.526000	Bubble Sort: Tại sao sắp xếp kiểu 'buông bọt' lại là kẻ chậm chạp nhất?
