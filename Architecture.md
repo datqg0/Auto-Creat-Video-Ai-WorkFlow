@@ -78,7 +78,7 @@ Hệ thống tự động hóa sản xuất video giáo dục công nghệ & thu
 | **Series & Topic** | `series_manager.py`, `topic_selector.py` | Lập giáo trình chuỗi 5 tập, luân chuyển 9 domain, chống trùng lặp | SQLite, Neon DB, Python |
 | **Research Engine** | `research_engine.py` | Tra cứu tài liệu 3 tầng fallback, cung cấp công thức $0$ ảo giác | Wikipedia REST API, DuckDuckGo, ArXiv, Markdown/PDF |
 | **Script Writer** | `script_writer.py` | Tạo kịch bản JSON chia 2 phần (Long/Short), phân cảnh chi tiết | LLM Prompting, JSON-Repair |
-| **LLM Router** | `llm.py` | Điều phối multi-provider fallback theo tác vụ (Script/Code/Topic) | Opus, Gemini 3.7, Groq, Cerebras, Pollinations |
+| **LLM Router** | `llm.py` | Điều phối multi-provider fallback theo tác vụ (Script/Code/Topic) | Gemini 3.7 Flash, Groq, Cerebras, Pollinations |
 | **TTS Engine** | `tts.py` | Chuyển văn bản thành giọng đọc truyền cảm, nhịp điệu chậm rãi | VieNeu-TTS v3 Turbo, Edge-TTS |
 | **Motion Graphics** | `motion_graphics.py` | Render đồ họa động HTML5/Canvas, công thức toán MathJax | Edge/Chrome Headless, Canvas API |
 | **AI Code Runner** | `ai_code_runner.py` | Sinh và tự sửa mã animation toán học (sandbox an toàn) | Manim Community, Matplotlib, FFmpeg |
@@ -101,8 +101,8 @@ Hệ thống tự động hóa sản xuất video giáo dục công nghệ & thu
 3. **Tầng 3 (Kho tài liệu tải sẵn offline)**: Nếu không có Internet hoặc cả 2 tầng trên thất bại, trích xuất tức thì từ `assets/docs/*.md` (hoặc `.pdf`) với công thức toán và bộ số liệu đã kiểm chứng 100%.
 
 ### 3.2 Luồng LLM Fallback (Task Routing)
-- **Tác vụ viết kịch bản**: `Claude Opus` $\to$ `Gemini 3.7 Flash` $\to$ `Groq Llama 3.3` $\to$ `Cerebras` $\to$ `Pollinations`.
-- **Tác vụ viết code Animation**: `Claude Opus` $\to$ `Cerebras` $\to$ `Groq LPU` $\to$ `Gemini 3.7` $\to$ `Pollinations Coder`.
+- **Tác vụ viết kịch bản**: `Gemini 3.7 Flash` $\to$ `Gemini Flash Latest` $\to$ `Groq Fast` $\to$ `Cerebras` $\to$ `Pollinations`.
+- **Tác vụ viết code Animation**: `Gemini 3.7 Flash` $\to$ `Cerebras` $\to$ `Groq LPU` $\to$ `Pollinations Coder`.
 - **Tác vụ chọn chủ đề**: `Gemini 3.7 Flash` $\to$ `Groq Fast` $\to$ `GitHub Models`.
 
 ### 3.3 Luồng Hoạt Họa (Animation Fallback)

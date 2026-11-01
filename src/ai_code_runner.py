@@ -228,7 +228,7 @@ def generate_matplotlib_from_prompt(
 
     context_section = ""
     research_section = ""
-    if topic:
+    if topic and (CONFIG.get("research", {}) or {}).get("enabled", False):
         try:
             from .research_engine import gather_research
             res_doc = gather_research(topic)
@@ -310,7 +310,7 @@ def generate_manim_from_prompt(
 
     context_section = ""
     research_section = ""
-    if topic:
+    if topic and (CONFIG.get("research", {}) or {}).get("enabled", False):
         try:
             from .research_engine import gather_research
             res_doc = gather_research(topic)

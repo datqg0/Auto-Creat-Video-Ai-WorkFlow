@@ -1,14 +1,14 @@
 """LLM client đa tầng: thử provider theo thứ tự, lỗi thì fallback sang tầng kế.
 
 Các tầng (cấu hình trong config.yaml -> llm.providers):
-  Tier 0  Anthropic (Opus, chính)
-  Tier 1  Gemini
-  Tier 2  Groq (gpt-oss)
-  Tier 3  OpenRouter (free models)          -> OpenAI-compatible
-  Tier 3.5 Z.ai GLM Flash                    -> Anthropic-compatible (dùng lại _call_anthropic)
-  Tier 4  Mistral                            -> OpenAI-compatible
-  Tier 4.5 NVIDIA NIM                         -> OpenAI-compatible
-  Tier 5  Cloudflare Workers AI / GitHub Models / SambaNova -> OpenAI-compatible
+  Tier 1  Google Gemini (3.7 Flash, Flash Latest - chính)
+  Tier 2  Groq (gpt-oss-120b, qwen3.8-27b, gpt-oss-20b)
+  Tier 2.2 Cerebras (Llama 3.3 70B siêu tốc)
+  Tier 3  Pollinations AI / OpenRouter (free models) -> OpenAI-compatible
+  Tier 3.5 Z.ai GLM Flash                             -> Anthropic-compatible (dùng lại _call_anthropic)
+  Tier 4  Mistral                                     -> OpenAI-compatible
+  Tier 4.5 NVIDIA NIM                                 -> OpenAI-compatible
+  Tier 5  GitHub Models / SambaNova / Cloudflare Workers AI -> OpenAI-compatible
 
 Mỗi provider khai báo:
   type         : anthropic | gemini | groq | openai  (bộ gọi tương ứng)
@@ -33,8 +33,7 @@ class LLMError(RuntimeError):
     pass
 
 
-# Timeout mặc định cho MỘT request. None = không giới hạn (để Opus sinh kịch bản
-# dài bao lâu cũng được, giống bản gốc). Có thể override qua provider['timeout'].
+# Timeout mặc định cho MỘT request. None = không giới hạn. Có thể override qua provider['timeout'].
 _DEFAULT_TIMEOUT: float | None = None
 # Giới hạn thời gian tối đa chịu chờ khi 429 báo retry_delay; dài hơn thì bỏ qua
 # provider để chuyển sang cái kế cho nhanh. Gemini free-tier thường báo ~20-40s,
@@ -157,21 +156,29 @@ def _call_gemini(provider: dict, prompt: str, system: str, temperature: float) -
     api_key = _api_key(provider, "GEMINI_API_KEY")
     timeout = float(provider.get("timeout") or 120.0)
     http_options = types.HttpOptions(timeout=int(timeout * 1000))
-    client = genai.Client(api_key=api_key, http_options=http_options)
-
-    config = types.GenerateContentConfig(
-        system_instruction=system or None,
-        temperature=temperature,
-    )
-    resp = client.models.generate_content(
-        model=provider["model"],
-        contents=prompt,
-        config=config,
-    )
-    text = (resp.text or "").strip()
-    if not text:
-        raise LLMError("Gemini trả về rỗng")
-    return _validate_response_text(provider["name"], text)
+    # google_genai tự động ưu tiên GOOGLE_API_KEY nếu có trong os.environ,
+    # gây xung đột với Google Custom Search Key. Tạm thời un-set GOOGLE_API_KEY trong scope này.
+    orig_google_key = os.environ.get("GOOGLE_API_KEY")
+    try:
+        if "GOOGLE_API_KEY" in os.environ:
+            del os.environ["GOOGLE_API_KEY"]
+        client = genai.Client(api_key=api_key, http_options=http_options)
+        config = types.GenerateContentConfig(
+            system_instruction=system or None,
+            temperature=temperature,
+        )
+        resp = client.models.generate_content(
+            model=provider["model"],
+            contents=prompt,
+            config=config,
+        )
+        text = (resp.text or "").strip()
+        if not text:
+            raise LLMError("Gemini trả về rỗng")
+        return _validate_response_text(provider["name"], text)
+    finally:
+        if orig_google_key is not None:
+            os.environ["GOOGLE_API_KEY"] = orig_google_key
 
 
 def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float) -> str:
@@ -197,7 +204,7 @@ def _call_anthropic(provider: dict, prompt: str, system: str, temperature: float
     }
     if system and system.strip():
         kw["system"] = system.strip()
-    # provider justwoker.icu không nhận 'temperature'; chỉ gửi khi được bật
+    # Một số provider không nhận 'temperature'; chỉ gửi khi được bật
     if provider.get("supports_temperature", False):
         kw["temperature"] = temperature
 
@@ -368,7 +375,7 @@ def generate(prompt: str, system: str = "", task: str | None = None) -> str:
         if not fn:
             log.warning("Provider không hỗ trợ: %s (type=%s)", name, kind)
             continue
-        # Số lần thử của riêng provider (vd Opus 3 lần) rồi mới fallback.
+        # Số lần thử của riêng provider rồi mới fallback.
         retries = int(provider.get("retries", default_retries))
         for attempt in range(1, retries + 1):
             try:

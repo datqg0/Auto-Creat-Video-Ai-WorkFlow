@@ -34,9 +34,8 @@ sources:
       - "consistent hashing"
       - "thuật toán"
       - "cấu trúc dữ liệu"
-    title: "onjsdev & CP-Algorithms Visual Reference"
+    title: "CP-Algorithms & Wikipedia Visual Reference"
     urls:
-      - "https://onjsdev.com"
       - "https://raw.githubusercontent.com/TheAlgorithms/Python/master/README.md"
       - "https://en.wikipedia.org/api/rest_v1/page/summary/Sorting_algorithm"
       - "https://en.wikipedia.org/api/rest_v1/page/summary/Quicksort"

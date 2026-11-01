@@ -197,8 +197,8 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML, 
 _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - BẮT BUỘC có ÍT NHẤT 70% số scene là visual_type "animation" hoặc "challenge" do AI vẽ.
 - BẮT BUỘC có ÍT NHẤT 1 scene "challenge" hoặc "stickman_explainer" (Người Que StykAnimate với khớp IK sống động hoặc Mascot Cô Bé Áo Khoác Tai Thỏ) khi giới thiệu vấn đề / nghịch lý / bế tắc để người xem đồng cảm.
-- VỚI VIDEO DÀI (CHUYÊN ĐỀ AI & DEEP LEARNING TỪ SỐ 0 - DEEP-ML):
-  * BẮT BUỘC lấy dữ liệu từ khối <research> (chứa đề bài, công thức toán và code NumPy từ deep-ml.com).
+- VỚI VIDEO DÀI (CHUYÊN ĐỀ AI & DEEP LEARNING TỪ SỐ 0):
+  * Tự đưa ra đề bài, công thức toán và ví dụ số liệu cụ thể, trực quan.
   * ƯU TIÊN preset "matrix_op" (nhân ma trận), "neural_flow" / "neural_net", "math_equation" (bóc tách 4 màu công thức), "visual_algo" hoặc "manim" để hiển thị chính xác các bước tính toán và đường cong đạo hàm.
 - VỚI VIDEO NGẮN (YOUTUBE SHORTS - PHONG CÁCH @ONJSDEV):
   * BẮT BUỘC dùng preset "onjsdev_visualizer" hoặc "sorting" / "tree_graph" / "algo_trace" theo phong cách @onjsdev.
@@ -807,6 +807,9 @@ def _schema_json(title_hint: str, desc_hint: str, scene: dict, exercise_hint: st
 
 
 def _research_block(research: str) -> str:
+    res_cfg = CONFIG.get("research", {}) or {}
+    if not res_cfg.get("enabled", False):
+        return ""
     text = (research or "").strip()
     if not text:
         return ""
@@ -1677,6 +1680,9 @@ def _write_mega_script(topic: str, s: _Settings, research: str, series: dict | N
 # --------------------------------------------------------------------------------------
 
 def _gather_research(topic: str) -> str:
+    res_cfg = CONFIG.get("research", {}) or {}
+    if not res_cfg.get("enabled", False):
+        return ""
     # 1. Ưu tiên Research Engine 3 Tầng Fallback (Tự động tìm tải -> Link backup -> Tài liệu offline)
     try:
         from .research_engine import gather_research

@@ -128,7 +128,7 @@ Pipeline stages (all orchestrated by [`src/pipeline.py`](src/pipeline.py)):
 
 | Component      | Technology                                                           |
 | -------------- | -------------------------------------------------------------------- |
-| LLM            | 10-tier fallback: Anthropic (Claude Opus) → Gemini → Groq → OpenRouter → Z.ai → Mistral → NVIDIA NIM → GitHub Models → SambaNova → Cloudflare |
+| LLM            | Multi-tier fallback: Gemini (3.7 Flash / Flash Latest) → Groq → Cerebras → OpenRouter → Z.ai → Mistral → NVIDIA NIM → GitHub Models → SambaNova → Cloudflare |
 | Database       | Dual Backend: Neon Serverless PostgreSQL (`DATABASE_URL`) or SQLite Local (`output/state.db`) |
 | Series Engine  | Autonomous curriculum planning (`src/series_manager.py`) with episode continuity hooks |
 | Deep-ML AI     | 165 from-scratch verified ML/DL problems (`assets/docs/deepml/`) powering Long & Mega videos |
@@ -331,10 +331,11 @@ no key at all.
 
 | Tier | Provider      | Env var                                     | Notes                       |
 | ---- | ------------- | ------------------------------------------- | --------------------------- |
-| 0    | Anthropic     | `ANTHROPIC_API_KEY`                         | Claude Opus (primary)       |
-| 1    | Gemini        | `GEMINI_API_KEY`                            | Gemini Flash                |
-| 2    | Groq          | `GROQ_API_KEY`                              | gpt-oss-120b                |
-| 3    | OpenRouter    | `OPENROUTER_API_KEY`                        | free Llama 3.3 70B          |
+| 1    | Gemini        | `GEMINI_API_KEY`                            | Gemini 3.7 Flash (primary)  |
+| 2    | Groq          | `GROQ_API_KEY`                              | gpt-oss-120b / Qwen 27B     |
+| 2.2  | Cerebras      | `CEREBRAS_API_KEY`                          | Llama 3.3 70B (1800+ t/s)   |
+| 3    | Pollinations  | `POLLINATIONS_API_KEY`                      | DeepSeek V4.1 / Qwen Coder  |
+| 3.1  | OpenRouter    | `OPENROUTER_API_KEY`                        | free Llama 3.3 70B          |
 | 3.5  | Z.ai          | `ZAI_API_KEY`                               | GLM-4-Flash                 |
 | 4    | Mistral       | `MISTRAL_API_KEY`                           | mistral-large               |
 | 4.5  | NVIDIA NIM    | `NVIDIA_API_KEY`                            | Llama 3.3 70B               |

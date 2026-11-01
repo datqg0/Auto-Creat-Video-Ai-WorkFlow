@@ -18,7 +18,7 @@ topic_selector → script_writer (LLM) → tts → visual_engine / mathviz
 | --- | --- | --- |
 | `topic_selector.py` | Chọn chủ đề | |
 | `script_writer.py` | Sinh kịch bản JSON qua LLM | Tiêu đề = câu hỏi, Title Case |
-| `llm.py` | Client LLM đa provider + fallback | Opus → Gemini → Groq |
+| `llm.py` | Client LLM đa provider + fallback | Gemini 3.7 Flash → Groq → Cerebras → Pollinations |
 | `tts.py` | Tổng hợp giọng đọc | VieNeu-TTS / ElevenLabs / edge-tts |
 | `visual_engine.py` | Render ảnh scene + overlay | Text đặt trên vùng phụ đề |
 | `mathviz/` | Thư viện animation tự viết | Không dùng Manim/LaTeX |
@@ -36,8 +36,8 @@ topic_selector → script_writer (LLM) → tts → visual_engine / mathviz
 - [x] **Tiêu đề Title Case** — viết hoa chữ cái đầu mỗi từ, giữ acronym (`_title_case`).
 - [x] **Animation LLM tự thiết kế** — preset `custom` diễn giải spec khai báo, KHÔNG exec code.
 - [x] **Text không đè phụ đề** — chữ trên màn hình đặt trên vùng phụ đề (~18% đáy).
-- [x] **LLM resilience** — timeout cấu hình được, retry theo provider, xử lý 429, 3 tầng
-      fallback (Opus → Gemini → Groq).
+- [x] **LLM resilience** — timeout cấu hình được, retry theo provider, xử lý 429, đa tầng
+      fallback (Gemini → Groq → Cerebras → Pollinations).
 
 ---
 
@@ -93,8 +93,7 @@ topic_selector → script_writer (LLM) → tts → visual_engine / mathviz
 | Vấn đề | Ảnh hưởng | Hướng xử lý |
 | --- | --- | --- |
 | `google.generativeai` deprecated | Cảnh báo, có thể vỡ sau này | Migrate sang `google.genai` |
-| Gemini free-tier 5 req/phút | Dễ 429 nếu Opus lỗi | Đã có Groq làm tầng 3 |
-| Proxy Opus `justwoker.icu` hay 524 | Chậm/lỗi provider chính | Timeout cấu hình + retry 3 lần |
+| Gemini free-tier 5-15 req/phút | Dễ 429 khi chạy dồn dập | Đã có Groq, Cerebras, Pollinations làm dự phòng |
 | moviepy ghim `<2.0` | Không lên bản mới được | Chờ migrate khi cần |
 | Không có test tự động | Regression khó phát hiện | Xem mục 4.3 |
 

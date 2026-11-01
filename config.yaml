@@ -43,17 +43,18 @@ modes:
 llm:
   # ---- Phân chia định tuyến LLM theo từng tác vụ (Task Routing) ----
   tasks:
-    # 1. Chọn chủ đề & Tối ưu tiêu đề: Nhanh, nhẹ, đón trend tốt -> Gemini Flash -> Groq Llama -> GitHub Models
+    # 1. Chọn chủ đề & Tối ưu tiêu đề: Nhanh, nhẹ, 1-2s -> Groq Fast -> Groq -> Gemini -> GitHub Models
     topic:
-      - gemini_37
-      - gemini_latest
       - groq_fast
       - groq
+      - gemini_38
+      - gemini_37
+      - gemini_latest
       - github_models
 
-    # 2. Viết kịch bản: Giữ chuỗi fallback theo chiều sâu tư duy -> Claude Opus -> Gemini -> Groq Fast (Qwen) -> Groq (GPT OSS 120B)
+    # 2. Viết kịch bản: Gemini 3.8 Flash -> Gemini 3.7 Flash -> Groq Fast -> Groq -> Cerebras
     script:
-      - anthropic
+      - gemini_38
       - gemini_37
       - gemini_latest
       - groq_fast
@@ -65,43 +66,38 @@ llm:
       - pollinations
       - mistral
 
-    # 3. Viết code thuật toán Visual / Animation: Claude Opus -> Cerebras -> Groq LPU -> Gemini 3.7 -> Pollinations
+    # 3. Viết code thuật toán Visual / Animation: Gemini 3.8/3.7 -> Cerebras -> Groq LPU -> Pollinations Coder
     code:
-      - anthropic                # Claude Opus 4.8 (Viết code thuật toán, Manim & Matplotlib chuẩn nhất)
-      - cerebras                 # Llama 3.1 8B qua Cerebras siêu tốc (1800+ tokens/giây, 1M tokens free/ngày)
+      - gemini_38                # Gemini 3.8 Flash (Model mới nhất, chuẩn xác)
+      - gemini_37                # Gemini 3.7 Flash (Code thuật toán, Manim & Matplotlib chuẩn xác)
+      - cerebras                 # Llama 3.3 70B qua Cerebras siêu tốc (1800+ tokens/giây, 1M tokens free/ngày)
       - groq                     # LPU Llama 3.3 70B siêu tốc độ
       - groq_fast                # Llama 3.1 8B
-      - gemini_37                # Gemini 3.7 Flash
       - github_models            # GPT-4o-mini qua GitHub Models (Free 150 req/ngày)
       - pollinations_coder       # Qwen Coder qua Pollinations (Dự phòng)
 
 
   providers:
-    # Tier 0 — Anthropic (Opus 4.8 qua justwoker.icu — Model suy luận và viết kịch bản mạnh nhất)
-    - name: anthropic
-      type: anthropic
-      model: claude-opus-4-8
-      base_url: https://api.justwoker.icu
-      api_key_env: ANTHROPIC_API_KEY
-      max_output_tokens: 16000
-      supports_temperature: false
-      stream: false                         # Proxy justwoker không hỗ trợ stream content chunk, tắt stream để nhận đầy đủ văn bản
-      timeout: 45
-      retries: 1
+    # Tier 1.0 — Google Gemini 3.8 Flash (Model mới nhất, cực nhanh, context rộng)
+    - name: gemini_38
+      type: gemini
+      model: gemini-3.8-flash
+      api_key_env: GEMINI_API_KEY
+      timeout: 30
 
-    # Tier 1.1 — Google Gemini 3.7 Flash (Mạnh nhất dòng Flash, tốc độ cao, context rộng)
+    # Tier 1.1 — Google Gemini 3.7 Flash (Mạnh dòng Flash, tốc độ cao)
     - name: gemini_37
       type: gemini
       model: gemini-3.7-flash
       api_key_env: GEMINI_API_KEY
-      timeout: 50
+      timeout: 30
 
-    # Tier 1.2 — Google Gemini Flash Latest (Dự phòng khi 3.7 chạm quota)
+    # Tier 1.2 — Google Gemini Flash Latest (Dự phòng khi 3.8/3.7 chạm quota)
     - name: gemini_latest
       type: gemini
       model: gemini-flash-latest
       api_key_env: GEMINI_API_KEY
-      timeout: 50
+      timeout: 30
 
     # Tier 2.1 — Groq LPU (Các model khả dụng trên tài khoản: gpt-oss-120b, qwen3.8-27b, gpt-oss-20b — Giới hạn 8K TPM)
     - name: groq
@@ -128,7 +124,7 @@ llm:
     # Tier 2.2 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
     - name: cerebras
       type: openai
-      model: llama-3.3-70b
+      model: llama3.3-70b
       base_url: https://api.cerebras.ai/v1
       api_key_env: CEREBRAS_API_KEY
       max_output_tokens: 8192
@@ -411,7 +407,7 @@ series:
 
 # ---- Nghiên cứu tài liệu khoa học & thực nghiệm (Research & Fact-checking Engine) ----
 research:
-  enabled: true
+  enabled: false             # Đã tắt/xóa bỏ ref theo yêu cầu người dùng (giảm bloat prompt, tránh 504 và rate limit)
   max_chars: 4000            # Giới hạn ký tự tài liệu đưa vào prompt
   cache_enabled: true
   cache_dir: "assets/cache/research"

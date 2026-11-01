@@ -82,3 +82,5 @@
 2026-10-31T03:45:17.934709	Không ngờ 1 dòng NumPy làm AI “Nhìn” ảnh: Tự xây dựng Convolution & Max Pooling từ số 0
 2026-10-31T16:30:27.339239	QuickSort: Bí mật phân chia dữ liệu để sắp xếp nhanh hơn cả con người
 2026-11-01T03:51:30.659332	Hóa ra thuật toán 'lăn cầu' Gradient Descent là bí mật đứng sau mọi mô hình AI hiện đại
+2026-11-01T11:48:15.198412	Tại sao hàm Cross-Entropy lại 'chặt chém' sai lầm dữ dội đến vậy trong bài toán nhị phân?
+2026-11-01T12:01:09.835478	Không ngờ chiếc 'bàn cân' Softmax lại là chìa khóa cho mọi hệ thống phân loại đa lớp phức tạp
