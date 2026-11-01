@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import argparse
 import logging
+import json
 import re
 import sys
 import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -74,8 +76,8 @@ def _with_exercise(script: Script) -> list:
     return scenes[:pos] + extra + scenes[pos:]
 
 
-def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float]]:
-    """Render kịch bản thành file video + thumbnail. Trả về (video, thumbnail)."""
+def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float], dict[str, Path], list[str]]:
+    """Render video, thumbnail, scene durations, captions, and renderer labels."""
     # Import trễ để apply_mode (đổi W/H) có hiệu lực trước khi module cache kích thước
     from .visual_engine import render_scene, render_overlay
     from .animation_bridge import build_animation_scene
@@ -104,6 +106,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
     broll_videos: list = []
     scene_overlays: list = []
     code_videos: list = []
+    scene_renderers: list[str] = []
 
     from .tts import synthesize_timed
     from .models import Scene
@@ -315,6 +318,14 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
 
         broll_videos.append(broll)
         scene_overlays.append(overlay)
+        if code_video is not None:
+            scene_renderers.append("generated_animation")
+        elif anim is not None:
+            scene_renderers.append("procedural_animation")
+        elif broll is not None:
+            scene_renderers.append("broll")
+        else:
+            scene_renderers.append("static")
 
     # Phụ đề: dùng chính text narration gốc (chính xác 100%), căn theo thời lượng scene
     srt_path: Path | None = None
@@ -377,7 +388,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         thumb_path = make_thumbnail(script, thumb_path)
     else:
         thumb_path = made
-    return video_path, thumb_path, durations, captions_dict
+    return video_path, thumb_path, durations, captions_dict, scene_renderers
 
 
 def run_once(
@@ -395,6 +406,13 @@ def run_once(
     if not mode:
         mode = str(CONFIG.get("active_mode") or os.environ.get("VIDEO_MODE") or "long").lower()
     normalized_mode = "short" if mode == "short" else ("mega" if mode == "mega" else "long")
+
+    try:
+        from .analytics import collect_recent_retention_feedback
+
+        collect_recent_retention_feedback()
+    except Exception as e:  # noqa: BLE001 - analytics context must not stop production
+        log.info("YouTube Analytics chưa sẵn sàng; tiếp tục tạo video: %s", e)
 
     series_context = None
     episode_id = None
@@ -450,10 +468,56 @@ def run_once(
         workdir = OUTPUT_DIR / f"video_{video_id_db}"
         workdir.mkdir(parents=True, exist_ok=True)
 
-        video_path, thumb_path, durations, captions = _render_video(script, workdir)
+        if (CONFIG.get("quality_control", {}) or {}).get("enabled", True):
+            from .script_quality import inspect_script
+
+            script_report = inspect_script(script)
+            (workdir / "script_quality_report.json").write_text(
+                json.dumps(script_report, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            for warning in script_report["warnings"]:
+                log.warning("Script QA: %s", warning)
+            if not script_report["passed"]:
+                raise RuntimeError(
+                    f"Kịch bản không qua kiểm định trước render; xem {workdir / 'script_quality_report.json'}: "
+                    + "; ".join(script_report["errors"])
+                )
+
+        video_path, thumb_path, durations, captions, scene_renderers = _render_video(script, workdir)
         db.update_video(video_id_db, status="rendered")
         if episode_id:
             db.update_episode(episode_id, status="rendered")
+
+        quality_report: dict = {"passed": True, "warnings": [], "blocking_errors": []}
+        if (CONFIG.get("quality_control", {}) or {}).get("enabled", True):
+            from .video_quality import audit_render, require_quality_pass
+
+            quality_report = audit_render(
+                video_path=video_path,
+                thumbnail_path=thumb_path,
+                workdir=workdir,
+                script=script,
+                expected_duration=sum(durations),
+                scene_renderers=scene_renderers,
+            )
+            require_quality_pass(quality_report, workdir)
+            db.update_video(video_id_db, status="quality_passed")
+
+        manifest = {
+            "video_db_id": video_id_db,
+            "youtube_id": None,
+            "topic": topic,
+            "title": script.title,
+            "mode": normalized_mode,
+            "duration_seconds": round(sum(durations), 3),
+            "scene_count": len(scene_renderers),
+            "scene_renderers": scene_renderers,
+            "quality_passed": quality_report.get("passed", False),
+            "quality_warnings": len(quality_report.get("warnings", [])),
+            "references": script.references,
+        }
+        manifest_path = workdir / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
         if not upload_video:
             log.info("Đã render (không upload): %s", video_path)
@@ -470,6 +534,15 @@ def run_once(
         meta = build_metadata(script, durations)
         yt_id = upload(video_path, meta, thumb_path, captions=captions)
         db.update_video(video_id_db, status="uploaded", youtube_id=yt_id)
+        manifest["youtube_id"] = yt_id
+        manifest["uploaded_at"] = datetime.now(timezone.utc).isoformat()
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            from .analytics import save_video_metadata
+
+            save_video_metadata(manifest)
+        except Exception as e:  # noqa: BLE001 - analytics metadata is non-critical after upload
+            log.warning("Không lưu được metadata retention: %s", e)
         if episode_id:
             db.update_episode(episode_id, status="uploaded")
             if series_context and series_info:

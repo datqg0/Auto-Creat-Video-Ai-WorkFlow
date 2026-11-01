@@ -25,12 +25,14 @@ log = logging.getLogger(__name__)
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.force-ssl",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
 ]
 CLIENT_SECRET_FILE = CREDENTIALS_DIR / "client_secret.json"
 TOKEN_FILE = CREDENTIALS_DIR / "token.json"
 
 
-def _load_credentials() -> Credentials:
+def _load_credentials(allow_interactive: bool = True) -> Credentials:
     CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Ưu tiên token từ env (CI)
@@ -73,6 +75,10 @@ def _load_credentials() -> Credentials:
                 except Exception as e2:
                     log.error("Fallback refresh vẫn thất bại: %s", e2)
             raise
+
+    # Chế độ nền không được mở trình duyệt nếu token thiếu/hết hạn không thể refresh.
+    if not allow_interactive:
+        raise RuntimeError("Không có OAuth token hợp lệ; chế độ nền không mở trình duyệt để xác thực.")
 
     # Chưa có token hợp lệ -> chạy OAuth flow (chỉ dùng ở local)
     if not CLIENT_SECRET_FILE.exists():

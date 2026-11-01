@@ -17,7 +17,7 @@ Python plus FFmpeg.
 - [How It Works](#how-it-works)
 - [Tech Stack](#tech-stack)
 - [Series Engine & Auto-Curriculum Planning](#series-engine--auto-curriculum-planning)
-- [Research Engine & 3-Tier Fact-Checking](#research-engine--3-tier-fact-checking)
+- [Fact-Checking & Video Quality Gate](#fact-checking--video-quality-gate)
 - [AI Image & AI Video Generation](#ai-image--ai-video-generation)
 - [Motion Graphics Engine (HTML5/Canvas & MathJax)](#motion-graphics-engine-html5canvas--mathjax)
 - [StykAnimate 2D IK Stickman & Mascot Engine](#stykanimate-2d-ik-stickman--mascot-engine)
@@ -40,10 +40,9 @@ Python plus FFmpeg.
 
 - **End-to-end automation** — series planning → research → script → animation → TTS →
   subtitles → compositing → thumbnail → upload, with zero human input.
-- **Research Engine with 3-Tier Fallback (Zero Hallucination)** — automatically researches
-  and fact-checks topics via Wikipedia REST API / DuckDuckGo / ArXiv → Curated backup links
-  (`assets/docs/sources.yaml`) → Bundled offline technical knowledge base (`assets/docs/*.md` & `.pdf`),
-  enforcing 100% mathematical accuracy (e.g. RSA $5^7 \pmod{187} = 146$) and real-world trace data.
+- **Compact offline fact-checking** — uses a short, relevant extract from the bundled knowledge base
+  when it matches the topic, adds available source URLs to the description, and checks modular
+  arithmetic claims before rendering. Full web research remains an explicit optional mode.
 - **Series Engine & Auto-Curriculum Planning** — automatically plans multi-episode
   educational video series (3–7 episodes) when the database is empty or the previous
   series completes, threading narrative continuity hooks and `[Tập X/Y]` badges.
@@ -61,8 +60,8 @@ Python plus FFmpeg.
   motion video clip per video (`ai_motion` or Fal.ai diffusion).
 - **Three video formats** — long 16:9 explainer, vertical 9:16 Short (up to 3 mins / 180s), and
   **mega 16:9 deep-dive** (15–30+ minutes) with chapter-based hierarchical scripting.
-- **High animation density ($\ge 70\%$) & instant visual hook** — animations start
-  right from second 0 (Scene 1), prioritizing AI-generated Python/Manim animations.
+- **Purposeful scene design & instant visual hook** — motion starts in the opening scene;
+  diagrams, tables, footage, and stills remain available when they explain the idea more clearly.
 - **AI-coded Light Neon Manim animations** — generates stunning cyberpunk/dark-mode
   visuals (glowing vectors, HUD, neon lines) via Manim Community Edition without
   any LaTeX dependency, with automatic AI self-repair on syntax/render errors.
@@ -71,7 +70,7 @@ Python plus FFmpeg.
   to prevent content clipping).
 - **Multi-tier image search** — Google Custom Search API → DuckDuckGo / Bing 16:9
   web search (100% free, no key needed) → Pexels → Openverse → AI FLUX illustration.
-- **Resilient by design** — 10-tier LLM fallback, 3-tier research fallback, multi-tier TTS, and multi-tier
+- **Resilient by design** — multi-tier LLM fallback, optional research fallback, multi-tier TTS, and multi-tier
   image/video fallbacks keep the pipeline running indefinitely.
 - **Cost-aware** — runs 100% free on GitHub Actions using free-tier LLMs, Edge-TTS,
   and keyless image fallbacks.
@@ -128,12 +127,13 @@ Pipeline stages (all orchestrated by [`src/pipeline.py`](src/pipeline.py)):
 
 | Component      | Technology                                                           |
 | -------------- | -------------------------------------------------------------------- |
-| LLM            | Multi-tier fallback: Gemini (3.7 Flash / Flash Latest) → Groq → Cerebras → OpenRouter → Z.ai → Mistral → NVIDIA NIM → GitHub Models → SambaNova → Cloudflare |
+| LLM            | Task-routed fallback: Gemini 3.8 Flash → Groq → Cerebras → OpenRouter → Z.ai → Mistral → NVIDIA NIM → GitHub Models → SambaNova → Cloudflare |
 | Database       | Dual Backend: Neon Serverless PostgreSQL (`DATABASE_URL`) or SQLite Local (`output/state.db`) |
 | Series Engine  | Autonomous curriculum planning (`src/series_manager.py`) with episode continuity hooks |
 | Deep-ML AI     | 165 from-scratch verified ML/DL problems (`assets/docs/deepml/`) powering Long & Mega videos |
 | onjsdev Shorts | 9:16 vertical algorithm & math visualizer (`src/onjsdev_visualizer.py`) with ASMR audio sync |
-| Research Engine| 3-Tier Fact-Checking (`src/research_engine.py`): Wikipedia/DDG/ArXiv → Curated `sources.yaml` → Bundled offline KB (`assets/docs/`) |
+| Fact checking  | Compact offline fact packs by default; optional web research (`src/research_engine.py`) |
+| Video QA       | Pre-render script checks, media/subtitle checks, and contact sheet (`src/video_quality.py`) |
 | TTS            | VieNeu-TTS → Edge-TTS (free); ElevenLabs available but disabled by default |
 | Motion Graphics| HTML5 Canvas + MathJax 3.x studio scenes via headless Edge/Chrome CLI (`src/motion_graphics.py`) |
 | 2D Stickman/IK | StykAnimate 2D Inverse Kinematics (Law of Cosines, FABRIK) + Procedural Actions & Mascot Cards (`src/stick_animate.py`) |
@@ -177,45 +177,25 @@ python -m src.pipeline
 
 ---
 
-## Research Engine & 3-Tier Fact-Checking
+## Fact-Checking & Video Quality Gate
 
-To prevent LLM hallucinations on mathematical proofs, algorithm traces, and technical specifications, the pipeline features an autonomous **Research Engine** ([`src/research_engine.py`](src/research_engine.py)). Before writing any script or generating animation code, the system gathers verified context using a strict **3-Tier Fallback Hierarchy**:
+The default fact-checking path keeps research prompts small and makes no web requests. If `fact_check.enabled` is true, the script writer looks for a relevant extract in the bundled manuals and Deep-ML index. It adds the compact extract and local source name to the prompt. Public URLs found in source material are added to the video description. A deterministic pre-render check verifies modular arithmetic written as `a^b mod n = r`; it blocks rendering when the result is wrong. This is a useful guardrail, not a guarantee that every technical statement is correct.
 
+Set `research.enabled: true` to use the existing web, curated-link, and offline fallback chain. The default remains `false`; `fact_check.offline_only: true` keeps the lightweight behavior.
+
+After rendering, the quality gate writes `quality_report.json` and `scene_contact_sheet.jpg` beside the video. It checks video/audio streams, dimensions, frame rate, duration, 48 kHz audio, thumbnail size, subtitle timing/readability, long black frames and freezes, and the scene renderer mix. Critical defects block public upload; review warnings are saved with the report. FFmpeg finalization errors now stop the pipeline instead of silently uploading the intermediate file.
+
+The visual storyboard asks for one clear focal point per scene and does not force animation where a diagram or still frame explains the idea better. The configured 55% animation ratio is a reporting target only; the opening scene still starts with motion.
+
+### Retention feedback
+
+The pipeline can fetch audience-retention reports for recent uploads after the data has had time to settle. It only adds reports with at least 100 views to later prompts, and keeps those reports in the repository-scoped GitHub Actions cache under `output/retention/` rather than committing channel analytics to the repository. To authorize analytics, enable **YouTube Analytics API**, then run `python -m src.youtube_uploader --auth` and update the `YOUTUBE_TOKEN` secret. Existing upload tokens do not gain the new read scope automatically.
+
+To fetch one report locally:
+
+```bash
+python -m src.analytics --video-id YOUR_VIDEO_ID
 ```
-[Topic Query]
-      │
-      ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Tier 1: Auto Search & Download                              │
-│ • Wikipedia REST & Action API (VI + EN, relevance-filtered) │
-│ • DuckDuckGo Instant Answer API                             │
-│ • ArXiv API (for ML & Distributed Systems papers)           │
-│ • TinyFish Web Search Fallback                              │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ (if failed or low relevance)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Tier 2: Curated Backup Links (`assets/docs/sources.yaml`)   │
-│ • Categorized across 8 domains (DSA, Crypto, AI, OS, etc.)  │
-│ • Direct fetches from canonical docs (GeeksforGeeks, RFCs)  │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ (if offline or timeout)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Tier 3: Bundled Offline Technical Knowledge Base            │
-│ • 8 verified Markdown manuals in `assets/docs/*.md`         │
-│ • Concrete algorithm traces, exact formulas, Big-O tables   │
-│ • Local `.pdf` documentation parsing via `pypdf`            │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 1. Zero-Hallucination Pipeline Enforcement ("Làm Theo Tài Liệu")
-- **Script Generation ([`src/script_writer.py`](src/script_writer.py))**: Research findings are injected into the LLM system prompt inside `<research>` tags. The LLM is strictly instructed to use the verified formulas, specific trace inputs/outputs (e.g. RSA $5^7 \pmod{187} = 146$, Two Pointers array `[1, 2, 4, 7, 11]`, target $13$), and accurate Big-O complexities in both spoken narration and visual prompts.
-- **Visual & Animation Code ([`src/ai_code_runner.py`](src/ai_code_runner.py))**: Matplotlib and Manim code generation prompts ingest the research data directly. Graphs plot accurate numerical curves and animations reflect verified step-by-step state transitions rather than fabricated numbers.
-
-### 2. High-Speed Research Caching
-- Research results are normalized, hashed, and cached in `assets/cache/research/` (JSON format with configurable TTL).
-- Subsequent runs on related topics retrieve verified facts in $< 50\text{ms}$ with zero redundant network requests.
 
 ---
 
@@ -331,9 +311,9 @@ no key at all.
 
 | Tier | Provider      | Env var                                     | Notes                       |
 | ---- | ------------- | ------------------------------------------- | --------------------------- |
-| 1    | Gemini        | `GEMINI_API_KEY`                            | Gemini 3.7 Flash (primary)  |
+| 1    | Gemini        | `GEMINI_API_KEY`                            | Gemini 3.8 Flash (primary)  |
 | 2    | Groq          | `GROQ_API_KEY`                              | gpt-oss-120b / Qwen 27B     |
-| 2.2  | Cerebras      | `CEREBRAS_API_KEY`                          | Llama 3.3 70B (1800+ t/s)   |
+| 2.2  | Cerebras      | `CEREBRAS_API_KEY`                          | Qwen 3.8 27B                |
 | 3    | Pollinations  | `POLLINATIONS_API_KEY`                      | DeepSeek V4.1 / Qwen Coder  |
 | 3.1  | OpenRouter    | `OPENROUTER_API_KEY`                        | free Llama 3.3 70B          |
 | 3.5  | Z.ai          | `ZAI_API_KEY`                               | GLM-4-Flash                 |
@@ -448,6 +428,8 @@ If Google search keys are omitted, the pipeline automatically falls back to **Du
 5. For CI, put the **contents** of `client_secret.json` into the
    `YOUTUBE_CLIENT_SECRET` secret and the printed token into `YOUTUBE_TOKEN`
    (each as single-line JSON).
+6. Enable **YouTube Analytics API** to collect retention feedback. Re-run the
+   OAuth command after enabling it so the token includes the read-only scope.
 
 ---
 
@@ -540,7 +522,12 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | `series.auto_plan`               | Automatically plan a new 3–7 episode series when DB is empty/done.  |
 | `series.default_episodes_min`    | Minimum episodes for auto-planned curriculum (default: `3`).       |
 | `series.default_episodes_max`    | Maximum episodes for auto-planned curriculum (default: `7`).       |
-| `research.enabled`               | Enable 3-tier fact-checking & research engine before scripting.    |
+| `fact_check.enabled`              | Add a compact matching offline fact pack.                           |
+| `fact_check.offline_only`         | Keep fact-checking local; do not search the web.                   |
+| `quality_control.enabled`         | Run pre-render script and pre-upload media/subtitle checks.        |
+| `quality_control.scan_black_and_freeze` | Scan final video for long black/frozen sections.             |
+| `analytics.enabled`               | Collect delayed retention reports for future prompts.              |
+| `research.enabled`                | Enable the full web/curated/offline research chain.                |
 | `research.auto_download`         | Auto-search Wikipedia REST, DuckDuckGo & ArXiv (default: `true`).  |
 | `research.use_backup_links`      | Auto-fetch from curated `assets/docs/sources.yaml` when tier 1 fails.|
 | `research.use_bundled_docs`      | Auto-read bundled offline markdown docs in `assets/docs/*.md`.     |
@@ -549,7 +536,7 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | `motion_graphics.enabled`        | Enable HTML5/Canvas & MathJax studio rendering via headless browser.|
 | `stick_animate.enabled`          | Enable 2D Inverse Kinematics stickman procedural action loops.     |
 | `stick_animate.mascot`           | Enable emotional Bunny Girl reaction mascot overlay cards.         |
-| `animation.ai_code_primary`      | Prioritize AI-generated Python/Manim animations ($\ge 70\%$).      |
+| `animation.ai_code_primary`      | Allow AI-generated Python/Manim animation when the scene benefits. |
 | `animation.animate_from_start`   | Enforce animation from second 0 (Scene 1 Hook).                    |
 | `llm.providers`                  | Ordered fallback chain (model, base_url, key env, retries).        |
 | `llm.temperature` / `max_retries`| Global sampling temperature and retry budget.                      |
@@ -632,11 +619,12 @@ assets/docs/             # Offline technical knowledge base & sources
 
 ## Security Model
 
-- **No `eval`/`exec` of LLM output.** Math expressions go through an AST-validated
-  `make_safe_fn` ([`src/animation_bridge.py`](src/animation_bridge.py)); the
-  `custom` animation preset is **declarative JSON** interpreted by
-  `custom_scene.py`, which enforces hard limits (max objects, steps, animations
-  per step, run time, etc.).
+- **Generated animation code runs in a subprocess** with a timeout and reduced
+  environment. This is process isolation, not an operating-system security sandbox.
+  Math expressions use an AST-validated `make_safe_fn`
+  ([`src/animation_bridge.py`](src/animation_bridge.py)); the `custom` animation
+  preset is declarative JSON interpreted by `custom_scene.py` with limits on
+  objects, steps, and run time.
 - **Secrets stay out of git** — `.env` and `credentials/` are gitignored; CI reads
   everything from GitHub Actions Secrets.
 - **Least dependencies** — no LaTeX/Cairo/GLSL; the animation engine is pure

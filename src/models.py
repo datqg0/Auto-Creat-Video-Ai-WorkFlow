@@ -65,6 +65,8 @@ class Script(BaseModel):
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     scenes: list[Scene] = Field(default_factory=list)
+    # Public URLs extracted from the compact fact pack and added to the description.
+    references: list[str] = Field(default_factory=list)
     # Bài toán thực tế đặt ở cuối video (LLM sinh nhiều bài cho người xem luyện)
     exercises: list[Exercise] = Field(default_factory=list)
 

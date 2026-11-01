@@ -517,14 +517,14 @@ def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) 
     else:
         video_enc = ["-c:v", "copy"]
 
-    cmd += audio_map + video_enc + ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)]
+    cmd += audio_map + video_enc + ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", str(out)]
     try:
         subprocess.run(cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         err_msg = e.stderr.decode("utf-8", errors="replace") if e.stderr else str(e)
-        log.warning("Pass finalize (loudnorm/duck/subtitle) ffmpeg lỗi, dùng video gốc: %s", err_msg)
-        return video_path
-    except Exception as e:  # noqa: BLE001 - lỗi pass cuối -> trả video gốc
-        log.warning("Pass finalize (loudnorm/duck/subtitle) lỗi, dùng video gốc: %s", e)
-        return video_path
+        raise RuntimeError(f"FFmpeg không hoàn tất bước âm thanh/phụ đề; chặn upload: {err_msg[-1200:]}") from e
+    except Exception as e:  # noqa: BLE001 - lỗi pass cuối phải chặn upload
+        raise RuntimeError(f"Không hoàn tất bước âm thanh/phụ đề; chặn upload: {e}") from e
+    if not out.exists() or out.stat().st_size == 0:
+        raise RuntimeError("FFmpeg báo thành công nhưng không tạo được file video cuối; chặn upload.")
     return out

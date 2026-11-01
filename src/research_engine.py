@@ -10,7 +10,7 @@ Thực hiện cơ chế 3 Tầng Fallback hoàn chỉnh:
       + Đọc cấu hình từ assets/docs/sources.yaml hoặc config.yaml
       + Khớp từ khóa chủ đề và tải trực tiếp từ URL chuẩn
   - Tầng 3 (Kho tài liệu chuẩn bị sẵn offline - Tải sẵn):
-      + Quét và trích xuất dữ liệu chuẩn 100% (Zero Hallucination) từ assets/docs/*.md
+      + Quét và trích xuất nội dung tham khảo từ assets/docs/*.md
       + Hỗ trợ trích xuất file PDF nếu có trong thư mục assets/docs/
 """
 from __future__ import annotations
@@ -43,7 +43,7 @@ _DEFAULT_TIMEOUT = 10
 
 @dataclass
 class ResearchDocument:
-    """Đối tượng lưu trữ tài liệu nghiên cứu đã thu thập và cấu trúc hóa."""
+    """Đối tượng lưu trữ tư liệu nghiên cứu đã thu thập và cấu trúc hóa."""
     topic: str
     tier: str  # tier1_auto_search | tier2_backup_link | tier3_offline_doc
     source_name: str
@@ -63,7 +63,7 @@ class ResearchDocument:
         """
         lines = []
         lines.append("=" * 80)
-        lines.append(f"TÀI LIỆU KHOA HỌC & DỮ LIỆU ĐÃ XÁC THỰC (BẮT BUỘC 'LÀM THEO TÀI LIỆU')")
+        lines.append("TƯ LIỆU THAM KHẢO ĐÃ THU THẬP (đối chiếu phạm vi trước khi sử dụng)")
         lines.append(f"[Cơ chế: {self.tier.upper()} | Nguồn: {self.source_name}]")
         if self.source_url:
             lines.append(f"[Tham chiếu: {self.source_url}]")
@@ -75,7 +75,7 @@ class ResearchDocument:
         if self.concept:
             lines.append(f"\n1. KHÁI NIỆM & BẢN CHẤT:\n{self.concept.strip()}")
         if self.math_formulas:
-            lines.append("\n2. CÔNG THỨC TOÁN HỌC & SỐ LIỆU CHÍNH XÁC (ZERO HALLUCINATION):")
+            lines.append("\n2. CÔNG THỨC TOÁN HỌC & SỐ LIỆU TRONG TƯ LIỆU:")
             for f in self.math_formulas:
                 lines.append(f"   • {f}")
         if self.sample_data:
@@ -92,9 +92,9 @@ class ResearchDocument:
 
         lines.append("</research>")
         lines.append("=" * 80)
-        lines.append("QUY TẮC BẮT BUỘC CHO KỊCH BẢN & ANIMATION ('LÀM THEO TÀI LIỆU'):")
-        lines.append("1. LỜI THOẠI (NARRATION): Phải dùng đúng các con số, định nghĩa và công thức trong thẻ <research>.")
-        lines.append("   Tuyệt đối không bịa đặt số tính nhầm lẫn (ví dụ với RSA, phép tính và số dư phải khớp 100%).")
+        lines.append("QUY TẮC SỬ DỤNG TƯ LIỆU CHO KỊCH BẢN & ANIMATION:")
+        lines.append("1. Chỉ dùng dữ kiện và công thức khi chúng khớp chủ đề; không tự coi tư liệu là bảo đảm đúng tuyệt đối.")
+        lines.append("   Nếu không chắc phép tính hoặc số liệu, hãy kiểm tra lại hoặc trình bày định tính.")
         lines.append("2. HOẠT HOẠ (VISUAL PROMPT & ANIMATION SPEC): Phải trực quan hóa đúng mảng dữ liệu, ma trận")
         lines.append("   hoặc bước nhảy trạng thái đã nêu trong tài liệu trên. CẤM gán bừa đồ thị giải tích hay ma trận của bài khác.")
         lines.append("3. THỬ THÁCH (EXERCISES): Đặt câu hỏi và gợi ý dựa trên đúng các ràng buộc của tài liệu.")

@@ -98,6 +98,14 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-${{ runner.os }}
 
+      - name: Khôi phục retention feedback riêng của repository
+        uses: actions/cache@v4
+        with:
+          path: output/retention
+          key: retention-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            retention-${{ runner.os }}-
+
       - name: Xác định mode theo giờ chạy
         id: mode
         run: |
@@ -167,7 +175,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rendered-videos
-          path: output/**/*.mp4
+          path: |
+            output/**/*.mp4
+            output/video_*/quality_report.json
+            output/video_*/script_quality_report.json
+            output/video_*/scene_contact_sheet.jpg
+            output/video_*/manifest.json
           retention-days: 3
 
       - name: Upload debug artifacts on failure

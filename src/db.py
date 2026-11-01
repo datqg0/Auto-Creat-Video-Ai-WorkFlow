@@ -373,6 +373,16 @@ def update_video(video_id: int, **fields: Any) -> None:
         log.warning("update_video DB thất bại (id=%s): %s", video_id, e)
 
 
+def recent_uploaded_videos_for_analytics(limit: int = 12) -> list[dict[str, Any]]:
+    """Return recent uploads for delayed, optional retention collection."""
+    return _query_all(
+        "SELECT id, topic, title, youtube_id, created_at, updated_at FROM videos "
+        "WHERE status = 'uploaded' AND youtube_id IS NOT NULL "
+        "ORDER BY updated_at DESC LIMIT ?",
+        (max(1, min(int(limit), 100)),),
+    )
+
+
 # ==============================================================================
 # QUẢN LÝ CHUỖI VIDEO (SERIES & EPISODES)
 # ==============================================================================

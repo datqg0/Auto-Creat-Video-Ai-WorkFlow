@@ -142,6 +142,13 @@ def build_metadata(script: Script, durations: list[float] | None = None) -> dict
         if chapters:
             description += "\n\n" + chapters
 
+    references = [
+        url.strip() for url in getattr(script, "references", [])
+        if isinstance(url, str) and url.strip().startswith("https://")
+    ][:8]
+    if references:
+        description += "\n\nNguồn tham khảo:\n" + "\n".join(references)
+
     description += "\n\n" + " ".join(f"#{t.replace(' ', '')}" for t in tags[:8])
     description = sanitize_description(description, max_bytes=4800)
 

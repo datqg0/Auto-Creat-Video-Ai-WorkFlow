@@ -121,10 +121,10 @@ llm:
       max_output_tokens: 2000
       timeout: 45
 
-    # Tier 2.2 — Cerebras Cloud (Siêu tốc 1800+ tokens/giây, 1M token free/ngày: https://cloud.cerebras.ai)
+    # Tier 2.2 — Cerebras Cloud (Qwen 3.8 27B: https://inference-docs.cerebras.ai/models/qwen-3.8-27b)
     - name: cerebras
       type: openai
-      model: llama3.3-70b
+      model: qwen-3.8-27b
       base_url: https://api.cerebras.ai/v1
       api_key_env: CEREBRAS_API_KEY
       max_output_tokens: 8192
@@ -251,7 +251,7 @@ animation:
   enabled: true
   ai_code_primary: true        # Ưu tiên AI sinh code Python (Matplotlib / Manim) cho animation
   animate_from_start: true     # Scene 1 (Hook) luôn mở đầu bằng animation động do code AI vẽ
-  min_animation_ratio: 0.70    # Tối thiểu 70% số scene dùng animation
+  min_animation_ratio: 0.55    # Mốc tham khảo cho báo cáo; không ép cảnh thành animation
   motion_graphics_enabled: true # Bật engine Motion Graphics HTML5/Canvas qua Edge Headless (chuẩn Tech Studio)
   manim_enabled: true          # Bật Manim cho các scene thuật toán sâu (chuẩn 3Blue1Brown)
   # Chất lượng render manim: high_quality cho độ nét 1080p tối đa
@@ -314,6 +314,26 @@ subtitles:
   whisper_model: "base"   # (chỉ dùng khi fallback Whisper) tiny|base|small|medium
   burn_in: false          # false: không in đè phụ đề chữ vào khung hình video (chỉ dùng file .srt rời)
 
+# ---- Kiểm định chất lượng trước upload ----
+quality_control:
+  enabled: true
+  fail_on_warnings: false
+  min_file_bytes: 50000
+  duration_tolerance_seconds: 2.0
+  probe_timeout_seconds: 900
+  scan_black_and_freeze: true
+  visual_scan_timeout_seconds: 1800
+  max_static_scene_ratio: 0.55
+  max_caption_chars_per_second: 22
+  max_caption_chars_horizontal: 48
+  max_caption_chars_vertical: 32
+
+# ---- Fact-check nhẹ, chỉ tra kho offline; không tìm web ----
+fact_check:
+  enabled: true
+  offline_only: true
+  max_prompt_chars: 1600
+
 # ---- Nhạc nền ----
 music:
   enabled: true
@@ -345,6 +365,16 @@ youtube:
     - tech explained
     - "công nghệ"
   made_for_kids: false
+
+# ---- Phản hồi retention từ YouTube Analytics ----
+analytics:
+  enabled: true
+  lookback_days: 28
+  wait_after_publish_days: 3
+  refresh_after_days: 7
+  min_views_for_guidance: 100
+  recent_videos_to_check: 12
+  retention_dir: "output/retention"
 
 # ---- Chủ đề ----
 topics:
