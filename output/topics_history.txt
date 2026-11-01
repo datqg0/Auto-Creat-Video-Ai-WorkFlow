@@ -81,3 +81,4 @@
 2026-10-30T17:25:05.526000	Bubble Sort: Tại sao sắp xếp kiểu 'buông bọt' lại là kẻ chậm chạp nhất?
 2026-10-31T03:45:17.934709	Không ngờ 1 dòng NumPy làm AI “Nhìn” ảnh: Tự xây dựng Convolution & Max Pooling từ số 0
 2026-10-31T16:30:27.339239	QuickSort: Bí mật phân chia dữ liệu để sắp xếp nhanh hơn cả con người
+2026-11-01T03:51:30.659332	Hóa ra thuật toán 'lăn cầu' Gradient Descent là bí mật đứng sau mọi mô hình AI hiện đại
