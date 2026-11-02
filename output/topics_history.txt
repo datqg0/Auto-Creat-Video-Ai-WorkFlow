@@ -86,3 +86,4 @@
 2026-11-01T12:01:09.835478	Không ngờ chiếc 'bàn cân' Softmax lại là chìa khóa cho mọi hệ thống phân loại đa lớp phức tạp
 2026-11-01T12:49:09.922187	Bí mật về toán học 'lan truyền ngược' giúp mạng nơ-ron tự học mà không cần con người can thiệp
 2026-11-01T17:21:38.939645	A* Pathfinding: Cách máy tính 'thần thánh' tìm đường ngắn nhất trong mê cung
+2026-11-02T03:55:11.237137	Tại sao các 'cửa sổ' tích chập (Convolution) lại giúp máy tính nhìn thế giới hiệu quả hơn cả con người?
