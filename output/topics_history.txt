@@ -89,3 +89,4 @@
 2026-11-02T03:55:11.237137	Tại sao các 'cửa sổ' tích chập (Convolution) lại giúp máy tính nhìn thế giới hiệu quả hơn cả con người?
 2026-11-02T21:03:29.780355	Maze Generation: Hunt and Kill - Tạo ra ma trận hỗn loạn từ đồng tuyết trắng
 2026-11-03T04:58:15.413293	Hóa ra máy học không 'học' mà chỉ đang 'ngắm' độ dốc: Tự code Gradient Descent và Hồi quy Tuyến tính
+2026-11-03T18:47:06.934900	Chudnovsky Formula: Kỳ quan toán học tính Pi chính xác đến giới hạn của máy tính
