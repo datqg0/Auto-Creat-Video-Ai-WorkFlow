@@ -91,3 +91,4 @@
 2026-11-03T04:58:15.413293	Hóa ra máy học không 'học' mà chỉ đang 'ngắm' độ dốc: Tự code Gradient Descent và Hồi quy Tuyến tính
 2026-11-03T18:47:06.934900	Chudnovsky Formula: Kỳ quan toán học tính Pi chính xác đến giới hạn của máy tính
 2026-11-04T04:28:01.572532	Nghịch lý của xác suất: Vì sao hàm Cross-Entropy lại 'trừng phạt' những dự đoán sai một cách tàn khốc?
+2026-11-04T19:00:12.999694	Hóa ra thuật toán sắp xếp chậm nhất lại là 'cha đẻ' của mọi thứ: Bubble Sort
