@@ -1065,7 +1065,7 @@ YÊU CẦU NỬA SAU (PHẦN 2 - BẮT ĐẦU TỪ SCENE {start_idx}):
    - PHA 5: KẾT LUẬN & KÊU GỌI (2 scene cuối, BẮT BUỘC):
      * Scene TỔNG KẾT: heading "{_T[s.lang]['conclusion_heading']}", visual_type "bullets" với 3 ý: (1) bản chất cốt lõi; (2) khi nào NÊN dùng; (3) khi nào KHÔNG NÊN dùng/cạm bẫy.
      * Scene OUTRO: 1 câu châm ngôn tâm đắc, gợi mở bài toán tập sau, kêu gọi Like và Đăng ký kênh (heading KHÔNG được để mỗi chữ "Outro", hãy đặt tiêu đề truyền cảm hứng như "Lời Kết & Hẹn Gặp Lại", "Tương Lai Công Nghệ...").
-2. BÀI TẬP: mảng "exercises" gồm ĐÚNG 1 bài toán THỰC TẾ tiêu biểu có số liệu và đáp án thật (dùng ký hiệu toán học dễ hiểu như alpha_t = 0.9, epsilon = 0.3, x_{t-1} = ...; TUYỆT ĐỐI KHÔNG dùng LaTeX chưa escape \\).
+2. BÀI TẬP: mảng "exercises" gồm ĐÚNG 1 bài toán THỰC TẾ tiêu biểu có số liệu và đáp án thật (dùng ký hiệu toán học dễ hiểu như alpha_t = 0.9, epsilon = 0.3, x_{{t-1}} = ...; TUYỆT ĐỐI KHÔNG dùng LaTeX chưa escape \\).
 3. Tổng lời đọc nửa sau mục tiêu: ~{words_p2} từ (tối thiểu {int(words_p2 * 0.75)} từ).
 
 {_PEDAGOGY}
@@ -1305,6 +1305,11 @@ def _write_two_part_script(
                 p1_data = data
                 scenes_p1 = parsed
                 break
+            else:
+                n_sc = len(parsed) if parsed else 0
+                log.warning("Part 1 lần %d không đủ scenes (%d < 3)", attempt, n_sc)
+                _dump_debug(f"part1_short_{attempt}", raw_p1)
+                note_p1 = _retry_note(["Output phải chứa ít nhất 3 scenes hoàn chỉnh, đầy đủ narration và visual_type."])
         except Exception as e:
             log.warning("Part 1 lần %d lỗi: %s", attempt, e)
             _dump_debug(f"part1_fail_{attempt}", raw_p1)
@@ -1339,6 +1344,11 @@ def _write_two_part_script(
                 p2_data = data
                 scenes_p2 = parsed
                 break
+            else:
+                n_sc = len(parsed) if parsed else 0
+                log.warning("Part 2 lần %d không đủ scenes (%d < 3)", attempt, n_sc)
+                _dump_debug(f"part2_short_{attempt}", raw_p2)
+                note_p2 = _retry_note(["Output phải chứa ít nhất 3 scenes hoàn chỉnh và exercises."])
         except Exception as e:
             log.warning("Part 2 lần %d lỗi: %s", attempt, e)
             _dump_debug(f"part2_fail_{attempt}", raw_p2)

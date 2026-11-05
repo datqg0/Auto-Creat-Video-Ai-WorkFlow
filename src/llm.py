@@ -68,10 +68,12 @@ _CREDIT_OR_ERROR_PATTERNS = (
 
 def _validate_response_text(provider_name: str, text: str) -> str:
     """Kiểm tra xem response trả về có phải là thông báo lỗi API (nhưng trả mã HTTP 200) không."""
-    lower = text.lower()
-    for pat in _CREDIT_OR_ERROR_PATTERNS:
-        if re.search(pat, lower):
-            raise LLMError(f"{provider_name} trả về thông báo lỗi credit/tài khoản (HTTP 200): {text[:150]}")
+    # Chỉ kiểm tra khi text ngắn (< 500 ký tự) để tránh nhận diện nhầm nội dung kịch bản công nghệ
+    if len(text.strip()) < 500:
+        lower = text.lower()
+        for pat in _CREDIT_OR_ERROR_PATTERNS:
+            if re.search(pat, lower):
+                raise LLMError(f"{provider_name} trả về thông báo lỗi credit/tài khoản (HTTP 200): {text[:150]}")
     return text
 
 
@@ -89,19 +91,18 @@ def _is_quota_or_auth_error(e: Exception) -> bool:
         "invalid api key",
         "invalid_api_key",
         "unauthorized",
-        "401",
-        "403",
         "account behind this api key",
         "billing not active",
         "model_not_found",
         "does not exist or you do not have access",
         "is unavailable for free",
         "all nodes exhausted",
-        "410",
         "end of life",
         "no longer available",
         "has reached its end of life",
-    )) or "authenticationerror" in name or "permissiondenied" in name
+        "requests per day limit exceeded",
+        "generate_content_free_tier_requests",
+    )) or bool(re.search(r"\b(401|403|410)\b", msg)) or "authenticationerror" in name or "permissiondenied" in name
 
 
 def _retry_after(e: Exception) -> float | None:
@@ -118,9 +119,31 @@ def _retry_after(e: Exception) -> float | None:
             return float(val)
         except (TypeError, ValueError):
             pass
-    # Fallback: dò trong message ("retry_delay { seconds: 40 }" hoặc "retry after 40s")
+    # Dò trong exception message với nhiều định dạng khác nhau
     msg = str(e)
-    m = re.search(r"seconds:\s*(\d+)", msg) or re.search(r"retry[_\s-]?after[:\s]*(\d+)", msg, re.I)
+    # 1. 'retryDelay': '12670s' hoặc "retryDelay": 12670
+    m = re.search(r"retryDelay['\"]?\s*:\s*['\"]?(\d+(?:\.\d+)?)s?", msg, re.I)
+    if m:
+        return float(m.group(1))
+    # 2. 'Please try again in 19.311s' (Groq format)
+    m = re.search(r"try\s+again\s+in\s+([\d\.]+)\s*s?", msg, re.I)
+    if m:
+        return float(m.group(1))
+    # 3. 'retry in 3h31m10s' (Gemini human format)
+    m_hms = re.search(r"retry\s+in\s+(?:(\d+)h)?(?:(\d+)m)?(?:([\d\.]+)s)?", msg, re.I)
+    if m_hms and any(m_hms.groups()):
+        h = float(m_hms.group(1) or 0)
+        mins = float(m_hms.group(2) or 0)
+        s = float(m_hms.group(3) or 0)
+        total = h * 3600 + mins * 60 + s
+        if total > 0:
+            return total
+    # 4. 'retry-after: 40' / 'retry after 40s'
+    m = re.search(r"retry[_\s-]?after[:\s]*(\d+(?:\.\d+)?)", msg, re.I)
+    if m:
+        return float(m.group(1))
+    # 5. 'seconds: 40'
+    m = re.search(r"seconds:\s*(\d+(?:\.\d+)?)", msg, re.I)
     if m:
         return float(m.group(1))
     return None
@@ -243,36 +266,32 @@ def _call_groq(provider: dict, prompt: str, system: str, temperature: float) -> 
         kwargs["base_url"] = base_url
     client = Groq(**kwargs)
 
-    def _exec(p_user: str, p_sys: str):
-        msgs = []
-        if p_sys:
-            msgs.append({"role": "system", "content": p_sys})
-        msgs.append({"role": "user", "content": p_user})
-        return client.chat.completions.create(
-            model=provider["model"],
-            max_tokens=int(provider.get("max_output_tokens", 4096)),
-            temperature=temperature,
-            messages=msgs,
-        )
+    msgs = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": prompt})
 
-    try:
-        resp = _exec(prompt, system)
-    except Exception as e:
-        err_msg = str(e).lower()
-        if any(w in err_msg for w in ("payload too large", "413", "tokens per minute", "tpm", "rate_limit_exceeded")):
-            log.warning("Groq %s chạm giới hạn TPM, tự động tinh giản context và thử lại...", provider["model"])
-            compact_sys = system[:1200] if system else ""
-            compact_user = prompt[:10000] if len(prompt) > 10000 else prompt
-            resp = _exec(compact_user, compact_sys)
-        else:
-            raise
+    resp = client.chat.completions.create(
+        model=provider["model"],
+        max_tokens=int(provider.get("max_output_tokens", 4096)),
+        temperature=temperature,
+        messages=msgs,
+    )
 
+    if not resp.choices:
+        raise LLMError(f"{provider['name']} không trả về choices")
     choice = resp.choices[0]
+    finish_reason = getattr(choice, "finish_reason", None)
     text = (choice.message.content or "").strip()
     if not text and hasattr(choice.message, "reasoning") and choice.message.reasoning:
-        text = str(choice.message.reasoning).strip()
+        # Nếu model trả reasoning mà không có content, thử rút block JSON từ reasoning
+        m_json = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", str(choice.message.reasoning))
+        if m_json:
+            text = m_json.group(1).strip()
     if not text:
-        raise LLMError("Groq trả về rỗng")
+        raise LLMError(f"{provider['name']} trả về rỗng (finish_reason={finish_reason})")
+    if finish_reason == "length":
+        log.warning("%s output bị cắt do chạm trần max_tokens (%s)", provider["name"], finish_reason)
     return _validate_response_text(provider["name"], text)
 
 
@@ -306,9 +325,19 @@ def _call_openai(provider: dict, prompt: str, system: str, temperature: float) -
     if provider.get("supports_temperature", True):
         create_kw["temperature"] = temperature
     resp = client.chat.completions.create(**create_kw)
-    text = (resp.choices[0].message.content or "").strip()
+    if not resp.choices:
+        raise LLMError(f"{provider['name']} không trả về choices")
+    choice = resp.choices[0]
+    finish_reason = getattr(choice, "finish_reason", None)
+    text = (choice.message.content or "").strip()
+    if not text and hasattr(choice.message, "reasoning") and choice.message.reasoning:
+        m_json = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", str(choice.message.reasoning))
+        if m_json:
+            text = m_json.group(1).strip()
     if not text:
-        raise LLMError(f"{provider['name']} trả về rỗng")
+        raise LLMError(f"{provider['name']} trả về rỗng (finish_reason={finish_reason})")
+    if finish_reason == "length":
+        log.warning("%s output bị cắt do chạm trần max_tokens (%s)", provider["name"], finish_reason)
     return _validate_response_text(provider["name"], text)
 
 
@@ -369,6 +398,17 @@ def generate(prompt: str, system: str = "", task: str | None = None) -> str:
     last_err: Exception | None = None
     for provider in providers_to_try:
         name = provider["name"]
+
+        # Kiểm tra trước API Key: nếu chưa cấu hình thì bỏ qua ngay lập tức, không thử vô ích
+        key_env = provider.get("api_key_env")
+        if key_env:
+            val = env(key_env)
+            if not val and key_env in ("GH_MODELS_TOKEN", "GITHUB_MODELS_TOKEN"):
+                val = env("GH_MODELS_TOKEN") or env("GITHUB_MODELS_TOKEN") or env("GH_TOKEN")
+            if not val:
+                log.debug("Bỏ qua LLM %s do chưa cấu hình %s", name, key_env)
+                continue
+
         # 'type' chọn bộ gọi; mặc định suy ra từ name để tương thích cấu hình cũ.
         kind = provider.get("type", name)
         fn = _DISPATCH.get(kind)
@@ -385,6 +425,16 @@ def generate(prompt: str, system: str = "", task: str | None = None) -> str:
                 last_err = e
                 log.warning("LLM %s lỗi (attempt %d): %s", name, attempt, e)
 
+                err_str = str(e).lower()
+
+                # Nếu là lỗi hết quota ngày của Gemini, vô hiệu hoá toàn bộ model Gemini trong phiên
+                if "generate_content_free_tier_requests" in err_str or "requests per day limit exceeded" in err_str:
+                    for p in all_providers:
+                        if p.get("type") == "gemini" or p["name"].startswith("gemini"):
+                            _DISABLED_PROVIDERS.add(p["name"])
+                    log.warning("Gemini đã hết quota theo ngày (Free Tier 20 req/ngày) -> vô hiệu hoá toàn bộ Gemini trong phiên")
+                    break
+
                 # Lỗi cạn credit, hết quota, hoặc invalid api key: vô hiệu hoá provider cho cả phiên
                 if _is_quota_or_auth_error(e):
                     _DISABLED_PROVIDERS.add(name)
@@ -397,7 +447,13 @@ def generate(prompt: str, system: str = "", task: str | None = None) -> str:
                 is_last_attempt = attempt >= retries
                 if _is_rate_limit(e):
                     wait = _retry_after(e)
-                    # Rate limit + delay quá dài -> bỏ provider này, sang cái kế.
+                    # Nếu báo phải đợi > 300s (vd 3 tiếng của Gemini): vô hiệu hoá luôn trong phiên
+                    if wait is not None and wait > 300:
+                        _DISABLED_PROVIDERS.add(name)
+                        log.warning("LLM %s báo chờ %.0fs (>300s) -> vô hiệu hoá trong phiên", name, wait)
+                        break
+
+                    # Rate limit + delay quá dài so với giới hạn chờ tức thì -> chuyển sang provider kế
                     if wait is None or wait > _MAX_RETRY_WAIT:
                         log.warning(
                             "LLM %s rate-limited (delay=%s) -> chuyển provider",

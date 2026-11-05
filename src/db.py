@@ -10,9 +10,8 @@ Kiến trúc Fallback 4 tầng:
 from __future__ import annotations
 
 import logging
-import os
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -28,9 +27,12 @@ _force_sqlite: bool = False
 _mem_conn: sqlite3.Connection | None = None
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def is_postgres() -> bool:
     """Kiểm tra có đang sử dụng PostgreSQL hay không (tự động False nếu đã fallback)."""
-    global _force_sqlite
     if _force_sqlite:
         return False
     url = env("DATABASE_URL")
@@ -118,7 +120,7 @@ def _init_sqlite_schema() -> None:
 
 def _get_connection():
     """Tạo kết nối DB với khả năng tự động fallback Neon -> SQLite -> In-Memory."""
-    global _force_sqlite, _mem_conn
+    global _mem_conn
 
     if is_postgres():
         try:
@@ -299,16 +301,21 @@ def _append_topic_history(topic: str) -> None:
     """Ghi topic vào file text append-only để chống trùng (luôn hoạt động độc lập với DB)."""
     try:
         TOPICS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        line = f"{datetime.utcnow().isoformat()}\t{topic}\n"
+        line = f"{_now_iso()}\t{topic}\n"
         with open(TOPICS_FILE, "a", encoding="utf-8") as f:
             f.write(line)
     except Exception as e:
         log.warning("Không thể ghi file %s: %s", TOPICS_FILE, e)
 
 
+def record_topic_success(topic: str) -> None:
+    """Ghi nhận topic đã hoàn thành vào lịch sử (chỉ gọi khi video thực sự được render thành công)."""
+    _append_topic_history(topic)
+
+
 def recent_topics(days: int = 30) -> list[str]:
     """Lấy danh sách các chủ đề đã dùng trong vòng N ngày."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     topics: list[str] = []
 
     # 1. Từ file topics_history (độc lập với DB)
@@ -323,7 +330,10 @@ def recent_topics(days: int = 30) -> list[str]:
                     if not topic:
                         continue
                     try:
-                        if datetime.fromisoformat(ts) >= cutoff:
+                        dt = datetime.fromisoformat(ts)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        if dt >= cutoff:
                             topics.append(topic)
                     except ValueError:
                         topics.append(topic)
@@ -332,11 +342,11 @@ def recent_topics(days: int = 30) -> list[str]:
 
     # 2. Từ bảng series_episodes và videos
     try:
-        rows = _query_all("SELECT topic FROM videos WHERE status != 'error' LIMIT 100")
+        rows = _query_all("SELECT topic FROM videos WHERE status != 'error' ORDER BY created_at DESC LIMIT 100")
         for r in rows:
             if r.get("topic") and r["topic"] not in topics:
                 topics.append(r["topic"])
-        ep_rows = _query_all("SELECT topic FROM series_episodes LIMIT 100")
+        ep_rows = _query_all("SELECT topic FROM series_episodes WHERE status != 'error' ORDER BY id DESC LIMIT 100")
         for r in ep_rows:
             if r.get("topic") and r["topic"] not in topics:
                 topics.append(r["topic"])
@@ -347,8 +357,7 @@ def recent_topics(days: int = 30) -> list[str]:
 
 
 def create_video(topic: str) -> int:
-    now = datetime.utcnow().isoformat()
-    _append_topic_history(topic)
+    now = _now_iso()
     try:
         return _insert_get_id(
             "INSERT INTO videos (topic, status, created_at, updated_at) VALUES (?, 'pending', ?, ?)",
@@ -356,7 +365,7 @@ def create_video(topic: str) -> int:
         )
     except Exception as e:
         log.warning("create_video DB thất bại (%s). Dùng fallback timestamp ID.", e)
-        return int(datetime.utcnow().timestamp())
+        return int(datetime.now(timezone.utc).timestamp())
 
 
 def update_video(video_id: int, **fields: Any) -> None:
@@ -431,9 +440,9 @@ def get_series_episodes(series_id: int) -> list[dict[str, Any]]:
 
 
 def get_next_pending_episode(series_id: int) -> dict[str, Any] | None:
-    """Lấy tập pending tiếp theo của series."""
+    """Lấy tập pending hoặc tập bị lỗi cần thử lại tiếp theo của series."""
     return _query_one(
-        "SELECT * FROM series_episodes WHERE series_id = ? AND status = 'pending' ORDER BY episode_num ASC LIMIT 1",
+        "SELECT * FROM series_episodes WHERE series_id = ? AND status IN ('pending', 'error') ORDER BY episode_num ASC LIMIT 1",
         (series_id,),
     )
 

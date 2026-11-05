@@ -147,8 +147,13 @@ jobs:
           HF_HUB_DISABLE_SYMLINKS: "1"
           # Ảnh đẹp + footage VIDEO b-roll (không có -> tự fallback ảnh tĩnh/Openverse)
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          TINYFISH_API_KEY: ${{ secrets.TINYFISH_API_KEY }}
+          FAL_KEY: ${{ secrets.FAL_KEY }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+          INPUT_TOPIC: ${{ github.event.inputs.topic }}
+          INPUT_DURATION: ${{ github.event.inputs.duration }}
+          INPUT_NO_UPLOAD: ${{ github.event.inputs.no_upload }}
           # Khai thác tối đa 100% công suất CPU runner (đa luồng ONNX, PyTorch, NumPy, FFmpeg)
           OMP_NUM_THREADS: "4"
           MKL_NUM_THREADS: "4"
@@ -158,13 +163,13 @@ jobs:
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
           CMD=("python" "-m" "src.pipeline" "--mode" "$MODE")
-          if [ -n "${{ github.event.inputs.topic }}" ]; then
-            CMD+=("--topic" "${{ github.event.inputs.topic }}")
+          if [ -n "$INPUT_TOPIC" ]; then
+            CMD+=("--topic" "$INPUT_TOPIC")
           fi
-          if [ -n "${{ github.event.inputs.duration }}" ]; then
-            CMD+=("--duration" "${{ github.event.inputs.duration }}")
+          if [ -n "$INPUT_DURATION" ]; then
+            CMD+=("--duration" "$INPUT_DURATION")
           fi
-          if [ "${{ github.event.inputs.no_upload }}" = "true" ]; then
+          if [ "$INPUT_NO_UPLOAD" = "true" ]; then
             CMD+=("--no-upload")
           fi
           echo "Executing: ${CMD[*]}"

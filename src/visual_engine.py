@@ -19,6 +19,8 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from .config import CONFIG
 from .models import Scene
 
+log = logging.getLogger(__name__)
+
 def _clean_heading(text: str | None) -> str:
     """Xóa bỏ triệt để tiền tố 'Hook:', 'Cảnh 1:', 'Scene 1:' khỏi heading."""
     if not text:
@@ -258,11 +260,6 @@ def _new_canvas(
 def _footer(draw: ImageDraw.ImageDraw) -> None:
     draw.line([(120, _H() - 90), (_W() - 120, _H() - 90)], fill=_MUTED, width=2)
     draw.ellipse([(120, _H() - 78), (140, _H() - 58)], fill=ACCENT)
-
-
-def _text_w(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> int:
-    bbox = draw.textbbox((0, 0), text, font=font)
-    return bbox[2] - bbox[0]
 
 
 def _draw_center_text(

@@ -1,0 +1,108 @@
+"""Smoke test kiểm tra toàn bộ các module và hàm cốt lõi của pipeline."""
+from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+
+# Add project root to sys.path
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
+
+class TestPipelineModules(unittest.TestCase):
+    def test_config_load(self):
+        from src.config import CONFIG, apply_mode
+        self.assertIn("llm", CONFIG)
+        self.assertIn("visual", CONFIG)
+        self.assertIn("series", CONFIG)
+        self.assertEqual(CONFIG["series"]["default_episodes"], 5)
+        self.assertIn("providers", CONFIG["llm"])
+        # Kiểm tra timeout Gemini đã được nâng lên >= 60s
+        for p in CONFIG["llm"]["providers"]:
+            if p["name"].startswith("gemini"):
+                self.assertGreaterEqual(p["timeout"], 60)
+
+    def test_visual_engine_log_and_text_w(self):
+        import logging
+        from PIL import Image, ImageDraw, ImageFont
+        from src.visual_engine import log, _text_w, _clean_heading
+        self.assertIsInstance(log, logging.Logger)
+        img = Image.new("RGB", (100, 100))
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.load_default()
+        w = _text_w(draw, "Xin chào thế giới 123", font)
+        self.assertGreater(w, 0)
+        self.assertEqual(_clean_heading("Hook: Bí mật của AI"), "Bí mật của AI")
+
+    def test_script_writer_prompts(self):
+        from src.script_writer import (
+            _load_settings,
+            _build_long_prompt,
+            _build_short_prompt,
+            _build_long_part2_prompt,
+        )
+        s = _load_settings()
+        p1 = _build_long_prompt(s, "Test Topic", "Research Notes", None)
+        self.assertIn("Test Topic", p1)
+
+        ps = _build_short_prompt(s, "Test Topic", "Research Notes", None)
+        self.assertIn("Test Topic", ps)
+
+        # Kiểm tra lỗi x_{t-1} đã được escape thành công không còn NameError
+        p2 = _build_long_part2_prompt(
+            s, "Test Topic", "Research Notes", None,
+            {"title": "Test Title", "scenes": [{"heading": "H1", "narration": "N1"}]},
+            4, 6, 400, 2
+        )
+        self.assertIn("x_{t-1}", p2)
+        self.assertIn("Test Title", p2)
+
+    def test_ai_code_runner_security_and_config(self):
+        from src.ai_code_runner import _clean_and_validate_code, CONFIG
+        self.assertIsNotNone(CONFIG)
+        # Kiểm tra code an toàn
+        safe_code = "```python\nimport matplotlib.pyplot as plt\nplt.plot([1, 2])\n```"
+        self.assertIsNotNone(_clean_and_validate_code(safe_code, "matplotlib"))
+
+        # Kiểm tra code tấn công đọc file credentials bị chặn
+        attack_code = "```python\nwith open('credentials/token.json') as f: pass\n```"
+        self.assertIsNone(_clean_and_validate_code(attack_code, "matplotlib"))
+
+        attack_git = "```python\nwith open('.git/config') as f: pass\n```"
+        self.assertIsNone(_clean_and_validate_code(attack_git, "matplotlib"))
+
+    def test_llm_parsing_and_rate_limits(self):
+        from src.llm import _retry_after, _is_quota_or_auth_error, _validate_response_text
+
+        # 1. Test parse thời gian chờ của Groq
+        groq_err = Exception("Rate limit reached on ITPM: Limit 7000. Please try again in 19.311428571s.")
+        self.assertAlmostEqual(_retry_after(groq_err), 19.311428571, places=2)
+
+        # 2. Test parse thời gian chờ của Gemini
+        gemini_err = Exception("{'retryDelay': '12670s'}")
+        self.assertEqual(_retry_after(gemini_err), 12670.0)
+
+        # 3. Test parse retry in XhYmZs
+        gemini_human = Exception("Please retry in 3h31m10.32s.")
+        self.assertAlmostEqual(_retry_after(gemini_human), 3 * 3600 + 31 * 60 + 10.32, places=1)
+
+        # 4. Test quota check
+        self.assertTrue(_is_quota_or_auth_error(Exception("Generate content requests per day limit exceeded")))
+        self.assertTrue(_is_quota_or_auth_error(Exception("Error code: 410")))
+        self.assertFalse(_is_quota_or_auth_error(Exception("Normal syntax error at line 4100")))
+
+        # 5. Test response text validation
+        self.assertEqual(_validate_response_text("test", "Đoạn văn hợp lệ rất dài giải thích về rate limit..."), "Đoạn văn hợp lệ rất dài giải thích về rate limit...")
+        with self.assertRaises(Exception):
+            _validate_response_text("test", "The account behind this API key doesn't have enough credits. Please top up")
+
+    def test_db_functions(self):
+        from src.db import recent_topics, get_next_pending_episode
+        topics = recent_topics(30)
+        self.assertIsInstance(topics, list)
+
+
+if __name__ == "__main__":
+    unittest.main()
+

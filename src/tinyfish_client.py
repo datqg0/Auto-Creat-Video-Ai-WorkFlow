@@ -34,7 +34,6 @@ _TINYFISH_DISABLED = False
 
 def is_available() -> bool:
     """Kiểm tra xem TinyFish có sẵn sàng và có API key hợp lệ không."""
-    global _TINYFISH_DISABLED
     if _TINYFISH_DISABLED:
         return False
     key = env(_API_KEY_ENV) or os.getenv(_API_KEY_ENV)

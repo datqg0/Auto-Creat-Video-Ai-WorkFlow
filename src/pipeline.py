@@ -108,11 +108,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
     code_videos: list = []
     scene_renderers: list[str] = []
 
-    from .tts import synthesize_timed
-    from .models import Scene
-
-    # Chọn lại provider TTS từ đầu cho video này rồi khóa -> cả video 1 giọng.
-    from .tts import reset_provider_lock
+    from .tts import synthesize_timed, reset_provider_lock
     reset_provider_lock()
 
     # Scene chính + scene "thử thách" chèn trước phần tổng kết.
@@ -485,6 +481,7 @@ def run_once(
 
         video_path, thumb_path, durations, captions, scene_renderers = _render_video(script, workdir)
         db.update_video(video_id_db, status="rendered")
+        db.record_topic_success(topic)
         if episode_id:
             db.update_episode(episode_id, status="rendered")
 

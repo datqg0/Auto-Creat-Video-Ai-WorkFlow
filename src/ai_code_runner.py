@@ -20,6 +20,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .config import CONFIG
+
 log = logging.getLogger(__name__)
 
 # Prelude do RUNNER viết (tin cậy) — đặt trước code AI để chuẩn hóa môi trường vẽ.
@@ -141,6 +143,12 @@ def _clean_and_validate_code(resp: str, framework: str = "matplotlib") -> str | 
             log.warning("Phản hồi AI không phải code mà là thông báo lỗi API: %s", cleaned[:150])
             return None
 
+    # Bảo mật: ngăn chặn code AI cố gắng đọc trộm credentials hoặc git secrets
+    for sensitive in ("credentials", "client_secret", "token.json", ".git", "id_rsa", "authorized_keys"):
+        if sensitive in lower:
+            log.warning("Bảo mật: Code AI chứa từ khoá nhạy cảm (%s), từ chối thực thi", sensitive)
+            return None
+
     # Loại bỏ các import ảo mà AI hay bịa khi thấy từ 'helpers' trong prompt
     cleaned = re.sub(r"^\s*(?:from\s+helpers\s+import\s+.*|import\s+helpers\b.*)$", "", cleaned, flags=re.MULTILINE)
 
@@ -239,7 +247,7 @@ def generate_matplotlib_from_prompt(
                 if res_doc.sample_data:
                     parts.append("Sample Data / Verified Walkthrough:\n  " + res_doc.sample_data[:400].replace("\n", "\n  "))
                 if parts:
-                    research_section = f"- FACT-CHECKED RESEARCH REFERENCE (COMPLY 100%):\n  " + "\n  ".join(parts) + "\n"
+                    research_section = "- FACT-CHECKED RESEARCH REFERENCE (COMPLY 100%):\n  " + "\n  ".join(parts) + "\n"
         except Exception:
             pass
 
@@ -321,7 +329,7 @@ def generate_manim_from_prompt(
                 if res_doc.sample_data:
                     parts.append("Sample Data / Verified Walkthrough:\n  " + res_doc.sample_data[:400].replace("\n", "\n  "))
                 if parts:
-                    research_section = f"- FACT-CHECKED RESEARCH REFERENCE (COMPLY 100%):\n  " + "\n  ".join(parts) + "\n"
+                    research_section = "- FACT-CHECKED RESEARCH REFERENCE (COMPLY 100%):\n  " + "\n  ".join(parts) + "\n"
         except Exception:
             pass
 

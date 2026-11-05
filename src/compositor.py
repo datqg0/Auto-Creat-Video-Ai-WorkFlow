@@ -17,6 +17,8 @@ import warnings
 import zlib
 from pathlib import Path
 
+from PIL import Image
+
 # Tắt cảnh báo MoviePy đọc frame chạm EOF khi clip bị lệch millisecond
 warnings.filterwarnings("ignore", category=UserWarning, module="moviepy.video.io.ffmpeg_reader")
 
