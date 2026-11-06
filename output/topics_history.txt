@@ -93,3 +93,4 @@
 2026-11-04T04:28:01.572532	Nghịch lý của xác suất: Vì sao hàm Cross-Entropy lại 'trừng phạt' những dự đoán sai một cách tàn khốc?
 2026-11-04T19:00:12.999694	Hóa ra thuật toán sắp xếp chậm nhất lại là 'cha đẻ' của mọi thứ: Bubble Sort
 2026-11-05T19:31:47.021467+00:00	QuickSort: Vì sao giải pháp 'chia để trị' lại nhanh gấp nhiều lần Bubble Sort đến vậy?
+2026-11-06T05:21:05.539338+00:00	Nghịch lý của xác suất: Vì sao hàm Cross-Entropy lại 'trừng phạt' những dự đoán sai một cách tàn khốc?
