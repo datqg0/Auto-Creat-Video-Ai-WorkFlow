@@ -95,3 +95,4 @@
 2026-11-05T19:31:47.021467+00:00	QuickSort: Vì sao giải pháp 'chia để trị' lại nhanh gấp nhiều lần Bubble Sort đến vậy?
 2026-11-06T05:21:05.539338+00:00	Nghịch lý của xác suất: Vì sao hàm Cross-Entropy lại 'trừng phạt' những dự đoán sai một cách tàn khốc?
 2026-11-06T19:02:00.684690+00:00	A* Algorithm: Bí mật giúp nhân vật trong game luôn tìm được đường đi ngắn nhất
+2026-11-07T04:35:50.501372+00:00	Không ngờ Softmax là 'cây cầu' dẫn từ toán thống kê vào mạng nơ-ron: Phân loại đa lớp từ số 0
