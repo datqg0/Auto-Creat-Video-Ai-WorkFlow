@@ -1,10 +1,9 @@
-"""Module tạo Video AI cho pipeline (Tối đa 1 clip/video theo cấu hình).
+"""Module tạo video từ nhiều ảnh AI hoặc qua dịch vụ video diffusion.
 
 Hỗ trợ các provider:
-  1. ai_motion (Mặc định & Miễn phí 100%, 0đ, không cần key, tức thì):
-     - Sinh ảnh AI chất lượng cao (1080p) bằng FLUX qua Pollinations/HuggingFace.
-     - Dựng thành clip MP4 cinematic camera motion (Smooth Zoom + Pan + Cyber glow)
-       chuẩn 30fps bằng MoviePy/FFmpeg trong 2-3 giây.
+  1. ai_motion (mặc định):
+     - Sinh nhiều ảnh cùng chủ đề qua provider ảnh đã cấu hình.
+     - Dựng clip MP4 pan/zoom, chuyển mềm giữa ảnh theo thời lượng lời đọc.
   2. fal (Fal.ai Text-to-Video Diffusion):
      - Gọi Kling, Wan 2.1 hoặc LTX Video qua Fal.ai API nếu có FAL_KEY.
      - Fal.ai tặng credit dùng thử miễn phí khi đăng ký tại https://fal.ai.
@@ -58,61 +57,68 @@ def _clean_prompt(prompt: str) -> str:
     return p[:200]
 
 
-def _motion_video_from_image(
-    img_path: Path,
+def _motion_video_from_images(
+    img_paths: list[Path],
     out_path: Path,
     duration: float = 5.0,
     width: int = 1920,
     height: int = 1080,
     fps: int = 30,
 ) -> Path | None:
-    """Biến ảnh tĩnh thành clip MP4 chuyển động camera điện ảnh mượt mà (Ken Burns HD)."""
+    """Pan/zoom từng ảnh rồi chuyển mềm giữa các ảnh trong một cảnh."""
+    if not img_paths:
+        return None
     try:
         import numpy as np
 
-        img = Image.open(str(img_path)).convert("RGB")
-        scale = max(width / img.width, height / img.height) * 1.15  # phóng nhẹ 15% để có biên pan
-        bw = max(width, math.ceil(img.width * scale))
-        bh = max(height, math.ceil(img.height * scale))
-        img = img.resize((bw, bh), Image.Resampling.LANCZOS)
+        prepared: list[Image.Image] = []
+        for path in img_paths:
+            with Image.open(path) as source:
+                rgb = source.convert("RGB")
+                scale = max(width / rgb.width, height / rgb.height) * 1.15
+                bw = max(width, math.ceil(rgb.width * scale))
+                bh = max(height, math.ceil(rgb.height * scale))
+                prepared.append(rgb.resize((bw, bh), Image.Resampling.LANCZOS))
 
         dur = max(duration, 2.0)
-        z0, z1 = 1.0, 1.12
-        ux, uy = 0.35, 0.20  # hướng pan nhẹ chéo
+        segment = dur / len(prepared)
+        dissolve = min(0.55, segment * 0.25) if len(prepared) > 1 else 0.0
 
         def smooth(t: float) -> float:
             return 0.5 - 0.5 * math.cos(math.pi * t)
 
-        def make_frame(t: float):
-            p = smooth(min(max(t / dur, 0.0), 1.0))
-            z = z0 + (z1 - z0) * p
+        def camera_frame(index: int, progress: float) -> Image.Image:
+            img = prepared[index]
+            p = smooth(min(max(progress, 0.0), 1.0))
+            z = 1.0 + 0.10 * p
             cw = width / z
             ch = height / z
-
-            room_x = (bw - cw) / 2
-            room_y = (bh - ch) / 2
-            u = -1.0 + 2.0 * p
-            cx = bw / 2 + ux * u * room_x
-            cy = bh / 2 + uy * u * room_y
-
+            direction = 1 if index % 2 == 0 else -1
+            cx = img.width / 2 + direction * 0.32 * (2 * p - 1) * (img.width - cw) / 2
+            cy = img.height / 2 + 0.18 * (2 * p - 1) * (img.height - ch) / 2
             box = (cx - cw / 2, cy - ch / 2, cx + cw / 2, cy + ch / 2)
-            frame_pil = img.resize((width, height), Image.Resampling.BILINEAR, box=box)
-            return np.asarray(frame_pil)
+            return img.resize((width, height), Image.Resampling.BILINEAR, box=box)
+
+        def make_frame(t: float):
+            index = min(int(max(t, 0.0) / segment), len(prepared) - 1)
+            local = max(t - index * segment, 0.0)
+            frame = camera_frame(index, local / segment)
+            if index + 1 < len(prepared) and local >= segment - dissolve:
+                alpha = min(max((local - segment + dissolve) / dissolve, 0.0), 1.0)
+                frame = Image.blend(frame, camera_frame(index + 1, 0.0), alpha)
+            return np.asarray(frame)
 
         clip = VideoClip(make_frame, duration=dur)
         clip = set_fps(clip, fps)
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        clip.write_videofile(
-            str(out_path),
-            fps=fps,
-            codec="libx264",
-            audio=False,
-            logger=None,
-            preset="fast",
-            ffmpeg_params=["-pix_fmt", "yuv420p"],
-        )
-        clip.close()
+        try:
+            clip.write_videofile(
+                str(out_path), fps=fps, codec="libx264", audio=False,
+                logger=None, preset="fast", ffmpeg_params=["-pix_fmt", "yuv420p"],
+            )
+        finally:
+            clip.close()
         if out_path.exists() and out_path.stat().st_size > 10000:
             return out_path
     except Exception as e:
@@ -126,22 +132,33 @@ def _generate_ai_motion_video(
     duration: float = 5.0,
     vertical: bool = False,
 ) -> Path | None:
-    """Tạo clip Video AI qua phương pháp Cinematic Motion từ Ảnh AI FLUX (0đ, tức thì)."""
+    """Sinh nhiều ảnh cùng chủ đề, giữ ảnh nguồn và ghép thành một clip."""
     w = 1080 if vertical else 1920
     h = 1920 if vertical else 1080
-    temp_img = out_path.parent / f"_temp_ai_img_{out_path.stem}.jpg"
-
-    # 1. Sinh ảnh AI FLUX chất lượng cao bám sát prompt
-    ai_img = generate_ai_image(prompt, out=temp_img, width=w, height=h)
-    if not ai_img or not ai_img.exists():
+    ai_cfg = CONFIG.get("ai_video", {}) or {}
+    image_count = max(1, min(int(ai_cfg.get("images_per_clip", 3)), 4))
+    image_dir = out_path.parent / f"{out_path.stem}_frames"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    shots = (
+        "wide opening view with the main subject clearly visible",
+        "closer view of the same subject emphasizing its mechanism",
+        "resulting state of the same subject with a clear visual payoff",
+        "alternate view of the same subject showing its practical use",
+    )
+    images: list[Path] = []
+    for index in range(image_count):
+        image_path = image_dir / f"frame_{index:02d}.jpg"
+        shot_prompt = f"{prompt[:160]}. {shots[index]}. Consistent objects and color palette across frames."
+        generated = generate_ai_image(shot_prompt, out=image_path, width=w, height=h)
+        if generated and generated.exists():
+            images.append(generated)
+    if not images:
         log.warning("Không thể sinh ảnh AI làm nguồn cho motion video")
         return None
 
-    # 2. Render thành MP4 chuyển động camera điện ảnh
     fps = int(CONFIG.get("visual", {}).get("fps", 30))
-    res = _motion_video_from_image(ai_img, out_path, duration=duration, width=w, height=h, fps=fps)
-    temp_img.unlink(missing_ok=True)
-    return res
+    log.info("AI motion: dùng %d/%d ảnh cho %s", len(images), image_count, out_path.name)
+    return _motion_video_from_images(images, out_path, duration=duration, width=w, height=h, fps=fps)
 
 
 def _generate_fal_video(
@@ -270,25 +287,29 @@ def generate_ai_video(
         return None
 
     orientation = "portrait" if vertical else "landscape"
-    key = hashlib.md5(f"aivid|{clean.lower()}|{orientation}".encode("utf-8")).hexdigest()[:16]
+    ai_cfg = CONFIG.get("ai_video", {}) or {}
+    provider = ai_cfg.get("provider", "ai_motion").lower()
+    image_count = max(1, min(int(ai_cfg.get("images_per_clip", 3)), 4))
+    fps = int(CONFIG.get("visual", {}).get("fps", 30))
+    cache_spec = f"aivid-v2|{clean.lower()}|{orientation}|{provider}|{duration:.2f}|{image_count}|{fps}"
+    key = hashlib.md5(cache_spec.encode("utf-8")).hexdigest()[:16]
     _CACHE.mkdir(parents=True, exist_ok=True)
     cached_path = _CACHE / f"{key}.mp4"
 
+    dest = out_dir.parent / f"{out_dir.stem}.mp4" if out_dir.suffix != ".mp4" else out_dir
+    cached_frames = _CACHE / f"{key}_frames"
+    dest_frames = dest.parent / f"{dest.stem}_frames"
+
     if cached_path.exists() and cached_path.stat().st_size > 20000:
         log.info("Dùng video AI từ cache: %s", cached_path.name)
-        # Copy hoặc link sang out_dir
-        dest = out_dir.parent / f"{out_dir.stem}.mp4" if out_dir.suffix != ".mp4" else out_dir
         try:
             import shutil
             shutil.copyfile(cached_path, dest)
+            if cached_frames.exists():
+                shutil.copytree(cached_frames, dest_frames, dirs_exist_ok=True)
             return dest
         except Exception:
             return cached_path
-
-    dest = out_dir.parent / f"{out_dir.stem}.mp4" if out_dir.suffix != ".mp4" else out_dir
-
-    ai_cfg = CONFIG.get("ai_video", {})
-    provider = ai_cfg.get("provider", "ai_motion").lower()
 
     res: Path | None = None
 
@@ -309,6 +330,9 @@ def generate_ai_video(
         try:
             import shutil
             shutil.copyfile(res, cached_path)
+            source_frames = res.parent / f"{res.stem}_frames"
+            if source_frames.exists():
+                shutil.copytree(source_frames, cached_frames, dirs_exist_ok=True)
         except Exception:
             pass
         return res

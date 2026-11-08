@@ -185,6 +185,7 @@ jobs:
             output/video_*/quality_report.json
             output/video_*/script_quality_report.json
             output/video_*/scene_contact_sheet.jpg
+            output/video_*/aivideo_*_frames/*.jpg
             output/video_*/manifest.json
           retention-days: 3
 

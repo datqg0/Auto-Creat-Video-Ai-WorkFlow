@@ -1816,7 +1816,8 @@ function headerLayout() {
   const maxW = W - mx * 2 - px(26);
   const tLines = wrapLines(CFG.title, maxW, font(tSize, 'bold'), 2);
   const lh = tSize * 1.2;
-  const sSize = px(IS_VERTICAL ? 26 : 30);
+  const typography = CFG.typography || {};
+  const sSize = px(IS_VERTICAL ? (typography.motion_subtitle_vertical || 36) : (typography.motion_subtitle_horizontal || 38));
   const sLines = CFG.subtitle ? wrapLines(CFG.subtitle, maxW, font(sSize), 2) : [];
   const sLh = sSize * 1.35;
   const bottom = top + tLines.length * lh + (sLines.length ? px(10) + sLines.length * sLh : 0);
@@ -4704,6 +4705,7 @@ def _build_motion_html(
         "template": plan["template"], "data": plan["data"], "illustrative": plan["illustrative"],
         "title": _clean_title(scene.heading, lang),
         "subtitle": subtitle_src[0] if subtitle_src else "",
+        "typography": (CONFIG.get("visual", {}) or {}).get("typography", {}),
         "lang": lang, "labels": _LABELS[lang], "image": img, "custom_font": custom_font,
         "mascot_images": _get_bunny_girl_assets(),
     }

@@ -96,7 +96,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
 
     ai_vid_cfg = CONFIG.get("ai_video", {}) or {}
     ai_video_enabled = bool(ai_vid_cfg.get("enabled", True))
-    max_ai_videos = int(ai_vid_cfg.get("max_per_run", 1))
+    max_ai_videos = int(ai_vid_cfg.get("max_per_run", 2))
     ai_video_used = 0
     images: list[Path] = []
     audios: list[Path] = []
@@ -271,13 +271,14 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         anim_scenes.append(anim)
         code_videos.append(code_video)
 
-        # Scene b-roll / AI Video: ưu tiên tạo tối đa 1 video AI cho mỗi lần chạy pipeline
+        # Scene b-roll / AI Video: dùng ngân sách clip AI theo cấu hình.
         broll = None
         overlay = None
 
-        # 1. Thử sinh Video AI nếu chưa đủ hạn mức (tối đa max_ai_videos = 1 clip/video)
+        # 1. Thử sinh clip nhiều ảnh AI nếu chưa đủ hạn mức.
         if ai_video_enabled and ai_video_used < max_ai_videos and anim is None and code_video is None:
-            v_prompt = scene.video_query or scene.image_query or scene.heading or scene.narration[:60]
+            v_prompt = " ".join(part for part in (scene.heading, scene.image_query, scene.visual_prompt) if part).strip()
+            v_prompt = v_prompt or scene.video_query or scene.narration[:60]
             if v_prompt:
                 try:
                     from .ai_video import generate_ai_video

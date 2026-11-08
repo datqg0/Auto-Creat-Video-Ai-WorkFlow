@@ -283,9 +283,14 @@ def _draw_center_text(
 
 
 def _fit_font(
-    draw: ImageDraw.ImageDraw, text: str, base_size: int, max_w: int, min_size: int = 28, bold: bool = True
+    draw: ImageDraw.ImageDraw, text: str, base_size: int, max_w: int, min_size: int | None = None, bold: bool = True
 ) -> ImageFont.FreeTypeFont:
     """Chọn cỡ chữ lớn nhất mà từ dài nhất vẫn vừa bề rộng max_w (chống tràn khung)."""
+    if min_size is None:
+        typo = (CONFIG.get("visual", {}) or {}).get("typography", {}) or {}
+        key = "heading_min_vertical" if _is_vertical() else "heading_min_horizontal"
+        min_size = int(typo.get(key, 42 if _is_vertical() else 36))
+    min_size = min(max(24, min_size), base_size)
     longest = max(text.split(), key=len) if text.split() else text
     size = base_size
     while size > min_size:
@@ -632,7 +637,8 @@ def _render_bullets(scene: Scene, out: Path) -> None:
 
     # 3. Bullets items trong pill container
     by = hy + 30
-    b_font = _font(30, bold=False)
+    typo = (CONFIG.get("visual", {}) or {}).get("typography", {}) or {}
+    b_font = _font(int(typo.get("body_horizontal", 36)), bold=False)
     bullets_to_show = scene.bullets[:4] or [scene.narration]
     num_bullets = len(bullets_to_show)
     item_h = min(84, int((ly1 - by - 36) / max(1, num_bullets) - 14))
@@ -647,10 +653,11 @@ def _render_bullets(scene: Scene, out: Path) -> None:
 
         # Text
         blines = _wrap_lines(draw, b, b_font, half_w - 170)
-        ty = by + (item_h - len(blines) * 36) // 2 + 3
+        line_h = b_font.size + 6
+        ty = by + max(2, (item_h - min(len(blines), 2) * line_h) // 2)
         for bl in blines[:2]:
             draw.text((lx0 + 106, ty), bl, font=b_font, fill=_TEXT)
-            ty += 36
+            ty += line_h
         by += item_h + 14
 
     _footer(draw)
@@ -699,18 +706,19 @@ def _render_bullets_vertical(scene: Scene, out: Path) -> None:
 
     # Card 3: Bullets Glass List
     bullets_to_show = scene.bullets[:4] or [scene.narration]
-    bullet_font = _font(40, bold=False)
+    typo = (CONFIG.get("visual", {}) or {}).get("typography", {}) or {}
+    bullet_font = _font(int(typo.get("body_vertical", 42)), bold=False)
     for i, b in enumerate(bullets_to_show):
         col = _PALETTE[i % len(_PALETTE)]
-        item_h = 100
+        item_h = 128
         draw.rounded_rectangle([_margin(), y, _margin() + inner_w, y + item_h], radius=18, fill=(16, 22, 34, 215), outline=(48, 54, 61, 220), width=2)
         draw.ellipse([_margin() + 24, y + 28, _margin() + 68, y + 72], fill=col)
         draw.text((_margin() + 46, y + 50), str(i + 1), font=_font(26, bold=True), fill="#0d1117", anchor="mm")
         blines = _wrap_lines(draw, b, bullet_font, inner_w - 110)
-        ty = y + 20
+        ty = y + 14
         for line in blines[:2]:
             draw.text((_margin() + 86, ty), line, font=bullet_font, fill=_TEXT)
-            ty += 46
+            ty += bullet_font.size + 8
         y += item_h + 20
 
     img.save(out)
@@ -767,7 +775,7 @@ def _render_code(scene: Scene, out: Path) -> None:
     # Syntax highlighter đơn giản cho code
     import re
     keywords = {"def", "class", "return", "import", "from", "if", "else", "elif", "for", "while", "in", "None", "True", "False", "async", "await", "try", "except", "with", "as"}
-    mono_font = _font(28 if _is_vertical() else 32, bold=False)
+    mono_font = _font(32 if _is_vertical() else 34, bold=False)
     line_y = win_top + header_h + 36
 
     for idx, raw_line in enumerate(scene.bullets[:18]):
@@ -1003,6 +1011,7 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
     margin = 90 if _W() >= 1600 else 70
     is_vertical = _H() > _W()
 
+    typo = (CONFIG.get("visual", {}) or {}).get("typography", {}) or {}
     heading = scene.heading or ""
     if heading:
         hfont = _font(72 if not is_vertical else 76)
@@ -1016,12 +1025,13 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
         # Tự động co kích thước font nếu bullets dài (như bài toán thử thách / công thức)
         # để hiển thị ĐẦY ĐỦ câu hỏi + gợi ý, không bao giờ bị cắt cụt dòng.
         base_size = 48 if not is_vertical else 54
+        min_size = int(typo.get("overlay_min_vertical" if is_vertical else "overlay_min_horizontal", 46 if is_vertical else 40))
         caption_font = _font(base_size, bold=False)
         lines: list[str] = []
         for b in scene.bullets[:4]:
             lines.extend(_wrap_lines(draw, "• " + b, caption_font, _W() - 2 * margin))
 
-        while len(lines) > 6 and base_size > 26:
+        while len(lines) > 6 and base_size - 4 >= min_size:
             base_size -= 4
             caption_font = _font(base_size, bold=False)
             lines = []
@@ -1030,9 +1040,16 @@ def render_overlay(scene: Scene, out_path: Path) -> Path:
 
         asc, desc = caption_font.getmetrics()
         line_h = asc + desc + 12
-        total = len(lines) * line_h
         sub_reserve = int(_H() * 0.18)
         bottom_limit = _H() - sub_reserve
+        max_lines = min(6, max(1, (bottom_limit - top_h - 20) // line_h))
+        if len(lines) > max_lines:
+            lines = lines[:max_lines]
+            last = lines[-1].rstrip(" .")
+            while last and _text_w(draw, last + "…", caption_font) > _W() - 2 * margin:
+                last = last[:-1]
+            lines[-1] = last.rstrip() + "…"
+        total = len(lines) * line_h
         y = bottom_limit - total
         y = max(y, top_h + 20)
         for line in lines:

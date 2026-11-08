@@ -503,8 +503,9 @@ def _finalize(video_path: Path, srt_path: Path | None, music_path: Path | None) 
     if srt_path is not None:
         srt_arg = str(srt_path).replace("\\", "/").replace(":", "\\:")
         is_vert = _H() > _W()
-        font_size = 42 if is_vert else 28
-        margin_v = 320 if is_vert else 60
+        typo = (CONFIG.get("visual", {}) or {}).get("typography", {}) or {}
+        font_size = int(typo.get("subtitle_vertical" if is_vert else "subtitle_horizontal", 52 if is_vert else 40))
+        margin_v = 320 if is_vert else 140
         # Font Việt đậm, viền đen, nền mờ bán trong suốt, an toàn trên Shorts/TikTok và video ngang.
         style = (
             f"FontName=Be Vietnam Pro,Fontsize={font_size},Bold=1,"

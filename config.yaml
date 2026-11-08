@@ -238,6 +238,17 @@ visual:
   # Font hỗ trợ đầy đủ dấu tiếng Việt
   font: "assets/fonts/BeVietnamPro-Bold.ttf"
   font_regular: "assets/fonts/BeVietnamPro-Regular.ttf"
+  typography:
+    heading_min_horizontal: 36
+    heading_min_vertical: 42
+    body_horizontal: 36
+    body_vertical: 42
+    overlay_min_horizontal: 40
+    overlay_min_vertical: 46
+    subtitle_horizontal: 40
+    subtitle_vertical: 52
+    motion_subtitle_horizontal: 38
+    motion_subtitle_vertical: 36
   # Thời gian chuyển cảnh crossfade giữa các scene (giây)
   crossfade: 0.4
 
@@ -274,10 +285,11 @@ videos:
   enabled: true
   max_per_video: 10       # mở rộng số scene tối đa dùng b-roll trong 1 video (từ 6 lên 10)
 
-# ---- Video AI sinh (Tối đa 1 clip/video) ----
+# ---- Video AI sinh từ nhiều ảnh / video diffusion ----
 ai_video:
   enabled: true
-  max_per_run: 1                  # Đúng yêu cầu: mỗi video tạo tối đa 1 clip Video AI
+  max_per_run: 2                  # Tối đa 2 cảnh dùng clip AI mỗi video
+  images_per_clip: 3             # ai_motion sinh 3 ảnh/cảnh, pan/zoom và chuyển mềm
   provider: "ai_motion"           # ai_motion (0đ, không cần key, tức thì) | fal | pollinations
   duration: 5.0                   # Thời lượng clip AI sinh ra (giây)
   fal_model: "fal-ai/wan/v2.1/text-to-video" # Model diffusion nếu dùng Fal.ai (cần FAL_KEY)

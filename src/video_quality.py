@@ -26,6 +26,7 @@ def _add(checks: list[dict], name: str, ok: bool, message: str, severity: str = 
 def create_contact_sheet(workdir: Path, output_path: Path, max_columns: int = 4) -> Path | None:
     """Combine rendered scene stills into a compact storyboard for human review."""
     paths = sorted(workdir.glob("scene_[0-9][0-9].png"))
+    paths += sorted(workdir.glob("aivideo_*_frames/frame_*.jpg"))
     if not paths:
         return None
     tile_w, tile_h, label_h, pad = 360, 203, 34, 12
@@ -41,7 +42,8 @@ def create_contact_sheet(workdir: Path, output_path: Path, max_columns: int = 4)
             with Image.open(path) as src:
                 tile = ImageOps.fit(src.convert("RGB"), (tile_w, tile_h), method=Image.Resampling.LANCZOS)
             sheet.paste(tile, (x, y))
-            draw.text((x + 4, y + tile_h + 8), f"Scene {index + 1:02d} · {path.name}", fill="#e6edf3", font=font)
+            label = path.name if path.parent == workdir else f"{path.parent.name}/{path.name}"
+            draw.text((x + 4, y + tile_h + 8), label[:48], fill="#e6edf3", font=font)
         except Exception as exc:  # noqa: BLE001
             draw.text((x + 4, y + 8), f"{path.name}: {exc}", fill="#ff7b72", font=font)
     output_path.parent.mkdir(parents=True, exist_ok=True)

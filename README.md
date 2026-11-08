@@ -55,9 +55,9 @@ Python plus FFmpeg.
 - **Dual Database Backend (Neon Serverless PostgreSQL + SQLite)** — seamlessly syncs
   state across cloud CI/CD runners (GitHub Actions) via `DATABASE_URL` with automatic
   zero-config fallback to local SQLite (`output/state.db`).
-- **AI Image & Video Generation** — generates high-definition Kurzgesagt-style FLUX
-  illustrations for scene backdrops (keyless, 100% free) plus 1 AI-generated cinematic
-  motion video clip per video (`ai_motion` or Fal.ai diffusion).
+- **AI Image & Video Generation** — generates high-definition FLUX illustrations for scene
+  backdrops and uses up to three related images per `ai_motion` clip, with camera motion
+  and soft transitions. The default budget is two such scenes per video.
 - **Three video formats** — long 16:9 explainer, vertical 9:16 Short (up to 3 mins / 180s), and
   **mega 16:9 deep-dive** (15–30+ minutes) with chapter-based hierarchical scripting.
 - **Purposeful scene design & instant visual hook** — motion starts in the opening scene;
@@ -208,8 +208,8 @@ Abstract computer science concepts (e.g. *Cache Coherence*, *Transformer Attenti
 - **Fallback Hierarchy**: Google CSE → DuckDuckGo/Bing → Pexels → Openverse → AI FLUX Illustration. If stock search yields nothing, the AI generator draws a tailored 1080p illustration.
 
 ### 2. Autonomous AI Video Generation (`src/ai_video.py`)
-Each video can feature up to 1 AI-generated video clip (`config.yaml → ai_video.max_per_run: 1`):
-- **Provider `ai_motion` (Default & 100% Free)**: Generates a high-resolution FLUX image and instantly renders a 5-second cinematic motion clip with smooth camera zoom, 3D pan, and cyber ambiance in ~2–3 seconds with zero credit costs.
+Each video can feature up to two AI-generated clips (`config.yaml → ai_video.max_per_run: 2`):
+- **Provider `ai_motion` (default)**: Generates up to three related images for a scene, saves them beside the rendered video, and adds camera pan/zoom plus soft transitions. A scene still works when only one image is available.
 - **Provider `fal` (Diffusion Models)**: Connects to Fal.ai API (`FAL_KEY`) to generate real video diffusion clips using state-of-the-art models like **Wan 2.1**, **Kling**, or **LTX-Video**.
 - **Resilient Fallback**: If cloud video generation encounters rate limits or errors, it gracefully falls back to `ai_motion` to guarantee pipeline completion.
 
@@ -547,8 +547,10 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | `images.ai_primary`              | Prioritize AI FLUX illustrations over stock images for all scenes. |
 | `images.ai_provider`             | AI image provider (`pollinations` free, `huggingface`).            |
 | `images.ai_style`                | Style prompt injected into AI image generation.                    |
-| `ai_video.enabled`               | Enable 1 AI cinematic video clip per generated video.               |
-| `ai_video.max_per_run`           | Strict cap on AI video clips per video run (default: `1`).          |
+| `ai_video.enabled`               | Enable AI image motion clips during video generation.               |
+| `ai_video.max_per_run`           | Cap AI video clips per run (default: `2`).                          |
+| `ai_video.images_per_clip`       | Images generated per `ai_motion` clip (default: `3`, maximum: `4`).|
+| `visual.typography`              | Minimum main text sizes and subtitle sizes for long/Short videos.  |
 | `ai_video.provider`              | AI video provider (`ai_motion` free default, `fal`, `pollinations`).|
 | `ai_video.duration`              | Length in seconds of generated AI video clip (default: `5.0`).     |
 | `videos.enabled` / `max_per_video`| Auto-fetch Pexels video b-roll (needs `PEXELS_API_KEY`).          |
@@ -573,7 +575,7 @@ src/
 ├── topic_selector.py    # Picks a fresh topic (LLM + DB dedup)
 ├── script_writer.py     # LLM → structured Script (+ research context & series hooks)
 ├── ai_code_runner.py    # AI Python/Manim animation generator & self-repair (+ research context)
-├── ai_video.py          # Autonomous 1-clip AI video generator (ai_motion / fal)
+├── ai_video.py          # Multi-image motion clips and optional diffusion video
 ├── motion_graphics.py   # HTML5/Canvas & MathJax renderer via headless Edge/Chrome CLI
 ├── stick_animate.py     # StykAnimate 2D IK stickman procedural actions & mascot cards
 ├── onjsdev_visualizer.py# @onjsdev 9:16 Shorts engine (neon bars, code cards, ASMR sync)
