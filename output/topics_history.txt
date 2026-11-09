@@ -99,3 +99,4 @@
 2026-11-07T17:21:51.634417+00:00	Maze Hunt & Kill: Nghịch lý thuật toán đơn giản nhất lại tạo ra mê cung phức tạp nhất
 2026-11-08T04:20:00.007187+00:00	Lỗi 'truyền ngược' như thế nào? Giải mã thuật toán Backpropagation khiến mọi mạng thần kinh trở nên khả thi
 2026-11-08T17:59:11.610030+00:00	Công thức Chudnovsky: Tính được 10.000 chữ số Pi trong vài giây là thật hay giả?
+2026-11-09T04:45:27.668029+00:00	Hóa ra máy tính nhìn hình ảnh không bằng mắt, mà bằng những bộ lọc trượt: Xây dựng CNN và Max Pooling từ số 0
