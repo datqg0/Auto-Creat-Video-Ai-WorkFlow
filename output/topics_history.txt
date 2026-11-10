@@ -102,3 +102,4 @@
 2026-11-09T04:45:27.668029+00:00	Hóa ra máy tính nhìn hình ảnh không bằng mắt, mà bằng những bộ lọc trượt: Xây dựng CNN và Max Pooling từ số 0
 2026-11-09T22:16:22.065834+00:00	Hóa ra Bubble Sort sắp xếp dữ liệu giống như dòng người chen chúc thế nào?
 2026-11-10T06:13:19.825405+00:00	Biến đổi Phi: Hóa ra máng trượt toán học này chính là bí mật giúp AI "mua vé" vào không gian đa chiều
+2026-11-10T19:27:27.814679+00:00	Không ngờ QuickSort chia đôi vấn đề tốc độ như một võ sư chia đôi đối thủ?
