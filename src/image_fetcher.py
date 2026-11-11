@@ -204,11 +204,18 @@ def _search_tinyfish(query: str, count: int = 5) -> list[str]:
 def _format_ai_image_prompt(query: str, style: str = "kurzgesagt") -> str:
     """Tạo prompt chuẩn phong cách tech illustration/Kurzgesagt, triệt tiêu chữ rác."""
     cleaned = re.sub(r"[^\w\s\-\.\+]", " ", query).strip()
+    style_cfg = CONFIG.get("visual_style", {}) or {}
+    palette = str(style_cfg.get("palette", "deep navy, cyan, violet, warm amber accent"))
+    composition = (
+        "single clear focal subject, strong foreground/background separation, generous negative space, "
+        "clean silhouette, consistent visual language"
+    )
     if style == "kurzgesagt":
         return (
             f"Flat vector tech editorial illustration of {cleaned}. "
             "Kurzgesagt art style, bold saturated clean colors, smooth gradients, clean flat 2D shapes, "
-            "soft neon cyber glow, conceptual technology art, dark vignette background. "
+            f"soft neon cyber glow, conceptual technology art, dark vignette background, palette: {palette}. "
+            f"Composition: {composition}. "
             "STRICT REQUIREMENT: Pure artwork without any text, no typography, no letters, no words, no subtitles, no watermark, no logo."
         )
     elif style == "blueprint":
@@ -297,7 +304,8 @@ def generate_ai_image(
             "text,letters,words,typography,watermark,logo,captions,labels,noisy,blurry,deformed,gibberish,symbols"
         )
         encoded_prompt = urllib.parse.quote(full_prompt)
-        seed = abs(hash(f"{prompt}_{w}_{h}")) % 1000000
+        seed_material = f"{prompt.strip().lower()}|{w}|{h}".encode("utf-8")
+        seed = int(hashlib.sha256(seed_material).hexdigest()[:12], 16) % 1000000
         # Pollinations free tier cho phép tối đa 1280x720 (ngang) hoặc 720x1280 (dọc)
         is_vert = h > w
         poll_w = 720 if is_vert else 1280

@@ -9,6 +9,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import time
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -17,7 +18,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError, ResumableUploadError
 from googleapiclient.http import MediaFileUpload
 
-from .config import CREDENTIALS_DIR, env
+from .config import CREDENTIALS_DIR, env, get_runtime_policy
 from .metadata import sanitize_description, sanitize_tags, sanitize_title
 
 log = logging.getLogger(__name__)
@@ -131,6 +132,8 @@ def upload(
     safe_desc = sanitize_description(str(meta.get("description") or ""))
     safe_tags = sanitize_tags(meta.get("tags") or [])
 
+    publish_policy = get_runtime_policy().publishing
+    staging_privacy = publish_policy.staging_privacy if publish_policy.mode == "automatic" else meta.get("privacyStatus", "private")
     body = {
         "snippet": {
             "title": safe_title,
@@ -141,7 +144,7 @@ def upload(
             "defaultAudioLanguage": meta.get("language", "vi"),
         },
         "status": {
-            "privacyStatus": meta.get("privacyStatus", "public"),
+            "privacyStatus": staging_privacy,
             "selfDeclaredMadeForKids": meta.get("madeForKids", False),
         },
     }
@@ -202,6 +205,111 @@ def upload(
                     upload_caption(youtube, video_id, cap_path, language=lang_code, name=name)
 
     return video_id
+
+
+def get_processing_status(video_id: str) -> dict:
+    """Đọc processing và privacy status của một video đã upload."""
+    creds = _load_credentials(allow_interactive=False)
+    youtube = build("youtube", "v3", credentials=creds)
+    response = youtube.videos().list(part="status,processingDetails", id=video_id).execute()
+    items = response.get("items") or []
+    if not items:
+        return {"processing_status": "missing", "privacy_status": None, "failure_reason": "video_not_found"}
+    item = items[0]
+    processing = item.get("processingDetails") or {}
+    status = item.get("status") or {}
+    return {
+        "processing_status": processing.get("processingStatus", "unknown"),
+        "privacy_status": status.get("privacyStatus"),
+        "failure_reason": processing.get("processingFailureReason"),
+        "rejection_reason": status.get("rejectionReason"),
+        "upload_status": status.get("uploadStatus"),
+    }
+
+
+def wait_for_processing(video_id: str) -> dict:
+    """Đợi YouTube xử lý xong; timeout thì giữ nguyên private."""
+    policy = get_runtime_policy().publishing
+    deadline = time.monotonic() + policy.processing_timeout_seconds
+    latest: dict = {}
+    while time.monotonic() < deadline:
+        latest = get_processing_status(video_id)
+        state = latest.get("processing_status")
+        if state in {"succeeded", "failed", "terminated", "missing"}:
+            return latest
+        time.sleep(policy.poll_interval_seconds)
+    return {**latest, "processing_status": "timeout"}
+
+
+def set_privacy_status(video_id: str, privacy_status: str) -> None:
+    """Chuyển visibility sau khi machine approval và processing đều pass."""
+    if privacy_status not in {"public", "private", "unlisted"}:
+        raise ValueError(f"privacy status không hợp lệ: {privacy_status}")
+    creds = _load_credentials(allow_interactive=False)
+    youtube = build("youtube", "v3", credentials=creds)
+    current = youtube.videos().list(part="status", id=video_id).execute()
+    items = current.get("items") or []
+    if not items:
+        raise RuntimeError(f"Không tìm thấy YouTube video {video_id} để đổi visibility.")
+    status_body = dict(items[0].get("status") or {})
+    # Chỉ gửi các field mutable được API chấp nhận; giữ nguyên policy hiện tại.
+    allowed = {
+        "license", "embeddable", "publicStatsViewable", "selfDeclaredMadeForKids",
+        "containsSyntheticMedia",
+    }
+    status_body = {key: value for key, value in status_body.items() if key in allowed}
+    status_body["privacyStatus"] = privacy_status
+    youtube.videos().update(
+        part="status",
+        body={"id": video_id, "status": status_body},
+    ).execute()
+    log.info("Video %s đã chuyển sang %s", video_id, privacy_status)
+
+
+def auto_publish_if_ready(
+    video_id: str,
+    manifest: dict,
+    quality_report: dict,
+    content_report: dict,
+) -> dict:
+    """Machine approve, đợi processing và tự public; mọi lỗi đều giữ private."""
+    from .publish_policy import evaluate_publish_policy
+
+    decision = evaluate_publish_policy(manifest, quality_report, content_report)
+    result = {"decision": decision.as_dict(), "video_id": video_id, "published": False, "released": False}
+    if not decision.approved:
+        return result
+    try:
+        processing = wait_for_processing(video_id)
+    except Exception as exc:  # noqa: BLE001 - lỗi API phải giữ video private, không gây re-upload
+        result["decision"] = {
+            "approved": False,
+            "action": "quarantine",
+            "reasons": [f"Không đọc được YouTube processing status: {exc}"],
+        }
+        return result
+    result["processing"] = processing
+    if processing.get("processing_status") != "succeeded":
+        result["decision"] = {
+            "approved": False,
+            "action": "quarantine",
+            "reasons": [f"YouTube processing={processing.get('processing_status')}"],
+        }
+        return result
+    final_privacy = get_runtime_policy().publishing.final_privacy
+    try:
+        set_privacy_status(video_id, final_privacy)
+    except Exception as exc:  # noqa: BLE001 - tuyệt đối không làm pipeline upload lại video
+        result["decision"] = {
+            "approved": False,
+            "action": "quarantine",
+            "reasons": [f"Không đổi được visibility: {exc}"],
+        }
+        return result
+    result["published"] = final_privacy == "public"
+    result["released"] = final_privacy in {"public", "unlisted"}
+    result["final_privacy"] = final_privacy
+    return result
 
 
 def _auth_only() -> None:

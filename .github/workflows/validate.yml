@@ -1,0 +1,36 @@
+name: Validate pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install validation dependencies only
+        run: pip install "PyYAML>=6.0" "python-dotenv>=1.0" "pydantic>=2.5" "json-repair>=0.30"
+
+      - name: Compile Python sources
+        run: python -m compileall -q src test_smoke.py
+
+      - name: Validate typed configuration
+        env:
+          APP_ENV: local
+        run: python -c "from src.config import get_runtime_policy; print(get_runtime_policy().model_dump_json(indent=2))"
+
+      - name: Run security and policy unit tests
+        run: python -m unittest test_policy.py -v

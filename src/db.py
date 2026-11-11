@@ -42,6 +42,8 @@ def is_postgres() -> bool:
 def _mark_postgres_failed(err: Exception) -> None:
     """Đánh dấu PostgreSQL gặp sự cố và kích hoạt fallback sang SQLite."""
     global _force_sqlite
+    if (env("APP_ENV") or "").lower() == "production":
+        raise ConnectionError("PostgreSQL lỗi trong production; từ chối fallback SQLite.") from err
     if not _force_sqlite:
         log.warning(
             "⚠️ Neon/PostgreSQL gặp lỗi (%s). TỰ ĐỘNG FALLBACK sang SQLite Local (%s)!",
@@ -61,6 +63,7 @@ def _init_sqlite_schema_on_conn(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS videos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_key TEXT,
             topic TEXT NOT NULL,
             title TEXT,
             status TEXT NOT NULL DEFAULT 'pending',
@@ -71,6 +74,11 @@ def _init_sqlite_schema_on_conn(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    try:
+        cur.execute("ALTER TABLE videos ADD COLUMN run_key TEXT")
+    except Exception:
+        pass
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_videos_run_key ON videos(run_key) WHERE run_key IS NOT NULL")
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS series (
@@ -84,6 +92,34 @@ def _init_sqlite_schema_on_conn(conn: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pipeline_runs (
+            id TEXT PRIMARY KEY,
+            run_key TEXT NOT NULL UNIQUE,
+            video_id INTEGER,
+            status TEXT NOT NULL,
+            current_stage TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS stage_runs (
+            run_id TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            status TEXT NOT NULL,
+            input_hash TEXT,
+            output_json TEXT,
+            error TEXT,
+            started_at TEXT,
+            finished_at TEXT,
+            PRIMARY KEY (run_id, stage)
+        )
         """
     )
     # Tự động migrate nếu bảng series cũ chưa có cột mode
@@ -247,6 +283,7 @@ def init_db() -> None:
                     """
                     CREATE TABLE IF NOT EXISTS videos (
                         id SERIAL PRIMARY KEY,
+                        run_key TEXT UNIQUE,
                         topic TEXT NOT NULL,
                         title TEXT,
                         status TEXT NOT NULL DEFAULT 'pending',
@@ -279,8 +316,30 @@ def init_db() -> None:
                         updated_at TEXT NOT NULL,
                         UNIQUE(series_id, episode_num)
                     );
+                    CREATE TABLE IF NOT EXISTS pipeline_runs (
+                        id TEXT PRIMARY KEY,
+                        run_key TEXT NOT NULL UNIQUE,
+                        video_id INTEGER,
+                        status TEXT NOT NULL,
+                        current_stage TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
+                    CREATE TABLE IF NOT EXISTS stage_runs (
+                        run_id TEXT NOT NULL,
+                        stage TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        input_hash TEXT,
+                        output_json TEXT,
+                        error TEXT,
+                        started_at TEXT,
+                        finished_at TEXT,
+                        PRIMARY KEY (run_id, stage)
+                    );
                     """
                 )
+                cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS run_key TEXT")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_videos_run_key ON videos(run_key) WHERE run_key IS NOT NULL")
                 try:
                     cur.execute("ALTER TABLE series ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'long'")
                 except Exception:
@@ -356,16 +415,69 @@ def recent_topics(days: int = 30) -> list[str]:
     return topics
 
 
-def create_video(topic: str) -> int:
+def get_video_by_run_key(run_key: str) -> dict[str, Any] | None:
+    if not run_key:
+        return None
+    return _query_one("SELECT * FROM videos WHERE run_key = ?", (run_key,))
+
+
+def create_video(topic: str, run_key: str | None = None) -> int:
     now = _now_iso()
     try:
+        if run_key:
+            existing = get_video_by_run_key(run_key)
+            if existing:
+                return int(existing["id"])
         return _insert_get_id(
-            "INSERT INTO videos (topic, status, created_at, updated_at) VALUES (?, 'pending', ?, ?)",
-            (topic, now, now),
+            "INSERT INTO videos (run_key, topic, status, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?)",
+            (run_key, topic, now, now),
         )
     except Exception as e:
         log.warning("create_video DB thất bại (%s). Dùng fallback timestamp ID.", e)
         return int(datetime.now(timezone.utc).timestamp())
+
+
+def init_pipeline_run(run_id: str, run_key: str, video_id: int) -> None:
+    now = _now_iso()
+    _execute(
+        "INSERT INTO pipeline_runs (id, run_key, video_id, status, current_stage, created_at, updated_at) "
+        "VALUES (?, ?, ?, 'running', 'init', ?, ?) "
+        "ON CONFLICT(run_key) DO UPDATE SET video_id = excluded.video_id, status = 'running', updated_at = excluded.updated_at",
+        (run_id, run_key, video_id, now, now),
+    )
+
+
+def record_stage(
+    run_id: str,
+    stage: str,
+    status: str,
+    *,
+    input_hash: str | None = None,
+    output_json: str | None = None,
+    error: str | None = None,
+) -> None:
+    now = _now_iso()
+    started = now if status == "running" else None
+    finished = now if status in {"succeeded", "failed", "skipped", "quarantined"} else None
+    _execute(
+        "INSERT INTO stage_runs (run_id, stage, status, input_hash, output_json, error, started_at, finished_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(run_id, stage) DO UPDATE SET status = excluded.status, input_hash = excluded.input_hash, "
+        "output_json = excluded.output_json, error = excluded.error, "
+        "started_at = COALESCE(stage_runs.started_at, excluded.started_at), finished_at = excluded.finished_at",
+        (run_id, stage, status, input_hash, output_json, error, started, finished),
+    )
+    _execute(
+        "UPDATE pipeline_runs SET status = ?, current_stage = ?, updated_at = ? WHERE id = ?",
+        ("failed" if status == "failed" else "running", stage, now, run_id),
+    )
+
+
+def complete_pipeline_run(run_id: str, status: str = "completed") -> None:
+    _execute(
+        "UPDATE pipeline_runs SET status = ?, updated_at = ? WHERE id = ?",
+        (status, _now_iso(), run_id),
+    )
 
 
 def update_video(video_id: int, **fields: Any) -> None:
@@ -440,9 +552,9 @@ def get_series_episodes(series_id: int) -> list[dict[str, Any]]:
 
 
 def get_next_pending_episode(series_id: int) -> dict[str, Any] | None:
-    """Lấy tập pending hoặc tập bị lỗi cần thử lại tiếp theo của series."""
+    """Lấy tập pending/lỗi/quarantine cần thử lại tiếp theo của series."""
     return _query_one(
-        "SELECT * FROM series_episodes WHERE series_id = ? AND status IN ('pending', 'error') ORDER BY episode_num ASC LIMIT 1",
+        "SELECT * FROM series_episodes WHERE series_id = ? AND status IN ('pending', 'error', 'quarantined') ORDER BY episode_num ASC LIMIT 1",
         (series_id,),
     )
 

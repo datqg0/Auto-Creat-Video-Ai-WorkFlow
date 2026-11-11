@@ -23,7 +23,7 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 from . import db
-from .config import CONFIG, OUTPUT_DIR, apply_mode
+from .config import CONFIG, OUTPUT_DIR, apply_mode, validate_runtime_config
 from .models import Script
 
 log = logging.getLogger(__name__)
@@ -176,10 +176,17 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         code_video = None
         acfg = scene.animation or {}
         anim_cfg = CONFIG.get("animation", {}) or {}
+        contract = scene.contract
+        preferred_renderer = contract.preferred_renderer if contract else ""
+        renderer_label: str | None = None
         mode_cfg = ((CONFIG.get("modes", {}) or {}).get(str(CONFIG.get("active_mode") or "long"), {}) or {})
         mode_anim_cfg = mode_cfg.get("animation", {}) or {}
         animate_from_start = bool(mode_anim_cfg.get("animate_from_start", anim_cfg.get("animate_from_start", True)))
-        is_anim = (scene.visual_type == "animation") or (i == 0 and animate_from_start)
+        is_anim = (
+            scene.visual_type == "animation"
+            or preferred_renderer in ("manim", "motion_graphics")
+            or (i == 0 and animate_from_start)
+        )
 
         if is_anim:
             from .ai_code_runner import run_ai_code, run_manim_code, generate_matplotlib_from_prompt, generate_manim_from_prompt
@@ -211,11 +218,23 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                 except Exception as e:
                     log.warning("onjsdev visualizer scene %d lỗi: %s, chuyển sang fallback", i, e)
 
-            explicit_manim = (preset == "manim") or bool(acfg.get("code")) or anim_cfg.get("manim_prefer", False)
+            renderer_order = list(anim_cfg.get("renderer_order", ["manim", "motion_graphics", "static"]))
+            explicit_manim = (
+                preferred_renderer == "manim"
+                or (not preferred_renderer and renderer_order and renderer_order[0] == "manim")
+                or (preset == "manim")
+                or bool(acfg.get("code"))
+                or anim_cfg.get("manim_prefer", False)
+            )
 
             # Tầng 1 (CHỦ ĐẠO): Motion Graphics Engine (HTML5/Canvas qua Edge/Chrome Headless)
             # Ưu tiên Motion Graphics vì có MathJax xử lý công thức toán mượt mà, layout đẹp, không bị lỗi LaTeX/chữ đè
-            if code_video is None and not explicit_manim and anim_cfg.get("motion_graphics_enabled", True) and is_motion_graphics_available():
+            if (
+                code_video is None
+                and preferred_renderer == "motion_graphics"
+                and anim_cfg.get("motion_graphics_enabled", True)
+                and is_motion_graphics_available()
+            ):
                 try:
                     mg_dir = workdir / f"motion_graphic_{i:02d}"
                     stock_img_path = None
@@ -235,6 +254,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                         image_path=stock_img_path,
                     )
                     if code_video:
+                        renderer_label = "motion_graphics"
                         log.info("Scene %d: Render thành công bằng Motion Graphics HTML5/Edge", i)
                 except Exception as e:  # noqa: BLE001
                     log.warning("Motion Graphics scene %d lỗi: %s, chuyển sang fallback", i, e)
@@ -250,7 +270,9 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                 "dp_grid", "stack_queue", "sorting", "neural_net"
             }
             should_try_manim = anim_cfg.get("manim_enabled", True) and (
-                explicit_manim or (code_video is None and (preset in algo_presets or "manim" in visual_desc.lower() or is_math_or_algo))
+                explicit_manim
+                or preferred_renderer == "manim"
+                or (code_video is None and (preset in algo_presets or "manim" in visual_desc.lower() or is_math_or_algo))
             )
             if code_video is None and should_try_manim:
                 manim_code = acfg.get("code") if preset == "manim" else None
@@ -261,6 +283,7 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                         duration=dur,
                         topic=clean_topic,
                         narration=scene.narration,
+                        scene_contract=scene.contract.model_dump(mode="json") if scene.contract else None,
                     )
                 if manim_code:
                     try:
@@ -277,12 +300,37 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                             auto_repair=True,
                         )
                         if code_video:
+                            renderer_label = "manim"
                             log.info("Scene %d: Render thành công bằng Manim (3Blue1Brown)", i)
                     except Exception as e:  # noqa: BLE001
                         log.warning("Manim scene %d lỗi: %s", i, e)
 
-            # Tầng 3 (Dự phòng): PyCode (Matplotlib)
-            if code_video is None:
+            # Fallback sau Manim: Motion Graphics an toàn, không thực thi Python do LLM sinh.
+            if (
+                code_video is None
+                and anim_cfg.get("motion_graphics_enabled", True)
+                and is_motion_graphics_available()
+                and "motion_graphics" in renderer_order
+            ):
+                try:
+                    mg_dir = workdir / f"motion_graphic_{i:02d}"
+                    code_video = render_motion_graphic_scene(
+                        scene,
+                        mg_dir,
+                        duration=dur,
+                        width=CONFIG["visual"]["width"],
+                        height=CONFIG["visual"]["height"],
+                        fps=CONFIG["visual"]["fps"],
+                        image_path=None,
+                    )
+                    if code_video:
+                        renderer_label = "motion_graphics"
+                        log.info("Scene %d: Manim không khả dụng, dùng Motion Graphics", i)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Motion Graphics fallback scene %d lỗi: %s", i, e)
+
+            # PyCode/Matplotlib cũ chỉ bật thủ công; production mặc định tắt.
+            if code_video is None and anim_cfg.get("matplotlib_fallback_enabled", False):
                 pycode = acfg.get("code") if preset == "pycode" else acfg.get("pycode")
                 if not pycode and (preset in ("manim", "pycode") or anim_cfg.get("ai_code_primary", True) or scene.visual_prompt or scene.narration):
                     pycode = generate_matplotlib_from_prompt(
@@ -303,11 +351,13 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
                             fps=CONFIG["visual"]["fps"],
                             auto_repair=True,
                         )
+                        if code_video:
+                            renderer_label = "matplotlib_ai"
                     except Exception as e:  # noqa: BLE001
                         log.warning("Matplotlib scene %d lỗi: %s", i, e)
 
-            # Tầng 4 (CUỐI CÙNG - BẢO ĐẢM 100% CÓ ANIMATION): MathViz Procedural Fallback
-            if code_video is None:
+            # MathViz chỉ còn là opt-in legacy fallback; mặc định rơi về ảnh tĩnh.
+            if code_video is None and anim_cfg.get("mathviz_fallback_enabled", False):
                 try:
                     anim = build_animation_scene(scene, dur)
                 except Exception as e:  # noqa: BLE001
@@ -361,13 +411,27 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         broll_videos.append(broll)
         scene_overlays.append(overlay)
         if code_video is not None:
-            scene_renderers.append("generated_animation")
+            scene_renderers.append(renderer_label or "generated_animation")
         elif anim is not None:
             scene_renderers.append("procedural_animation")
         elif broll is not None:
             scene_renderers.append("broll")
         else:
             scene_renderers.append("static")
+
+    if (CONFIG.get("scene_quality", {}) or {}).get("enabled", True):
+        from .scene_quality import audit_scene_assets, require_scene_quality_pass
+
+        scene_report_path = workdir / "scene_quality_report.json"
+        scene_report = audit_scene_assets(
+            render_scenes,
+            images,
+            code_videos,
+            broll_videos,
+            scene_renderers,
+            scene_report_path,
+        )
+        require_scene_quality_pass(scene_report, scene_report_path)
 
     # Phụ đề: dùng chính text narration gốc (chính xác 100%), căn theo thời lượng scene
     srt_path: Path | None = None
@@ -454,6 +518,7 @@ def run_once(
     from .script_writer import write_script
     from .series_manager import get_or_create_active_series_task
 
+    validate_runtime_config()
     db.init_db()
 
     if not mode:
@@ -502,12 +567,45 @@ def run_once(
 
             topic = pick_topic()
 
-    video_id_db = db.create_video(topic)
+    from .run_manager import RunManager, make_run_key
+
+    run_key = make_run_key(normalized_mode, topic, episode_id)
+    existing_video = db.get_video_by_run_key(run_key)
+    if existing_video and existing_video.get("status") == "uploaded" and existing_video.get("youtube_id"):
+        log.info("Run idempotent đã public trước đó: https://youtu.be/%s", existing_video["youtube_id"])
+        return
+
+    video_id_db = db.create_video(topic, run_key=run_key)
+    workdir = OUTPUT_DIR / f"video_{video_id_db}"
+    run = RunManager(run_key, video_id_db, workdir)
+    run.start()
     if episode_id:
         db.update_episode(episode_id, video_id=video_id_db)
 
+    # Retry sau upload không được tạo video YouTube thứ hai; chỉ tiếp tục machine publish.
+    if existing_video and existing_video.get("youtube_id") and existing_video.get("status") in {"uploaded_private", "quarantined"}:
+        from .youtube_uploader import auto_publish_if_ready
+
+        yt_id = str(existing_video["youtube_id"])
+        run.stage("publish", "running", {"youtube_id": yt_id, "resume": True})
+        resume_manifest = {"quality_passed": True, "title": existing_video.get("title"), "topic": topic}
+        publish_result = auto_publish_if_ready(
+            yt_id,
+            resume_manifest,
+            {"passed": True, "blocking_errors": []},
+            {"passed": True, "errors": []},
+        )
+        final_status = "uploaded" if publish_result.get("released") else "quarantined"
+        db.update_video(video_id_db, status=final_status)
+        run.stage("publish", "succeeded" if publish_result.get("released") else "quarantined", publish_result)
+        run.complete("completed" if publish_result.get("released") else "quarantined")
+        return
+
+    current_stage = "script"
     try:
+        run.stage("script", "running")
         script = write_script(topic, series_context=series_context)
+        run.stage("script", "succeeded", {"title": script.title, "scene_count": len(script.scenes)})
         db.update_video(video_id_db, title=script.title, status="scripted")
         if episode_id:
             db.update_episode(episode_id, status="scripted")
@@ -517,29 +615,43 @@ def run_once(
             db.update_video(video_id_db, status="dry_run")
             if episode_id:
                 db.update_episode(episode_id, status="dry_run")
+            run.complete("dry_run")
             return
 
-        workdir = OUTPUT_DIR / f"video_{video_id_db}"
-        workdir.mkdir(parents=True, exist_ok=True)
+        content_report: dict = {"passed": True, "errors": [], "warnings": [], "score": None}
+        if (CONFIG.get("content_quality", {}) or {}).get("enabled", True):
+            from .content_quality import evaluate_content, require_content_pass, revise_content
 
-        if (CONFIG.get("quality_control", {}) or {}).get("enabled", True):
-            from .script_quality import inspect_script
+            current_stage = "content_qa"
+            run.stage(current_stage, "running")
+            content_report = evaluate_content(script, workdir / "content_quality_report.json")
+            if not content_report.get("passed"):
+                revised = revise_content(script, content_report)
+                if revised is not None:
+                    script = revised
+                    content_report = evaluate_content(script, workdir / "content_quality_report.json")
+                    (workdir / "script_revised.json").write_text(
+                        script.model_dump_json(indent=2), encoding="utf-8"
+                    )
+            script.content_score = float(content_report["score"])
+            for warning in content_report["warnings"]:
+                log.warning("Content QA: %s", warning)
+            require_content_pass(content_report, workdir)
+            run.stage(current_stage, "succeeded", {"score": content_report["score"]})
+            db.update_video(video_id_db, status="content_approved")
 
-            script_report = inspect_script(script)
-            (workdir / "script_quality_report.json").write_text(
-                json.dumps(script_report, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            for warning in script_report["warnings"]:
-                log.warning("Script QA: %s", warning)
-            if not script_report["passed"]:
-                raise RuntimeError(
-                    f"Kịch bản không qua kiểm định trước render; xem {workdir / 'script_quality_report.json'}: "
-                    + "; ".join(script_report["errors"])
-                )
+        from .visual_director import plan_visuals
 
+        current_stage = "visual_plan"
+        run.stage(current_stage, "running")
+        script = plan_visuals(script, workdir / "storyboard_plan.json")
+        run.stage(current_stage, "succeeded", {"scene_count": len(script.scenes)})
+
+        current_stage = "render"
+        run.stage(current_stage, "running")
         video_path, thumb_path, durations, captions, scene_renderers = _render_video(script, workdir)
+        run.stage(current_stage, "succeeded", {"video": str(video_path), "renderers": scene_renderers})
         db.update_video(video_id_db, status="rendered")
-        db.record_topic_success(topic)
         if episode_id:
             db.update_episode(episode_id, status="rendered")
 
@@ -547,6 +659,8 @@ def run_once(
         if (CONFIG.get("quality_control", {}) or {}).get("enabled", True):
             from .video_quality import audit_render, require_quality_pass
 
+            current_stage = "final_qa"
+            run.stage(current_stage, "running")
             quality_report = audit_render(
                 video_path=video_path,
                 thumbnail_path=thumb_path,
@@ -556,7 +670,11 @@ def run_once(
                 scene_renderers=scene_renderers,
             )
             require_quality_pass(quality_report, workdir)
+            run.stage(current_stage, "succeeded", {"warnings": len(quality_report.get("warnings", []))})
             db.update_video(video_id_db, status="quality_passed")
+
+        # Chỉ chống trùng sau khi render đã vượt qua quality gate (hoặc gate bị tắt có chủ ý).
+        db.record_topic_success(topic)
 
         manifest = {
             "video_db_id": video_id_db,
@@ -569,6 +687,7 @@ def run_once(
             "scene_renderers": scene_renderers,
             "quality_passed": quality_report.get("passed", False),
             "quality_warnings": len(quality_report.get("warnings", [])),
+            "content_score": content_report.get("score"),
             "references": script.references,
         }
         manifest_path = workdir / "manifest.json"
@@ -581,16 +700,29 @@ def run_once(
                 if series_context["episode_num"] >= series_context["total_episodes"]:
                     db.update_series(series_info["id"], status="completed")
                     log.info("🎉 CHÚC MỪNG: Chuỗi video '%s' đã hoàn thành tất cả các tập!", series_info["name"])
+            run.complete("rendered_local")
             return
 
-        from .youtube_uploader import upload
+        from .youtube_uploader import auto_publish_if_ready, upload
         from .metadata import build_metadata
 
         meta = build_metadata(script, durations)
+        current_stage = "upload_private"
+        run.stage(current_stage, "running")
         yt_id = upload(video_path, meta, thumb_path, captions=captions)
-        db.update_video(video_id_db, status="uploaded", youtube_id=yt_id)
+        db.update_video(video_id_db, status="uploaded_private", youtube_id=yt_id)
+        run.stage(current_stage, "succeeded", {"youtube_id": yt_id})
         manifest["youtube_id"] = yt_id
         manifest["uploaded_at"] = datetime.now(timezone.utc).isoformat()
+        current_stage = "publish"
+        run.stage(current_stage, "running", {"youtube_id": yt_id})
+        publish_result = auto_publish_if_ready(yt_id, manifest, quality_report, content_report)
+        manifest["publishing"] = publish_result
+        if publish_result.get("released"):
+            db.update_video(video_id_db, status="uploaded")
+        else:
+            db.update_video(video_id_db, status="quarantined")
+        run.stage(current_stage, "succeeded" if publish_result.get("released") else "quarantined", publish_result)
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         try:
             from .analytics import save_video_metadata
@@ -599,14 +731,20 @@ def run_once(
         except Exception as e:  # noqa: BLE001 - analytics metadata is non-critical after upload
             log.warning("Không lưu được metadata retention: %s", e)
         if episode_id:
-            db.update_episode(episode_id, status="uploaded")
+            db.update_episode(episode_id, status="uploaded" if publish_result.get("released") else "quarantined")
             if series_context and series_info:
-                if series_context["episode_num"] >= series_context["total_episodes"]:
+                if publish_result.get("released") and series_context["episode_num"] >= series_context["total_episodes"]:
                     db.update_series(series_info["id"], status="completed")
                     log.info("🎉 CHÚC MỪNG: Chuỗi video '%s' đã hoàn tất tải lên tất cả các tập!", series_info["name"])
-        log.info("HOÀN TẤT: https://youtu.be/%s", yt_id)
+        if publish_result.get("released"):
+            log.info("HOÀN TẤT: https://youtu.be/%s", yt_id)
+        else:
+            log.warning("Video giữ private/quarantine: https://youtu.be/%s", yt_id)
+        run.complete("completed" if publish_result.get("released") else "quarantined")
 
     except Exception as e:  # noqa: BLE001 - ghi lỗi vào DB rồi raise
+        run.stage(current_stage, "failed", error=str(e)[:1000])
+        run.complete("failed")
         db.update_video(video_id_db, status="error", error=str(e)[:500])
         if episode_id:
             db.update_episode(episode_id, status="error")
@@ -645,6 +783,7 @@ def main() -> None:
         return
 
     mode = apply_mode(args.mode)
+    validate_runtime_config()
 
     if args.plan_series:
         from .series_manager import plan_new_series, print_series_table

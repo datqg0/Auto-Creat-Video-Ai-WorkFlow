@@ -43,7 +43,7 @@ jobs:
   create-video:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     # Repo public: Actions miễn phí không giới hạn, để trần cao cho video dài/nhiều ảnh
     timeout-minutes: 360
 
@@ -88,9 +88,10 @@ jobs:
           pip install -r requirements.txt
           # VieNeu-TTS (cài từ git; nếu lỗi vẫn tiếp tục vì có fallback Edge/ElevenLabs)
           pip install git+https://github.com/pnnbao97/VieNeu-TTS.git || echo "VieNeu-TTS bỏ qua, dùng fallback"
-          # Đảm bảo manim sẵn sàng và kiểm tra phiên bản
-          pip install manim || echo "manim bỏ qua, dùng fallback pycode"
-          python -m manim --version || echo "Manim CLI chưa sẵn sàng"
+          # Manim production chạy trong image cô lập được build ở bước kế tiếp.
+
+      - name: Build Manim sandbox image
+        run: docker build --tag tech-viz-manim:latest docker/manim-worker
 
       - name: Cache model Whisper
         uses: actions/cache@v4
@@ -122,6 +123,7 @@ jobs:
 
       - name: Chạy pipeline
         env:
+          APP_ENV: production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -183,6 +185,10 @@ jobs:
           path: |
             output/**/*.mp4
             output/video_*/quality_report.json
+            output/video_*/content_quality_report.json
+            output/video_*/scene_quality_report.json
+            output/video_*/storyboard_plan.json
+            output/video_*/run_state.json
             output/video_*/script_quality_report.json
             output/video_*/scene_contact_sheet.jpg
             output/video_*/aivideo_*_frames/*.jpg
@@ -196,13 +202,3 @@ jobs:
           name: debug-output
           path: output/**/
           retention-days: 3
-
-      - name: Commit lịch sử DB
-        if: ${{ always() }}
-        run: |
-          git config user.name "video-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add -f output/state.db output/topics_history.txt || true
-          git commit -m "chore: cập nhật lịch sử video [skip ci]" || echo "Không có thay đổi"
-          git pull --rebase --autostash origin main || true
-          git push || echo "Không push được (bỏ qua)"

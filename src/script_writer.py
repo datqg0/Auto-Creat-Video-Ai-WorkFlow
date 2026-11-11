@@ -355,8 +355,14 @@ def _load_settings() -> _Settings:
 
 def _system(s: _Settings) -> str:
     if s.is_documentary:
-        return _SYSTEM_DOCUMENTARY_VI if s.lang == "vi" else _SYSTEM_DOCUMENTARY_EN
-    return _SYSTEM_VI if s.lang == "vi" else _SYSTEM_EN
+        base = _SYSTEM_DOCUMENTARY_VI if s.lang == "vi" else _SYSTEM_DOCUMENTARY_EN
+    else:
+        base = _SYSTEM_VI if s.lang == "vi" else _SYSTEM_EN
+    return base + (
+        "\nEVIDENCE LEDGER: Với claim kỹ thuật quan trọng, thêm claim_ids vào scene và mảng evidence ở JSON gốc. "
+        "source_url chỉ được sao chép nguyên văn URL có trong khối research; tuyệt đối không tự tạo URL. "
+        "Nếu research không hỗ trợ claim, để source_url rỗng và confidence thấp hoặc bỏ claim."
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -724,6 +730,11 @@ def _normalize_scene_dict(raw: dict, topic: str, s: _Settings) -> dict | None:
         "image_query": str(d.get("image_query") or "").strip(),
         "video_query": str(d.get("video_query") or "").strip(),
         "visual_prompt": visual_prompt,
+        "claim_ids": [
+            str(value).strip()[:60]
+            for value in (d.get("claim_ids") if isinstance(d.get("claim_ids"), list) else [])
+            if str(value).strip()
+        ][:8],
     }
     if vt == "chart":
         out["chart"] = chart
@@ -793,6 +804,28 @@ def _parse_exercises(raw: object) -> list[Exercise]:
     return out
 
 
+def _parse_evidence(raw: object) -> list[dict]:
+    """Chuẩn hóa claim ledger do LLM trả về; URL sẽ được đối chiếu lại ở content gate."""
+    if not isinstance(raw, list):
+        return []
+    evidence: list[dict] = []
+    for item in raw:
+        if not isinstance(item, dict) or not str(item.get("claim_id") or "").strip() or not str(item.get("claim") or "").strip():
+            continue
+        try:
+            confidence = max(0.0, min(float(item.get("confidence") or 0.0), 1.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        evidence.append({
+            "claim_id": str(item["claim_id"])[:60],
+            "claim": str(item["claim"])[:500],
+            "source_url": str(item.get("source_url") or "")[:1000],
+            "confidence": confidence,
+            "scene_indices": [int(v) for v in (item.get("scene_indices") or []) if isinstance(v, int)][:20],
+        })
+    return evidence
+
+
 def _clean_tags(raw: object, s: _Settings) -> list[str]:
     tags: list[str] = []
     seen: set[str] = set()
@@ -830,6 +863,7 @@ def _parse_script(topic: str, raw: str, s: _Settings) -> Script:
         tags=_clean_tags(data.get("tags"), s),
         scenes=scenes,
         exercises=_parse_exercises(data.get("exercises")),
+        evidence=_parse_evidence(data.get("evidence")),
     )
 
 
@@ -850,6 +884,7 @@ def _scene_example(narr: str, heading: str, vprompt: str) -> dict:
         "image_query": "english keywords for background image",
         "video_query": "english keywords for stock footage (hoặc để trống)",
         "animation": {"preset": "pycode"},
+        "claim_ids": ["claim_01"],
     }
 
 
@@ -859,6 +894,13 @@ def _schema_json(title_hint: str, desc_hint: str, scene: dict, exercise_hint: st
         "description": desc_hint,
         "tags": ["tag1", "tag2", "..."],
         "scenes": [scene],
+        "evidence": [{
+            "claim_id": "claim_01",
+            "claim": "Khẳng định kỹ thuật quan trọng được dùng trong scene",
+            "source_url": "URL có trong research; để trống nếu research không hỗ trợ",
+            "confidence": 0.9,
+            "scene_indices": [0],
+        }],
         "exercises": [{"question": exercise_hint, "hint": "gợi ý ngắn (có thể để trống)", "answer": "đáp án/hướng làm ngắn gọn"}],
     }
     return json.dumps(obj, ensure_ascii=False, indent=2)
@@ -1536,6 +1578,10 @@ def _write_two_part_script(
         )
         exercises = _generate_exercises(temp_script, s, s.n_exercises)
 
+    evidence_by_id = {
+        item["claim_id"]: item
+        for item in (_parse_evidence(p1_data.get("evidence")) + _parse_evidence(p2_data.get("evidence")))
+    }
     return Script(
         topic=topic,
         title=title,
@@ -1543,6 +1589,7 @@ def _write_two_part_script(
         tags=tags,
         scenes=all_scenes,
         exercises=exercises,
+        evidence=list(evidence_by_id.values()),
     )
 
 

@@ -2,12 +2,12 @@
 
 A fully automated pipeline that picks a technology topic, writes a script with an
 LLM, renders **code-driven visualizations** (Pillow + NumPy + Matplotlib in a
-3Blue1Brown / Kurzgesagt style), generates a Vietnamese voice-over, burns in
-subtitles, composites everything with FFmpeg, and uploads the finished video to
+3Blue1Brown / Kurzgesagt style), generates a Vietnamese voice-over and bilingual
+subtitle tracks, composites everything with FFmpeg, and uploads the finished video to
 YouTube — one Short daily plus one long video every three days, unattended, on free GitHub Actions runners.
 
-No VPS, no manual steps, no LaTeX, no headless browser. Everything runs in pure
-Python plus FFmpeg.
+No VPS or routine manual approval is required. Production uses Python, FFmpeg,
+headless Edge/Chrome for motion graphics, and an isolated Manim container.
 
 ---
 
@@ -52,9 +52,8 @@ Python plus FFmpeg.
 - **StykAnimate 2D IK Stickman & Mascots** — integrates StykAnimate 2D Inverse Kinematics
   (Law of Cosines, FABRIK) with procedural actions (walk, run, pointing with neon laser, idea,
   coding, celebrate) and emotional Bunny Girl mascot reaction cards.
-- **Dual Database Backend (Neon Serverless PostgreSQL + SQLite)** — seamlessly syncs
-  state across cloud CI/CD runners (GitHub Actions) via `DATABASE_URL` with automatic
-  zero-config fallback to local SQLite (`output/state.db`).
+- **Production PostgreSQL + local SQLite** — CI uses PostgreSQL as the authoritative,
+  fail-closed state store; local development keeps the zero-config SQLite option.
 - **AI Image & Video Generation** — generates high-definition FLUX illustrations for scene
   backdrops and uses up to three related images per `ai_motion` clip, with camera motion
   and soft transitions. The default budget is two such scenes per video.
@@ -161,9 +160,9 @@ Rather than generating isolated, one-off videos, the pipeline features an autono
   - **Hook Opening (Scene 1)**: Automatically references the key takeaway from the previous episode (`hook_from_previous`).
   - **Outro Ending**: Teases the mystery and challenge to be solved in the upcoming episode (`hook_to_next`).
   - **YouTube Title**: Automatically prepends `[Tập X/Y]` to titles for clear binge-watching cues.
-- **Dual Database Backend (Neon Serverless PostgreSQL + SQLite)**:
-  - **Neon Cloud**: Set `DATABASE_URL=postgresql://...` in `.env` to synchronize series status across local development machines and GitHub Actions runners.
-  - **SQLite Local**: If `DATABASE_URL` is omitted, the pipeline operates 100% offline using `output/state.db`.
+- **Environment-aware database backend**:
+  - **Production**: `DATABASE_URL=postgresql://...` is mandatory and fail-closed.
+  - **Local development**: without `DATABASE_URL`, the pipeline uses `output/state.db`.
 
 ```bash
 # View active and completed series roadmap & episode status
@@ -342,12 +341,13 @@ key and a successful response wins.
 4. **Openverse** — Creative Commons open-license image repository (keyless fallback).
 5. **AI FLUX Illustration** (`images.ai_enabled: true`) — 100% free keyless FLUX illustration generation (Pollinations AI / HuggingFace) when stock images return no results or `images.ai_primary: true`.
 
-**Database resilience chain** (`src/db.py`, 4-tier automatic fallback):
+**Database policy** (`src/db.py`):
 
-1. **Neon Serverless PostgreSQL** (`DATABASE_URL`) — Primary cloud persistence. Syncs multi-episode series state across local dev machines and GitHub Actions runners.
-2. **Local SQLite** (`output/state.db`) — Automatic zero-downtime fallback if Neon connection drops, network times out, credentials are invalid, or Neon database is paused/suspended.
-3. **In-Memory SQLite** (`:memory:`) — Automatic fallback if local file system is read-only, permissions fail, or SQLite file is locked by another process.
-4. **Append-Only File Backup & Safe Execution** (`output/topics_history.txt`) — Topic history is always written to plain text; all DB writes are safe-wrapped with timestamp fallback IDs so video rendering and YouTube upload **NEVER crash** due to database errors.
+1. **Production PostgreSQL** (`DATABASE_URL`) — authoritative persistence for run keys,
+   stage checkpoints, series state, and YouTube IDs. Connection failure stops the run.
+2. **Local SQLite** (`output/state.db`) — convenient local development fallback only.
+3. **Local in-memory SQLite** — last-resort local fallback when the file cannot be opened;
+   it is never used when `APP_ENV=production`.
 
 **Research & Fact-Checking chain** (`src/research_engine.py`, 3-tier automatic fallback):
 
@@ -495,9 +495,8 @@ FFmpeg, Manim, and all Python dependencies. You only need to provide secrets.
    | `HF_TOKEN`                                             | AI-generated thumbnails          |
    | `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_TOKEN`              | Auto-upload to YouTube           |
 
-3. **Grant write permission** — *Settings → Actions → General → Workflow
-   permissions → Read and write permissions*. If using local SQLite, the workflow commits
-   `output/state.db` back to the repo. (With `DATABASE_URL`, state is synced directly to Neon).
+3. **Configure PostgreSQL** — production requires `DATABASE_URL`. The workflow uses
+   read-only repository permissions and never commits SQLite state back to Git.
 
 4. **Schedule (already configured):**
    - `00:00 UTC` (07:00 Vietnam) on days `1, 4, 7, ...` each month → one long 16:9 explainer
@@ -625,16 +624,17 @@ assets/docs/             # Offline technical knowledge base & sources
 
 ## Security Model
 
-- **Generated animation code runs in a subprocess** with a timeout and reduced
-  environment. This is process isolation, not an operating-system security sandbox.
-  Math expressions use an AST-validated `make_safe_fn`
-  ([`src/animation_bridge.py`](src/animation_bridge.py)); the `custom` animation
-  preset is declarative JSON interpreted by `custom_scene.py` with limits on
-  objects, steps, and run time.
+- **Generated Manim code is AST-policy checked and container isolated**. Production
+  runs it without network or secrets, with a read-only root filesystem, dropped
+  capabilities, a non-root UID, and CPU/RAM/PID/time limits. Only the scene output
+  directory is writable. Matplotlib-AI and MathViz fallbacks are disabled by default.
+- **Machine approval controls publishing** — every video uploads as private, waits
+  for successful YouTube processing, and becomes public only when content, scene,
+  and final-render gates all pass. Failed videos remain quarantined/private.
+- **Idempotent stages** — PostgreSQL records the script, visual-plan, render, QA,
+  upload, and publish stages so retries cannot create a second YouTube upload.
 - **Secrets stay out of git** — `.env` and `credentials/` are gitignored; CI reads
   everything from GitHub Actions Secrets.
-- **Least dependencies** — no LaTeX/Cairo/GLSL; the animation engine is pure
-  Python to keep the attack surface and CI footprint small.
 
 ---
 
@@ -648,10 +648,11 @@ assets/docs/             # Offline technical knowledge base & sources
   auto-disables and static images are used.
 - **Upload skipped** — `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_TOKEN` not set, or the
   token expired (re-run `python -m src.youtube_uploader --auth`).
-- **CI can't commit history** — enable *Read and write permissions* under
-  *Settings → Actions → General*.
-- **Duplicate topics** — increase `topics.dedup_days`; history lives in
-  `output/state.db` (committed back by CI).
+- **Production stops at startup** — set a valid PostgreSQL `DATABASE_URL`; CI no
+  longer commits SQLite state into the repository.
+- **Video stays private** — inspect `content_quality_report.json`,
+  `scene_quality_report.json`, `quality_report.json`, and the YouTube processing
+  status recorded in `manifest.json`.
 
 ---
 

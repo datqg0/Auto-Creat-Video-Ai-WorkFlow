@@ -176,7 +176,7 @@ def get_or_create_active_series_task(mode: str = "long") -> dict[str, Any]:
     Quy tắc tự động:
       1. Tìm series đang 'in_progress' của riêng mode đó (Short series hoặc Long series riêng biệt).
       2. Nếu có series đang chạy:
-         - Lấy tập 'pending' tiếp theo.
+         - Lấy tập 'pending', 'error' hoặc 'quarantined' tiếp theo.
          - Nếu không còn tập pending nào -> Đánh dấu series là 'completed'.
       3. Nếu không có series nào đang chạy (DB trống hoặc series cũ vừa xong):
          - Tự động gọi plan_new_series(..., mode=mode) để tạo chuỗi video mới đúng định dạng!

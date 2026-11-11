@@ -92,17 +92,20 @@ topic_selector → script_writer (LLM) → tts → visual_engine / mathviz
 
 | Vấn đề | Ảnh hưởng | Hướng xử lý |
 | --- | --- | --- |
-| `google.generativeai` deprecated | Cảnh báo, có thể vỡ sau này | Migrate sang `google.genai` |
+| Dependency drift | Workflow có thể đổi dù code không đổi | Dùng Manim image cố định và tiếp tục khóa dependency còn lại |
 | Gemini free-tier 5-15 req/phút | Dễ 429 khi chạy dồn dập | Đã có Groq, Cerebras, Pollinations làm dự phòng |
 | moviepy ghim `<2.0` | Không lên bản mới được | Chờ migrate khi cần |
-| Không có test tự động | Regression khó phát hiện | Xem mục 4.3 |
+| Test media đầy đủ còn đắt | Regression renderer khó phát hiện | CI policy nhẹ + golden-frame suite ở giai đoạn tiếp theo |
 
 ---
 
 ## 7. Nguyên Tắc Phát Triển
 
-- **Không exec code do LLM sinh ra.** Mọi tính năng liên quan code từ LLM phải dùng
-  interpreter khai báo an toàn (xem `animation_bridge.make_safe_fn` + `mathviz/custom_scene`).
+- **Code Manim do LLM sinh chỉ chạy trong sandbox production.** Bắt buộc qua AST
+  policy và container không mạng/không secret/read-only; vi phạm policy không được self-repair.
 - **LLM là điểm lỗi.** Luôn có fallback provider và fail-fast hợp lý.
-- **Phụ đề burn ở đáy.** Overlay text phải tránh vùng ~18% dưới cùng.
+- **Visual Director là nguồn quyết định renderer.** Manim → Motion Graphics → static;
+  MathViz và Matplotlib-AI không bật mặc định.
+- **Publish hoàn toàn tự động nhưng fail closed.** Upload private, machine gate pass
+  mới public; lỗi hoặc timeout phải giữ private.
 - **Chỉ thay đổi những gì được yêu cầu.** Tránh over-engineering.

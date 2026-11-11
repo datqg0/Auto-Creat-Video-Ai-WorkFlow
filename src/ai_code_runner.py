@@ -1,11 +1,7 @@
-"""Chạy code Python do LLM sinh ra để vẽ animation, rồi trả về file mp4.
+"""Sinh và render animation code do LLM tạo.
 
-An toàn theo cách 2 (sandbox môi trường, KHÔNG blocklist từ khóa):
-  - Chạy trong TIẾN TRÌNH CON riêng, ``env`` KHÔNG chứa bất kỳ secret nào
-    (chỉ PATH + vài biến vẽ không nhạy cảm). Dù code có đọc os.environ hay
-    gọi requests, cũng không có API key/token để rò rỉ.
-  - ``timeout`` cứng: code treo/lặp vô hạn bị kill -> không gây hang/OOM cho CI.
-  - ``cwd`` là thư mục tạm riêng của scene; dọn theo scene.
+Manim production qua AST policy và container cô lập. Matplotlib runner cũ chỉ để
+debug local, bị tắt mặc định và bị runtime policy cấm trong production.
 
 Hợp đồng với code AI: runner CHÈN sẵn (trusted) các biến WIDTH/HEIGHT/FPS/
 DURATION/OUT_PATH và cấu hình matplotlib Agg + ffmpeg. Code AI chỉ cần vẽ và
@@ -14,6 +10,7 @@ lưu animation vào OUT_PATH.
 from __future__ import annotations
 
 import logging
+import json
 import os
 import re
 import subprocess
@@ -308,6 +305,7 @@ def generate_manim_from_prompt(
     duration: float = 5.0,
     topic: str = "",
     narration: str = "",
+    scene_contract: dict | None = None,
 ) -> str | None:
     """Yêu cầu AI viết code Manim animation từ mô tả cảnh / thuật toán visual."""
     try:
@@ -333,11 +331,15 @@ def generate_manim_from_prompt(
         except Exception:
             pass
 
-    if topic or narration or research_section:
+    contract_section = ""
+    if scene_contract:
+        contract_section = "- VISUAL DIRECTOR CONTRACT (FOLLOW EXACTLY):\n  " + json.dumps(scene_contract, ensure_ascii=False) + "\n"
+    if topic or narration or research_section or contract_section:
         context_section = (
             f"SCENE CONTEXT:\n"
             f"- Video Topic: {topic}\n"
             f"- Voiceover Narration: \"{narration}\"\n"
+            f"{contract_section}"
             f"{research_section}\n"
         )
 
@@ -888,54 +890,47 @@ def run_manim_code(
     auto_repair: bool = True,
     max_repairs: int = 2,
 ) -> Path | None:
-    """Chạy ``code`` (manim) trong sandbox env-rỗng. Tự động AI repair nếu lỗi. Trả về mp4 hoặc None."""
+    """Validate rồi chạy Manim trong backend cô lập; tự repair lỗi render hợp lệ."""
     if not code or not code.strip():
         return None
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    script = out_dir / "ai_manim.py"
+    source_dir = out_dir / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    script = source_dir / "ai_manim.py"
     safe_env = _safe_env(out_dir)
     media = out_dir / "media"
 
     current_code = code
     stderr = ""
     for attempt in range(max_repairs + 1):
+        from .manim_validator import validate_manim_code
+
+        validation = validate_manim_code(current_code)
+        if not validation.allowed:
+            log.error("Từ chối code Manim do vi phạm policy: %s", "; ".join(validation.errors))
+            return None
         prelude = _MANIM_PRELUDE.format(
             width=int(width), height=int(height), fps=int(fps),
             duration=float(duration), bg=background_color,
         )
         script.write_text(prelude + current_code, encoding="utf-8")
 
-        cmd = [
-            sys.executable, "-m", "manim", "render",
-            "-a", "--format", "mp4",
-            "-r", f"{int(width)},{int(height)}",
-            "--fps", str(int(fps)),
-            "--media_dir", str(media),
-            script.name,
-        ]
-        try:
-            proc = subprocess.run(
-                cmd,
-                cwd=str(out_dir),
-                env=safe_env,
-                timeout=timeout,
-                capture_output=True,
-                text=True,
-            )
-        except FileNotFoundError:
-            log.warning("Manim chưa cài -> chuyển hướng fallback.")
-            return None
-        except subprocess.TimeoutExpired:
-            log.warning("Manim vượt timeout %ds (lần %d).", timeout, attempt + 1)
-            proc = None
-            stderr = f"Execution timed out after {timeout} seconds."
-        except Exception as e:  # noqa: BLE001
-            log.warning("Chạy manim lỗi: %s", e)
-            proc = None
-            stderr = str(e)
+        from .manim_runner import execute_manim_script
 
-        if proc and proc.returncode == 0:
+        proc = execute_manim_script(
+            script,
+            media,
+            width=width,
+            height=height,
+            fps=fps,
+            timeout=timeout,
+            local_env=safe_env,
+        )
+        if proc.timed_out:
+            log.warning("Manim vượt timeout %ds (lần %d).", timeout, attempt + 1)
+
+        if proc.returncode == 0:
             vids = [
                 p for p in out_dir.rglob("*.mp4")
                 if p.stat().st_size > 1024 and "partial_movie_files" not in p.parts
@@ -947,7 +942,7 @@ def run_manim_code(
             log.warning("Manim chạy xong nhưng không tìm thấy mp4 hợp lệ.")
             stderr = "No valid mp4 generated in media folder."
         else:
-            stderr = proc.stderr if proc else stderr
+            stderr = proc.stderr or stderr
             log.warning("Manim thoát lỗi (lần %d): %s", attempt + 1, (stderr or "")[-800:])
 
         # Nếu lỗi và còn lượt sửa: gọi AI self-repair

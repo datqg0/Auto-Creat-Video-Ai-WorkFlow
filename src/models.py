@@ -10,6 +10,41 @@ VisualType = Literal[
     "title", "bullets", "chart", "code", "algorithm", "quote", "diagram", "animation", "challenge", "mascot", "math_equation", "math"
 ]
 
+RendererName = Literal["manim", "motion_graphics", "broll", "static"]
+
+
+class EvidenceClaim(BaseModel):
+    """Một khẳng định có thể truy ngược về nguồn dùng trong kịch bản."""
+
+    claim_id: str
+    claim: str
+    source_url: str = ""
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    scene_indices: list[int] = Field(default_factory=list)
+
+
+class TimelineCue(BaseModel):
+    """Mốc tương đối để renderer đồng bộ hình ảnh với lời đọc."""
+
+    at: float = Field(ge=0.0, le=1.0)
+    action: str
+    target: str = ""
+
+
+class SceneContract(BaseModel):
+    """Hợp đồng giữa biên tập nội dung và renderer của một scene."""
+
+    teaching_goal: str
+    preferred_renderer: RendererName = "static"
+    fallback_renderers: list[RendererName] = Field(default_factory=lambda: ["motion_graphics", "static"])
+    objects: list[str] = Field(default_factory=list)
+    focus: str = ""
+    timeline: list[TimelineCue] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    max_on_screen_chars: int = Field(default=70, ge=12, le=180)
+    safe_margin_percent: float = Field(default=8.0, ge=0.0, le=30.0)
+    subtitle_safe_area_percent: float = Field(default=18.0, ge=0.0, le=35.0)
+
 
 class Scene(BaseModel):
     narration: str = Field(..., description="Lời đọc cho scene này")
@@ -36,6 +71,9 @@ class Scene(BaseModel):
     animation: dict | None = None
     # visual_prompt: mô tả chi tiết thuật toán/hình ảnh trực quan để giao cho LLM chuyên code (DeepSeek R1 / Qwen Coder) sinh animation
     visual_prompt: str = ""
+    # Được Visual Director bổ sung sau khi script vượt content gate.
+    contract: SceneContract | None = None
+    claim_ids: list[str] = Field(default_factory=list)
 
     @field_validator("animation", "chart", mode="before")
     @classmethod
@@ -69,6 +107,8 @@ class Script(BaseModel):
     references: list[str] = Field(default_factory=list)
     # Bài toán thực tế đặt ở cuối video (LLM sinh nhiều bài cho người xem luyện)
     exercises: list[Exercise] = Field(default_factory=list)
+    evidence: list[EvidenceClaim] = Field(default_factory=list)
+    content_score: float | None = Field(default=None, ge=0.0, le=100.0)
 
     @field_validator("exercises", mode="before")
     @classmethod

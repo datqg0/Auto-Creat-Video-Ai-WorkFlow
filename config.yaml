@@ -16,6 +16,9 @@ research_max_chars: 1800
 # Lịch GitHub tự động chạy Short hằng ngày và long 3 ngày/lần.
 # Mega và documentary chỉ chạy khi được chọn thủ công trong workflow_dispatch.
 default_mode: long
+runtime:
+  # APP_ENV=production trên CI sẽ bật các bất biến fail-closed.
+  environment: local
 modes:
   long:
     target_duration_seconds: 300
@@ -270,7 +273,7 @@ visual:
 # ---- Animation code do AI viết ----
 animation:
   enabled: true
-  ai_code_primary: true        # Ưu tiên AI sinh code Python (Matplotlib / Manim) cho animation
+  ai_code_primary: true        # Ưu tiên AI sinh code Manim; Matplotlib AI bị tắt bên dưới
   animate_from_start: true     # Scene 1 (Hook) luôn mở đầu bằng animation động do code AI vẽ
   min_animation_ratio: 0.55    # Mốc tham khảo cho báo cáo; không ép cảnh thành animation
   motion_graphics_enabled: true # Bật engine Motion Graphics HTML5/Canvas qua Edge Headless (chuẩn Tech Studio)
@@ -281,6 +284,34 @@ animation:
   manim_fps: 30
   # Timeout cứng cho 1 lần render manim (giây); nâng lên 480s để scene phức tạp render trọn vẹn.
   manim_timeout: 480
+  renderer_order: [manim, motion_graphics, static]
+  matplotlib_fallback_enabled: false
+  mathviz_fallback_enabled: false
+  sandbox:
+    backend: container         # production bắt buộc container; local có thể đổi thành local để debug
+    image: "tech-viz-manim:latest"
+    network: false
+    memory_mb: 4096
+    cpus: 2.0
+    pids_limit: 128
+    timeout_seconds: 480
+
+# ---- Chất lượng nội dung trước render ----
+content_quality:
+  enabled: true
+  minimum_score: 82
+  minimum_accuracy_score: 27
+  require_references: true
+  llm_critic_enabled: true
+  block_on_llm_errors: false
+  auto_revise: true
+  max_revision_attempts: 1
+
+visual_style:
+  max_text_per_frame: 70
+  safe_margin_percent: 8
+  subtitle_safe_area_percent: 18
+  palette: "deep navy, electric cyan, violet, warm amber accent"
 
 # ---- Ảnh minh họa (Tự tìm & AI sinh) ----
 images:
@@ -345,6 +376,11 @@ quality_control:
   max_caption_chars_horizontal: 48
   max_caption_chars_vertical: 32
 
+scene_quality:
+  enabled: true
+  fail_on_warnings: false
+  min_animation_bytes: 4096
+
 # ---- Fact-check nhẹ, chỉ tra kho offline; không tìm web ----
 fact_check:
   enabled: true
@@ -374,7 +410,7 @@ branding:
 
 # ---- YouTube ----
 youtube:
-  privacy_status: public   # public | unlisted | private
+  privacy_status: private  # luôn staging private; publish policy quyết định trạng thái cuối
   category_id: "28"        # 28 = Science & Technology
   default_tags:
     - technology
@@ -382,6 +418,15 @@ youtube:
     - tech explained
     - "công nghệ"
   made_for_kids: false
+
+publishing:
+  mode: automatic
+  staging_privacy: private
+  final_privacy: public
+  auto_publish_on_pass: true
+  processing_timeout_seconds: 1800
+  poll_interval_seconds: 30
+  max_retries: 2
 
 # ---- Phản hồi retention từ YouTube Analytics ----
 analytics:
@@ -462,7 +507,7 @@ series:
 
 # ---- Nghiên cứu tài liệu khoa học & thực nghiệm (Research & Fact-checking Engine) ----
 research:
-  enabled: false             # Đã tắt/xóa bỏ ref theo yêu cầu người dùng (giảm bloat prompt, tránh 504 và rate limit)
+  enabled: true              # Production cần nguồn công khai để content gate và claim ledger kiểm chứng
   max_chars: 4000            # Giới hạn ký tự tài liệu đưa vào prompt
   cache_enabled: true
   cache_dir: "assets/cache/research"

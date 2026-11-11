@@ -117,14 +117,19 @@ Mặc định, script writer chỉ tìm một trích đoạn ngắn khớp chủ
 ## 4. Cơ Sở Dữ Liệu & Lưu Trữ (Data Storage)
 
 ### Bảng dữ liệu SQLite / Postgres (`db.py`):
-- `videos`: `id`, `topic`, `title`, `status` (`created`, `scripted`, `rendered`, `quality_passed`, `rendered_local`, `uploaded`), `youtube_id`, `created_at`.
+- `videos`: thêm `run_key` duy nhất và các trạng thái `content_approved`, `uploaded_private`, `quarantined`, `uploaded`.
 - `series`: `id`, `name`, `mode` (`short`, `long`), `total_episodes`, `status` (`in_progress`, `completed`), `created_at`.
 - `episodes`: `id`, `series_id`, `episode_num`, `topic`, `video_id`, `status`.
+- `pipeline_runs`, `stage_runs`: checkpoint và idempotency cho từng stage production.
 
 ---
 
 ## 5. An Toàn Hệ Thống & Nguyên Tắc Bất Biến
 
 1. **Kiểm tra mã số học**: Các biểu thức modular arithmetic có dạng `a^b mod n = r` được tính lại trước render; các khẳng định ngoài phạm vi kiểm tra vẫn cần biên tập soát lại.
-2. **AI animation runner**: Mã Manim/Matplotlib được chạy trong subprocess với environment tối giản và timeout; đây chưa phải sandbox hệ điều hành.
+2. **AI animation runner**: Mã Manim qua AST policy rồi chạy trong container tạm
+   không mạng/secret, rootfs read-only, non-root và có resource limits. Code vi phạm
+   policy bị từ chối; Matplotlib-AI tắt mặc định.
 3. **Safe Margins**: Vùng văn bản và phụ đề luôn cách đáy tối thiểu 18% để tránh bị che khuất bởi giao diện YouTube Shorts / Player Controls.
+4. **Publish gate**: Video luôn staging private và chỉ tự public sau khi content QA,
+   scene QA, final QA và YouTube processing đều pass.
