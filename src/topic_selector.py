@@ -43,13 +43,20 @@ def pick_topic() -> str:
 
     used = db.recent_topics(dedup_days)
 
+    # Documentary chỉ được gọi thủ công: lịch sử, nhân vật và câu chuyện bên lề công nghệ.
+    if active_mode == "documentary":
+        documentary_domains = topics_cfg.get("documentary_domains", []) or []
+        domain = random.choice(documentary_domains) if documentary_domains else (
+            "Lịch sử công nghệ, chân dung người tiên phong và những câu chuyện bên lề ít được biết đến"
+        )
+        log.info("🎬 [Documentary thủ công] Định tuyến chủ đề: %s", domain)
     # 1. Chế độ VIDEO DÀI (long / mega) -> Chuyên AI & Machine Learning từ số 0 (Deep-ML)
-    if active_mode in ("long", "mega"):
+    elif active_mode in ("long", "mega"):
         domain = "Trí tuệ nhân tạo & Học máy từ số 0 (Deep-ML & AI from Scratch: Transformers, Attention, Neural Networks, CNN, Loss Functions, Gradient Descent, Backpropagation, Optimizers)"
         log.info("🎯 [Video Dài / Mega] Định tuyến chuyên đề AI & Học máy từ số 0 (Deep-ML): %s", domain)
-    # 2. Chế độ VIDEO NGẮN (short) -> Chuẩn phong cách Shorts @onjsdev (Visual Algorithms, Sorting, Pathfinding, Math)
+    # 2. Chế độ VIDEO NGẮN (short) -> nhiều họ thuật toán + mô phỏng trực quan
     elif active_mode == "short":
-        domain = "Thuật toán trực quan & Kỳ quan toán học (Phong cách Shorts @onjsdev: Sorting Algorithms, Pathfinding & Mazes, Fast Pi Formulas, Graph Traversals)"
+        domain = "Thuật toán trực quan & Kỳ quan toán học (Shorts: Searching, Sorting, Graphs, Trees, Dynamic Programming, Data Structures, Pathfinding, Simulations, Math Wonders)"
         log.info("🎯 [Video Ngắn / Shorts] Định tuyến phong cách @onjsdev: %s", domain)
     else:
         # Quyết định dùng priority domain hay random domain cho các trường hợp khác
@@ -95,7 +102,7 @@ def pick_topic() -> str:
         elif any(k in domain.lower() for k in ("algorithm", "logic", "pathfinding", "sorting", "boids")):
             github_hint = (
                 "\n\nVISUAL ALGORITHMS & LOGIC HINTS (priority):"
-                "\n- Step-by-step visual trace of classic algorithms: A* Pathfinding, Boids Flocking simulation, Quadtree spatial partitioning, Huffman compression, Quicksort/Merge sort."
+                "\n- Rotate across algorithm families: Binary Search, A*/Dijkstra/BFS/DFS, Trie, Two Pointers, Dynamic Programming, Boids, Quadtree, Huffman, Quicksort/Merge sort."
                 "\n- Example: 'A* Algorithm: How Game Characters Always Find the Shortest Path', 'Boids: 3 Simple Rules Creating Natural Flocking Intelligence'."
             )
         elif any(k in domain.lower() for k in ("hardware", "silicon", "transistor", "cpu", "gpu", "cache", "asml", "ssd")):
@@ -141,12 +148,19 @@ def pick_topic() -> str:
                 "\n- Example: 'Rust vs C++: How Borrow Checker Achieves Memory Safety Without GC', 'Why Python is 100x Slower Than C (Under the Hood)', 'Go Goroutines: How Go Handles 1 Million Connections on 2KB Stacks'."
             )
 
+        documentary_requirements = (
+            "\n- This is a calm 10-15 minute technology documentary. Favor a human story, verified chronology, "
+            "turning points, failures, and social impact over a tutorial. The subject may be a famous technologist, "
+            "the history of a technology, or a lesser-known adjacent story."
+            if active_mode == "documentary" else
+            "\n- Narrow enough to explain in a 5-minute visual video."
+        )
         prompt = f"""You are an editor for a tech YouTube channel specializing in visual explanations (visualization).
 Propose ONE specific, engaging video topic in the field: {domain}.
 
 Requirements:
-- Narrow enough to explain in a 5-minute video using animations/diagrams.
-- Well-suited for illustration with animations, data charts, or algorithm simulations.
+- Well-suited for visual storytelling with footage, photographs, timelines, diagrams, charts, or animation when useful.
+{documentary_requirements}
 - Written in English.
 - Do NOT duplicate or closely resemble any of the previously used topics below:
 {used_block}{trend_section}{github_hint}
@@ -272,8 +286,12 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
         elif any(k in domain.lower() for k in ("onjsdev", "kỳ quan toán học")):
             github_hint = (
                 "\n\nGỢI Ý CHỦ ĐỀ Y HỆT PHONG CÁCH YOUTUBE SHORTS CỦA @ONJSDEV (VISUAL ALGORITHMS & MATH WONDERS):"
-                "\n- Cốt lõi: Trực quan hóa thuật toán bằng chuyển động màu sắc cao độ (thanh neon, so sánh pointer i/j, mê cung, công thức toán kỳ thú)."
+                "\n- Cốt lõi: Luân phiên nhiều ngôn ngữ chuyển động (thanh neon, thu hẹp vùng tìm kiếm, frontier trên lưới, node/cạnh, bảng DP, stack/queue, công thức biến đổi). Không mặc định Bubble Sort."
                 "\n  + 'Bubble Sort vs QuickSort: Tại sao thuật toán chia để trị lại nhanh hơn gấp 1.000 lần?'"
+                "\n  + 'Binary Search: Vì sao 1 tỷ phần tử chỉ cần khoảng 30 lần đoán?'"
+                "\n  + 'BFS vs DFS: Hai cách hoàn toàn khác nhau để thoát mê cung'"
+                "\n  + 'Dynamic Programming: Một bảng nhỏ xóa hàng triệu phép tính lặp như thế nào?'"
+                "\n  + 'Trie: Cách thanh tìm kiếm đoán từ trước khi bạn gõ xong'"
                 "\n  + 'Thuật toán tạo mê cung Hunt and Kill: Cách máy tính vừa săn tìm vừa đục đường đi siêu mượt'"
                 "\n  + 'Công thức tính Pi siêu tốc của anh em nhà Chudnovsky: Mỗi bước cộng ra thêm 14 chữ số Pi'"
                 "\n  + 'A* Pathfinding: Thuật toán tìm đường ngắn nhất đánh bại Dijkstra trong game như thế nào?'"
@@ -293,12 +311,19 @@ Return ONLY the topic title on a single line, with no explanations, no numbering
                 "\n  + 'TypeScript vs JavaScript: Vì sao dev thà viết dài hơn để diệt tận gốc lỗi undefined is not a function?'"
             )
 
+        documentary_requirements = (
+            "\n- Đây là phim tài liệu công nghệ 10-15 phút với nhịp kể điềm tĩnh: ưu tiên câu chuyện con người, "
+            "mốc thời gian đã kiểm chứng, bước ngoặt, thất bại và tác động xã hội; có thể chọn nhân vật công nghệ, "
+            "lịch sử một công nghệ hoặc câu chuyện bên lề ít người biết."
+            if active_mode == "documentary" else
+            "\n- Chủ đề đủ hẹp để giải thích trong video 5 phút bằng hình ảnh động/biểu đồ."
+        )
         prompt = f"""Bạn là biên tập viên kênh YouTube về công nghệ theo phong cách giải thích trực quan (visualization).
 Hãy đề xuất MỘT chủ đề video cụ thể, hấp dẫn trong lĩnh vực: {domain}.
 
 Yêu cầu:
-- Chủ đề đủ hẹp để giải thích trong video 5 phút bằng hình ảnh động/biểu đồ.
-- Phù hợp để minh họa bằng animation, biểu đồ dữ liệu, hoặc mô phỏng thuật toán.
+- Phù hợp kể bằng footage, ảnh tư liệu, chân dung, timeline, sơ đồ, biểu đồ hoặc animation khi thật sự hữu ích.
+{documentary_requirements}
 - Đặt tên chủ đề theo phong cách hấp dẫn, khơi gợi tò mò mạnh (như "Hóa ra...", "Tại sao... lại... đến vậy?", "Không ngờ...", hoặc nghịch lý con số). TUYỆT ĐỐI không dùng văn học thuật khô cứng như "Tổng quan về...", "Tìm hiểu...", "Cơ chế...".
 - Viết bằng tiếng Việt.
 - KHÔNG trùng hoặc quá giống các chủ đề đã dùng dưới đây:

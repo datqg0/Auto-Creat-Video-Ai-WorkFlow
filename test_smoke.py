@@ -22,6 +22,11 @@ class TestPipelineModules(unittest.TestCase):
         for p in CONFIG["llm"]["providers"]:
             if p["name"].startswith("gemini"):
                 self.assertGreaterEqual(p["timeout"], 60)
+        self.assertEqual(apply_mode("documentary"), "documentary")
+        self.assertEqual(CONFIG["target_duration_seconds"], 720)
+        self.assertEqual((CONFIG["visual"]["width"], CONFIG["visual"]["height"]), (1920, 1080))
+        self.assertEqual(CONFIG["modes"]["documentary"]["min_duration_seconds"], 600)
+        apply_mode("long")
 
     def test_visual_engine_log_and_text_w(self):
         import logging
@@ -48,6 +53,9 @@ class TestPipelineModules(unittest.TestCase):
 
         ps = _build_short_prompt(s, "Test Topic", "Research Notes", None)
         self.assertIn("Test Topic", ps)
+        self.assertIn("binary_search", ps)
+        self.assertIn("dp_grid", ps)
+        self.assertIn("Không dùng sorting bars nếu chủ đề không phải sắp xếp", ps)
 
         # Kiểm tra lỗi x_{t-1} đã được escape thành công không còn NameError
         p2 = _build_long_part2_prompt(
@@ -57,6 +65,81 @@ class TestPipelineModules(unittest.TestCase):
         )
         self.assertIn("x_{t-1}", p2)
         self.assertIn("Test Title", p2)
+
+    def test_short_algorithm_variety_and_routing(self):
+        from src.onjsdev_visualizer import AlgorithmSimulator, normalize_algorithm_name
+        from src.pipeline import _short_visualizer_algorithm
+
+        values = [9, 2, 7, 1, 5]
+        for simulator in (
+            AlgorithmSimulator.bubble_sort,
+            AlgorithmSimulator.quick_sort,
+            AlgorithmSimulator.merge_sort,
+            AlgorithmSimulator.insertion_sort,
+            AlgorithmSimulator.selection_sort,
+            AlgorithmSimulator.heap_sort,
+        ):
+            steps = simulator(values)
+            self.assertEqual(steps[-1].array, sorted(values), simulator.__name__)
+
+        search = AlgorithmSimulator.binary_search(values, target=7)
+        self.assertIsNotNone(search[-1].found_index)
+        path = AlgorithmSimulator.pathfinding("a_star")
+        self.assertEqual(path[-1].path[0], path[-1].start)
+        self.assertEqual(path[-1].path[-1], path[-1].goal)
+
+        self.assertEqual(normalize_algorithm_name("A* pathfinding"), "a_star")
+        self.assertEqual(
+            _short_visualizer_algorithm({"preset": "onjsdev_visualizer", "algorithm": "binary_search"}, ""),
+            "binary_search",
+        )
+        self.assertIsNone(_short_visualizer_algorithm({}, "Công thức Pi Chudnovsky"))
+        self.assertIsNone(_short_visualizer_algorithm({}, "Git merge conflict và cách giải quyết"))
+
+    def test_documentary_mode_is_manual_slow_and_animation_limited(self):
+        from src.config import CONFIG, apply_mode
+        from src.models import Scene, Script
+        from src.pipeline import _resolve_requested_duration, _uses_automatic_series
+        from src.script_writer import _build_long_prompt, _enforce_animation_ratio, _load_settings
+        from src.tts import _mode_tts_config
+
+        apply_mode("documentary")
+        settings = _load_settings()
+        self.assertTrue(settings.is_documentary)
+        self.assertGreaterEqual(settings.duration, 600)
+        self.assertEqual(settings.wpm, 115)
+        self.assertEqual(settings.n_exercises, 0)
+        self.assertEqual(_mode_tts_config()["edge_rate"], "-18%")
+        self.assertFalse(_uses_automatic_series("documentary"))
+        self.assertTrue(_uses_automatic_series("long"))
+        self.assertEqual(_resolve_requested_duration("documentary", 120), 600)
+        self.assertEqual(_resolve_requested_duration("documentary", 900), 900)
+
+        prompt = _build_long_prompt(settings, "Lịch sử Unix", "Research Notes", None)
+        self.assertIn("phim tài liệu", prompt.lower())
+        self.assertIn("Không tạo bài tập", prompt)
+        self.assertIn("không vượt 20%", prompt)
+
+        scenes = [
+            Scene(
+                narration=f"Đây là lời kể đủ dài cho cảnh lịch sử công nghệ thứ {i}.",
+                visual_type="animation",
+                heading=f"Mốc {i}",
+                animation={"preset": "steps"},
+            )
+            for i in range(10)
+        ]
+        script = Script(topic="Unix", title="Lịch sử Unix", scenes=scenes)
+        limited = _enforce_animation_ratio(script, settings)
+        self.assertLessEqual(sum(sc.visual_type == "animation" for sc in limited.scenes), 2)
+
+        workflow = Path(".github/workflows/create-video.yml").read_text(encoding="utf-8")
+        self.assertIn("- documentary", workflow)
+        self.assertEqual(workflow.count('cron: "'), 2)
+        self.assertIn('cron: "0 0 */3 * *"', workflow)
+        self.assertIn('cron: "0 12 * * *"', workflow)
+        self.assertIn('MODE="short"', workflow)
+        apply_mode("long")
 
     def test_ai_code_runner_security_and_config(self):
         from src.ai_code_runner import _clean_and_validate_code, CONFIG

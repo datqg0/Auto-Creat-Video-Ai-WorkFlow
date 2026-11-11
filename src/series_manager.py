@@ -62,7 +62,7 @@ def plan_new_series(
         ],
     )
     if is_short:
-        sel_domain = domain or "Thuật toán trực quan & Kỳ quan toán học (Phong cách Shorts @onjsdev: Sorting Algorithms, Pathfinding & Mazes, Fast Pi Formulas, Graph Traversals)"
+        sel_domain = domain or "Thuật toán trực quan & Kỳ quan toán học (Shorts: Searching, Sorting, Graphs, Trees, Dynamic Programming, Data Structures, Pathfinding, Simulations, Math Wonders)"
     else:
         sel_domain = domain or "Trí tuệ nhân tạo & Học máy từ số 0 (Deep-ML & AI from Scratch: Transformers, Attention, Neural Networks, CNN, Loss Functions, Gradient Descent, Backpropagation, Optimizers)"
 
@@ -78,7 +78,9 @@ def plan_new_series(
         format_instructions = f"""YÊU CẦU ĐẶC BIỆT CHO CHUỖI YOUTUBE SHORTS (9:16, 60–180 GIÂY MỖI TẬP - PHONG CÁCH @ONJSDEV):
 1. "series_name": Tên chuỗi ngắn gọn, giật gân, siêu kích thích tò mò bằng {lang_name} theo phong cách @onjsdev (Ví dụ: "60 Giây Giải Thuật Trực Quan", "Cuộc Đua Thuật Toán Sắp Xếp", "Kỳ Quan Mê Cung & Đồ Thị", "Bí Mật Toán Học Máy Tính").
 2. Lộ trình {num_episodes} tập Shorts phải độc lập nhưng liên kết chặt chẽ (Series Hook):
-   - Mỗi tập trực quan hóa TRỌN VẸN 1 thuật toán, 1 cấu trúc dữ liệu, hoặc 1 công thức toán học kỳ thú (Bubble Sort, QuickSort, Merge Sort, Dijkstra, A*, Mê cung Hunt and Kill, Công thức Pi Chudnovsky) có thể mô phỏng động trực quan trong 60 giây.
+   - Mỗi tập trực quan hóa TRỌN VẸN 1 thuật toán, cấu trúc dữ liệu, mô phỏng, hoặc công thức toán học kỳ thú.
+   - CẢ SERIES phải trải rộng ít nhất 3 họ: searching (Binary Search/Two Pointers), sorting, graph/pathfinding (BFS/DFS/Dijkstra/A*), tree/trie, stack/queue, dynamic programming, simulation (Boids/Game of Life), hoặc math. Không để quá 2 tập sorting liên tiếp và không mặc định Bubble Sort.
+   - Luân phiên animation: thanh dữ liệu, vùng tìm kiếm co lại, frontier lan trên lưới, node/cạnh sáng theo lượt, bảng DP điền ô, stack push/pop, công thức biến đổi.
    - Tập 1: hook_from_previous để rỗng.
    - Từ tập 2 trở đi: hook_from_previous là 1 câu ngắn gợi lại tập trước (Ví dụ: "Ở short trước chúng ta đã thấy vì sao Bubble Sort lại chậm chạp...").
    - hook_to_next: 1 câu kích thích người xem đón chờ short tiếp theo (Ví dụ: "Nhưng thuật toán ở short sau còn nhanh hơn gấp 10 lần!")."""

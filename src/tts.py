@@ -19,6 +19,14 @@ class TTSError(RuntimeError):
     pass
 
 
+def _mode_tts_config() -> dict:
+    """Mode-specific TTS overrides without mutating the global automatic flow."""
+    mode = str(CONFIG.get("active_mode") or "long")
+    mode_cfg = (CONFIG.get("modes", {}) or {}).get(mode, {}) or {}
+    tts_cfg = mode_cfg.get("tts", {}) or {}
+    return tts_cfg if isinstance(tts_cfg, dict) else {}
+
+
 def _wav_duration(path: Path) -> float:
     with wave.open(str(path), "rb") as w:
         return w.getnframes() / float(w.getframerate())
@@ -96,7 +104,7 @@ def _synth_vieneu(text: str, out: Path) -> None:
 
     cfg = CONFIG["tts"].get("vieneu", {})
     voice = cfg.get("voice", "Minh Quân Pro")
-    speed = float(cfg.get("speed", 0.95))
+    speed = float(_mode_tts_config().get("vieneu_speed", cfg.get("speed", 0.95)))
     try:
         audio = engine.infer(text, voice=voice, speed=speed)
     except TypeError:
@@ -135,7 +143,7 @@ def _synth_edge(text: str, out: Path) -> None:
     cfg = CONFIG["tts"]["edge"]
     lang = CONFIG.get("language", "vi")
     voice = cfg["voice_vi"] if lang == "vi" else cfg["voice_en"]
-    rate = str(cfg.get("rate", "-6%"))
+    rate = str(_mode_tts_config().get("edge_rate", cfg.get("rate", "-6%")))
     pitch = str(cfg.get("pitch", "+0Hz"))
     mp3_path = out.with_suffix(".mp3")
 
@@ -307,7 +315,11 @@ def synthesize_timed(text: str, out_path: Path) -> list[tuple[str, float]]:
         return [(text.strip(), dur)]
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    pause_sec = float(CONFIG.get("tts", {}).get("sentence_pause", 0.25))
+    pause_sec = float(
+        _mode_tts_config().get(
+            "sentence_pause", CONFIG.get("tts", {}).get("sentence_pause", 0.25)
+        )
+    )
     parts: list[Path] = []
     timings: list[tuple[str, float]] = []
     try:

@@ -202,6 +202,18 @@ def audit_render(
             duration = None
         _add(checks, "duration", duration is not None and duration > 0,
              f"Thời lượng {duration:.2f}s." if duration is not None else "Không đọc được thời lượng.")
+        mode = str(CONFIG.get("active_mode") or "long")
+        mode_cfg = ((CONFIG.get("modes", {}) or {}).get(mode, {}) or {})
+        min_mode_duration = float(mode_cfg.get("min_duration_seconds", 0) or 0)
+        if min_mode_duration > 0:
+            _add(
+                checks,
+                "mode_minimum_duration",
+                duration is not None and duration >= min_mode_duration,
+                f"Video {duration:.2f}s; mode {mode} yêu cầu tối thiểu {min_mode_duration:.0f}s."
+                if duration is not None else
+                f"Không xác nhận được sàn {min_mode_duration:.0f}s của mode {mode}.",
+            )
         if duration is not None and expected_duration > 0:
             allowed_delta = max(float(cfg.get("duration_tolerance_seconds", 2.0)), expected_duration * 0.02)
             _add(checks, "duration_match", abs(duration - expected_duration) <= allowed_delta,

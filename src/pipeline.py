@@ -76,6 +76,47 @@ def _with_exercise(script: Script) -> list:
     return scenes[:pos] + extra + scenes[pos:]
 
 
+def _short_visualizer_algorithm(animation: dict | None, visual_desc: str) -> str | None:
+    """Resolve an explicitly supported Shorts algorithm without a Bubble fallback."""
+    from .onjsdev_visualizer import normalize_algorithm_name
+
+    cfg = animation or {}
+    for value in (cfg.get("algorithm"), cfg.get("kind"), cfg.get("name")):
+        resolved = normalize_algorithm_name(str(value or ""))
+        if resolved:
+            return resolved
+
+    desc = str(visual_desc or "").lower().replace("_", " ").replace("-", " ")
+    markers = {
+        "bubble_sort": ("bubble sort", "sắp xếp nổi bọt"),
+        "quick_sort": ("quick sort", "quicksort", "sắp xếp nhanh"),
+        "merge_sort": ("merge sort", "mergesort", "sắp xếp trộn"),
+        "insertion_sort": ("insertion sort", "sắp xếp chèn"),
+        "selection_sort": ("selection sort", "sắp xếp chọn"),
+        "heap_sort": ("heap sort", "heapsort", "sắp xếp vun đống"),
+        "binary_search": ("binary search", "tìm kiếm nhị phân"),
+        "bfs": ("breadth first search", "bfs", "tìm kiếm theo chiều rộng"),
+        "dijkstra": ("dijkstra",),
+        "a_star": ("a*", "a star", "a-star"),
+    }
+    for algorithm, phrases in markers.items():
+        if any(phrase in desc for phrase in phrases):
+            return algorithm
+    return None
+
+
+def _uses_automatic_series(mode: str) -> bool:
+    """Documentary is intentionally manual and must not consume long/short series state."""
+    series_cfg = CONFIG.get("series", {}) or {}
+    return bool(series_cfg.get("enabled", True)) and mode != "documentary"
+
+
+def _resolve_requested_duration(mode: str, requested: int | None = None) -> int:
+    mode_cfg = ((CONFIG.get("modes", {}) or {}).get(mode, {}) or {})
+    base = int(requested if requested is not None else CONFIG.get("target_duration_seconds", 300))
+    return max(base, int(mode_cfg.get("min_duration_seconds", 30)))
+
+
 def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float], dict[str, Path], list[str]]:
     """Render video, thumbnail, scene durations, captions, and renderer labels."""
     # Import trễ để apply_mode (đổi W/H) có hiệu lực trước khi module cache kích thước
@@ -135,7 +176,10 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
         code_video = None
         acfg = scene.animation or {}
         anim_cfg = CONFIG.get("animation", {}) or {}
-        is_anim = (scene.visual_type == "animation") or (i == 0 and anim_cfg.get("animate_from_start", True))
+        mode_cfg = ((CONFIG.get("modes", {}) or {}).get(str(CONFIG.get("active_mode") or "long"), {}) or {})
+        mode_anim_cfg = mode_cfg.get("animation", {}) or {}
+        animate_from_start = bool(mode_anim_cfg.get("animate_from_start", anim_cfg.get("animate_from_start", True)))
+        is_anim = (scene.visual_type == "animation") or (i == 0 and animate_from_start)
 
         if is_anim:
             from .ai_code_runner import run_ai_code, run_manim_code, generate_matplotlib_from_prompt, generate_manim_from_prompt
@@ -144,22 +188,23 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             preset = str(acfg.get("preset", ""))
             visual_desc = scene.visual_prompt or scene.heading or scene.narration[:120]
 
-            # Tầng 0: onjsdev Visualizer (Dành riêng cho Shorts 9:16 hoặc preset onjsdev_visualizer)
-            if (preset == "onjsdev_visualizer") or (is_short and any(k in visual_desc.lower() for k in ("sort", "bubble", "quick", "merge", "insertion", "selection", "cocktail", "dijkstra", "a*", "maze", "chudnovsky", "pi"))):
+            # Tầng 0: visualizer dọc chuyên thuật toán. Chỉ dùng khi nhận diện chắc chắn;
+            # không còn mặc định mọi chủ đề lạ (Pi, mê cung, công thức...) thành Bubble Sort.
+            short_algo = _short_visualizer_algorithm(acfg, visual_desc)
+            if short_algo and (preset == "onjsdev_visualizer" or is_short):
                 try:
                     from .onjsdev_visualizer import generate_onjsdev_short_video
                     onjs_path = workdir / f"onjsdev_{i:02d}.mp4"
-                    algo = "bubble_sort"
-                    for candidate in ("quick_sort", "quicksort", "merge_sort", "mergesort", "insertion_sort", "selection_sort", "bubble_sort"):
-                        if candidate.replace("_", "") in visual_desc.lower().replace("_", ""):
-                            algo = candidate
-                            break
                     initial_arr = acfg.get("array") or acfg.get("data")
+                    target = acfg.get("target")
+                    if not isinstance(target, (int, float)) or isinstance(target, bool):
+                        target = None
                     code_video = generate_onjsdev_short_video(
-                        algorithm=algo,
+                        algorithm=short_algo,
                         initial_array=initial_arr,
                         output_path=onjs_path,
                         fps=CONFIG["visual"]["fps"],
+                        target=int(target) if target is not None else None,
                     )
                     if code_video:
                         log.info("Scene %d: Render thành công bằng onjsdev Visualizer (@onjsdev style)", i)
@@ -340,6 +385,17 @@ def _render_video(script: Script, workdir: Path) -> tuple[Path, Path, list[float
             log.warning("Sinh phụ đề lỗi: %s", e)
             srt_path = None
 
+    mode_cfg = ((CONFIG.get("modes", {}) or {}).get(str(CONFIG.get("active_mode") or "long"), {}) or {})
+    min_final_duration = float(mode_cfg.get("min_duration_seconds", 0) or 0)
+    if min_final_duration > 0:
+        crossfade_loss = max(0, len(durations) - 1) * float(CONFIG.get("visual", {}).get("crossfade", 0.0))
+        estimated_final = sum(durations) - crossfade_loss
+        if estimated_final < min_final_duration:
+            raise RuntimeError(
+                f"Audio documentary ước tính chỉ {estimated_final:.1f}s; "
+                f"yêu cầu tối thiểu {min_final_duration:.0f}s. Dừng trước khi ghép/upload."
+            )
+
     video_path = compose(
         images, audios, workdir / "video.mp4", srt_path,
         anim_scenes, broll_videos, scene_overlays, code_videos,
@@ -402,7 +458,7 @@ def run_once(
 
     if not mode:
         mode = str(CONFIG.get("active_mode") or os.environ.get("VIDEO_MODE") or "long").lower()
-    normalized_mode = "short" if mode == "short" else ("mega" if mode == "mega" else "long")
+    normalized_mode = mode if mode in ("short", "mega", "documentary") else "long"
 
     try:
         from .analytics import collect_recent_retention_feedback
@@ -416,8 +472,9 @@ def run_once(
     series_info = None
 
     if not topic:
-        series_cfg = CONFIG.get("series", {})
-        if series_cfg.get("enabled", True):
+        # Documentary là lựa chọn thủ công độc lập: không lấy/tạo series tự động,
+        # không ảnh hưởng chuỗi long/short đang chạy theo lịch.
+        if _uses_automatic_series(normalized_mode):
             # Tự động điều phối theo Chuỗi Video (Series):
             # Tách riêng Short vs Long: mode='short' chỉ lấy/tạo Short series, mode='long' chỉ lấy/tạo Long series
             try:
@@ -567,9 +624,12 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Chỉ in kịch bản")
     parser.add_argument(
         "--mode",
-        choices=["long", "short", "mega"],
+        choices=["long", "short", "mega", "documentary"],
         default=None,
-        help="long = video 16:9 (~5p), short = dọc 9:16 (tối đa 3p / 180s), mega = siêu dài 16:9 (>15p)",
+        help=(
+            "long = video 16:9 (~5p), short = dọc 9:16 (tối đa 3p), "
+            "mega = masterclass >15p, documentary = phim tài liệu công nghệ thủ công >=10p"
+        ),
     )
     parser.add_argument("--topic", type=str, default=None, help="Chủ đề video cụ thể (chạy video đơn lẻ)")
     parser.add_argument("--duration", type=int, default=None, help="Ghi đè thời lượng mục tiêu (giây)")
@@ -593,8 +653,7 @@ def main() -> None:
         print_series_table(mode=mode)
         return
 
-    if args.duration:
-        CONFIG["target_duration_seconds"] = int(args.duration)
+    CONFIG["target_duration_seconds"] = _resolve_requested_duration(mode, args.duration)
 
     log.info(
         "Mode: %s (%dx%d, %ds) | Topic: %s",

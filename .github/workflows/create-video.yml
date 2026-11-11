@@ -1,17 +1,16 @@
 name: Tạo & upload video tech
 
 on:
-  # Chạy tự động 2 lần/ngày (giờ UTC).
-  #  00:00 UTC = 7h VN  -> SÁNG: video dài (long, ngang 16:9)
-  #  12:00 UTC = 19h VN -> TỐI:  video short (dọc 9:16, tối đa 3p / 180s)
+  # 00:00 UTC = 07:00 Việt Nam: cứ 3 ngày tạo 1 video dài.
+  # 12:00 UTC = 19:00 Việt Nam: tạo 1 Short mỗi ngày.
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 0 */3 * *"
     - cron: "0 12 * * *"
   # Cho phép chạy tay từ tab Actions
   workflow_dispatch:
     inputs:
       mode:
-        description: "Chế độ video (long = 5p 16:9, short = tối đa 3p dọc 9:16, mega = siêu dài 15-30p)"
+        description: "Chế độ (documentary = phim tài liệu công nghệ thủ công, tối thiểu 10 phút)"
         required: false
         type: choice
         default: "long"
@@ -19,13 +18,14 @@ on:
           - long
           - short
           - mega
+          - documentary
       topic:
-        description: "Chủ đề video cụ thể (để trống sẽ tự động bắt trend)"
+        description: "Chủ đề cụ thể; documentary để trống sẽ tự chọn lịch sử/nhân vật/câu chuyện công nghệ"
         required: false
         type: string
         default: ""
       duration:
-        description: "Thời lượng mục tiêu theo giây (ví dụ: 900 cho 15p, 1200 cho 20p)"
+        description: "Thời lượng mục tiêu theo giây; documentary nhập dưới 600 vẫn tự khóa ở 600"
         required: false
         type: string
         default: ""
@@ -106,10 +106,10 @@ jobs:
           restore-keys: |
             retention-${{ runner.os }}-
 
-      - name: Xác định mode theo giờ chạy
+      - name: Xác định mode chạy
         id: mode
         run: |
-          # Chạy tay: dùng input. Chạy theo lịch: 00:00 UTC = long (sáng), 12:00 UTC = short (tối).
+          # Chạy tay: dùng input. Theo lịch: 00:00 UTC = long, 12:00 UTC = short.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             MODE="${{ github.event.inputs.mode }}"
           elif [ "${{ github.event.schedule }}" = "0 12 * * *" ]; then

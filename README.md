@@ -1,10 +1,10 @@
-# Tech Viz Bot — Autonomous Daily Tech-Video Generator
+# Tech Viz Bot — Autonomous Tech-Video Generator
 
 A fully automated pipeline that picks a technology topic, writes a script with an
 LLM, renders **code-driven visualizations** (Pillow + NumPy + Matplotlib in a
 3Blue1Brown / Kurzgesagt style), generates a Vietnamese voice-over, burns in
 subtitles, composites everything with FFmpeg, and uploads the finished video to
-YouTube — twice a day, unattended, on free GitHub Actions runners.
+YouTube — one Short daily plus one long video every three days, unattended, on free GitHub Actions runners.
 
 No VPS, no manual steps, no LaTeX, no headless browser. Everything runs in pure
 Python plus FFmpeg.
@@ -58,8 +58,9 @@ Python plus FFmpeg.
 - **AI Image & Video Generation** — generates high-definition FLUX illustrations for scene
   backdrops and uses up to three related images per `ai_motion` clip, with camera motion
   and soft transitions. The default budget is two such scenes per video.
-- **Three video formats** — long 16:9 explainer, vertical 9:16 Short (up to 3 mins / 180s), and
-  **mega 16:9 deep-dive** (15–30+ minutes) with chapter-based hierarchical scripting.
+- **Four video formats** — long 16:9 explainer, vertical 9:16 Short, mega 16:9 deep-dive,
+  and a manually selected **technology documentary** (minimum 10 minutes) for histories,
+  notable people, and adjacent stories with calm narration and restrained animation.
 - **Purposeful scene design & instant visual hook** — motion starts in the opening scene;
   diagrams, tables, footage, and stills remain available when they explain the idea more clearly.
 - **AI-coded Light Neon Manim animations** — generates stunning cyberpunk/dark-mode
@@ -146,7 +147,7 @@ Pipeline stages (all orchestrated by [`src/pipeline.py`](src/pipeline.py)):
 | Subtitles      | faster-whisper                                                       |
 | Compositing    | MoviePy (1.x & 2.x via `mv_compat`) + FFmpeg                         |
 | Upload         | YouTube Data API v3 (`google-api-python-client`)                     |
-| Deploy         | GitHub Actions (cron 2×/day + manual trigger with 12GB swap)         |
+| Deploy         | GitHub Actions (daily Short + long every 3 days + manual trigger)       |
 
 ---
 
@@ -458,6 +459,7 @@ python -m src.pipeline --no-upload
 python -m src.pipeline --no-upload --mode long    # 16:9 explainer (~3-5 mins)
 python -m src.pipeline --no-upload --mode short   # 9:16 Short (up to 3 mins / 180s)
 python -m src.pipeline --no-upload --mode mega    # 16:9 Mega deep-dive (15-30+ mins)
+python -m src.pipeline --no-upload --mode documentary --topic "Lịch sử của Unix"  # >=10 phút, nhịp kể chậm
 
 # Run with a custom topic and target duration
 python -m src.pipeline --no-upload --mode mega --duration 900 --topic "Kiến trúc Microservices và Event-Driven"
@@ -498,12 +500,13 @@ FFmpeg, Manim, and all Python dependencies. You only need to provide secrets.
    `output/state.db` back to the repo. (With `DATABASE_URL`, state is synced directly to Neon).
 
 4. **Schedule (already configured):**
-   - `00:00 UTC` (07:00 Vietnam) → long 16:9 explainer
-   - `12:00 UTC` (19:00 Vietnam) → vertical 9:16 Short
+   - `00:00 UTC` (07:00 Vietnam) on days `1, 4, 7, ...` each month → one long 16:9 explainer
+   - `12:00 UTC` (19:00 Vietnam) every day → one vertical 9:16 Short
+   - `mega` and `documentary` remain available through manual runs.
 
 5. **Manual run / Custom topic & duration** — *Actions → "Tạo & upload video tech" → Run
    workflow*. You can configure:
-   - `mode`: `long`, `short`, or `mega` (15–30+ minute long-form video).
+   - `mode`: `long`, `short`, `mega`, or `documentary`. Manual choices do not alter the scheduled long runs.
    - `topic`: Specify any custom topic (e.g. *Cơ chế hoạt động của Transformers & GPT*).
    - `duration`: Target duration in seconds (e.g. `900` for 15 mins, `1800` for 30 mins).
    - `no_upload`: Set to `true` to render without uploading (video is saved as an artifact for 3 days).
@@ -518,7 +521,7 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | -------------------------------- | ------------------------------------------------------------------ |
 | `videos_per_run`                 | Number of videos generated per pipeline invocation.                |
 | `language`                       | Content language: `vi` or `en`.                                    |
-| `default_mode` / `modes`         | Video format presets: `long`, `short`, and `mega`.                 |
+| `default_mode` / `modes`         | Video presets: `long`, `short`, `mega`, and manual `documentary`.  |
 | `series.auto_plan`               | Automatically plan a new 3–7 episode series when DB is empty/done.  |
 | `series.default_episodes_min`    | Minimum episodes for auto-planned curriculum (default: `3`).       |
 | `series.default_episodes_max`    | Maximum episodes for auto-planned curriculum (default: `7`).       |
@@ -560,8 +563,9 @@ All behavior is tunable in [`config.yaml`](config.yaml).
 | `youtube.*`                      | Privacy status, category, default tags, made-for-kids flag.        |
 | `topics.domains` / `dedup_days`  | Topic domains the LLM chooses from, and repeat-avoidance window.    |
 
-To produce exactly two videos per day, keep `videos_per_run: 1` with the two cron
-triggers, or set `videos_per_run: 2` with a single trigger.
+With `videos_per_run: 1`, each scheduled run creates one video: a Short every day
+and a long video every three days. Change this setting only if you intentionally
+want multiple videos in the same run.
 
 ---
 
@@ -653,8 +657,8 @@ assets/docs/             # Offline technical knowledge base & sources
 
 ## Notes
 
-- **YouTube quota** — each upload costs ~1,600 of 10,000 daily units, so two
-  videos/day is comfortable.
+- **YouTube quota** — each upload costs ~1,600 of 10,000 daily units; the default
+  schedule uploads one Short daily and one long video every three days.
 - **Content policy** — automated content should provide genuine value; avoid
   patterns that trigger spam flags.
 - **Assets** — drop background music into `assets/music`, transition SFX into

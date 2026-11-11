@@ -6,7 +6,7 @@ Luồng chính (write_script):
     -> đảm bảo scene kết luận -> giữ hook có chuyển động -> tối ưu tiêu đề -> bài tập
 
 Khoá CONFIG được dùng (tất cả đều có mặc định):
-    language, active_mode (long|short|mega), target_duration_seconds
+    language, active_mode (long|short|mega|documentary), target_duration_seconds
     words_per_minute            : tốc độ đọc (đơn vị = từ tách bằng khoảng trắng). Mặc định 150.
                                   Nên đo thật bằng TTS đang dùng rồi chỉnh lại.
     script_max_attempts         : số lần thử sinh kịch bản (mặc định 2)
@@ -114,6 +114,24 @@ _SYSTEM_EN = (
     "describe it qualitatively instead of inventing it. Always return valid JSON with no commentary."
 )
 
+_SYSTEM_DOCUMENTARY_VI = (
+    "Bạn là biên kịch phim tài liệu công nghệ có giọng kể điềm tĩnh, nhân văn và chính xác. "
+    "Bạn kể lịch sử công nghệ và chân dung con người qua bối cảnh, lựa chọn, thất bại, cộng sự, "
+    "bước ngoặt và di sản; không biến nội dung thành bài giảng kỹ thuật hoặc lời ca tụng một chiều. "
+    "Mọi năm tháng, chức danh, phát minh và trích dẫn phải dựa trên tư liệu được cung cấp; nếu dữ kiện "
+    "còn tranh cãi, phải nói rõ đó là giai thoại hoặc quan điểm chưa thống nhất. Không bịa hội thoại, "
+    "cảm xúc nội tâm hay quan hệ nhân quả. Lời kể chậm, ấm, câu ngắn và có khoảng thở. "
+    "Bạn luôn trả về JSON hợp lệ, không kèm giải thích ngoài."
+)
+
+_SYSTEM_DOCUMENTARY_EN = (
+    "You are a calm, humane, evidence-led technology documentary writer. Tell the history of technology "
+    "and the people behind it through context, choices, failures, collaborators, turning points and legacy. "
+    "Do not turn the story into a tutorial or one-sided hero worship. Dates, roles, inventions and quotes must "
+    "come from supplied research; label disputed anecdotes clearly and never invent dialogue or inner thoughts. "
+    "Write with a gentle pace, short sentences and room to breathe. Return valid JSON only."
+)
+
 _PEDAGOGY = """TRIẾT LÝ SƯ PHẠM CHIỀU SÂU (DEPTH-FIRST — CHỐNG CƯỠI NGỰA XEM HOA):
 
 1. GIẢI THÍCH 1 CƠ CHẾ ĐẾN CÙNG:
@@ -162,7 +180,7 @@ _VISUAL_TYPES_SPEC = """CÁC visual_type (chọn loại phù hợp nội dung):
 - "quote": câu chốt ấn tượng đặt vào bullets[0].
 - "challenge": cảnh ĐẶT BÀI TOÁN / NGHỊCH LÝ / BẾ TẮC / SAI LẦM THƯỜNG GẶP -> GIẢI PHÁP ĐỘT PHÁ. Hiển thị Animation Mascot Cô Bé Áo Khoác Tai Thỏ (Bunny Girl Chibi) bối rối trước rắc rối ('?') rồi bừng sáng ý tưởng giải cứu (bóng đèn phát sáng, dấu tích xanh) cực kỳ sinh động! "bullets" gồm 2-4 dòng (nửa đầu: vấn đề / rắc rối; nửa sau: giải pháp).
 - "animation": clip động visual thuật toán / toán học / sơ đồ / bảng biểu (kiểu Deep-ML & Tech Studio & 3Blue1Brown). "animation" là object có "preset" thuộc:
-  linear_transform | calculus_curve | math_equation | trie_tree | graph_network | donut_chart | flowchart | system_layers | comparison_matrix | radar_chart | matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | custom | pycode | manim.
+  linear_transform | calculus_curve | math_equation | trie_tree | graph_network | donut_chart | flowchart | system_layers | comparison_matrix | radar_chart | matrix_op | visual_algo | tree_graph | two_pointers | stack_queue | dp_grid | function | neural_net | bar_chart | sorting | counter | steps | stickman_explainer | onjsdev_visualizer | custom | pycode | manim.
   Với "pycode"/"manim": chỉ cần {"preset": "pycode"} và mô tả thật chi tiết ở "visual_prompt"
   (một mô-đun riêng sẽ sinh code từ visual_prompt), hoặc tự kèm "code"."""
 
@@ -185,7 +203,7 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML, 
   * stack_queue: {"preset": "stack_queue", "kind": "stack", "ops": ["PUSH 42", "POP -> 42"]}
   * dp_grid: {"preset": "dp_grid", "rows": 3, "cols": 4, "formula": "dp[i][j] = dp[i-1][j] + dp[i][j-1]"}
   * stickman_explainer: {"preset": "stickman_explainer", "pose": "pointing", "topic_heading": "Trọng tâm", "bullet": "Chỉ vào thuật toán", "code_snippet": "Q @ K.T"}
-  * onjsdev_visualizer: {"preset": "onjsdev_visualizer", "algorithm": "bubble_sort", "array": [45, 12, 89, 34, 67, 23, 91, 55], "complexity": "O(n²)", "code_snippet": "arr[j], arr[j+1] = arr[j+1], arr[j]"}
+  * onjsdev_visualizer: {"preset": "onjsdev_visualizer", "algorithm": "merge_sort", "array": [45, 12, 89, 34, 67, 23, 91, 55], "complexity": "O(n log n)", "code_snippet": "merge(left, right)"}
   * function: {"preset": "function", "expr": "sin(x)", "x_range": [-6.28, 6.28], "y_range": [-1.4, 1.4]}
   * neural_net: {"preset": "neural_net", "layers": [3, 5, 4, 2]}
   * bar_chart: {"preset": "bar_chart", "values": [3, 7, 5, 9], "labels": ["A", "B", "C", "D"]}
@@ -193,6 +211,17 @@ _CUSTOM_ANIMATION_SPEC = r"""CHI TIẾT CÁC PRESET ANIMATION (CHUẨN DEEP-ML, 
   * counter: {"preset": "counter", "to_value": 1000000, "unit": "ops/s"}
   * steps: {"preset": "steps", "steps": ["Bước 1", "Bước 2", "Bước 3"]}
   * custom: {"preset": "custom", "objects": [{"id":"t1","type":"text","text":"E=mc²","x":"0.5W","y":160,"color":"accent"}], "timeline": [{"play": [{"anim":"write","target":"t1","run_time":1.0}]}]}"""
+
+_SHORT_ANIMATION_SPEC = r"""THỰC ĐƠN ANIMATION RIÊNG CHO SHORTS — CHỌN THEO BẢN CHẤT, KHÔNG MẶC ĐỊNH BUBBLE SORT:
+- Sắp xếp: onjsdev_visualizer với algorithm = bubble_sort | quick_sort | merge_sort | insertion_sort | selection_sort | heap_sort. Chuyển động thanh chỉ dành cho bài thật sự về sorting.
+- Tìm kiếm: {"preset":"onjsdev_visualizer","algorithm":"binary_search","array":[3,8,12,19,27,34,48,55],"target":34}; animation thu hẹp nửa trái/phải và con trỏ MID.
+- Tìm đường: {"preset":"onjsdev_visualizer","algorithm":"bfs|dijkstra|a_star"}; animation lưới với frontier tím, visited xanh, đường đi kết quả xanh lá.
+- Cây/đồ thị: tree_graph cho BST/DFS/BFS trên cây; graph_network cho Dijkstra/mạng có trọng số; trie_tree cho autocomplete/prefix.
+- Mẫu con & cấu trúc dữ liệu: two_pointers cho cửa sổ trượt/hai con trỏ; stack_queue cho DFS, undo, hàng đợi; dp_grid cho quy hoạch động.
+- Toán/AI/hệ thống: math_equation, calculus_curve, linear_transform, matrix_op, neural_net, flowchart, system_layers, comparison_matrix, radar_chart, donut_chart.
+- Mô phỏng (Boids, Game of Life, fractal, quadtree, vật lý): dùng pycode/manim/custom và mô tả quy tắc, trạng thái, chuyển động thật cụ thể trong visual_prompt.
+- Kể chuyện: stickman_explainer/challenge cho vấn đề; counter/bar_chart cho số liệu; mascot_tip cho mẹo. Không dùng cùng một kiểu chuyển động cho mọi scene.
+- Trong một Short, các scene animation liên tiếp PHẢI đổi bố cục hoặc cơ chế chuyển động. Không dùng sorting bars nếu chủ đề không phải sắp xếp; không gán algorithm="bubble_sort" khi đề bài nói về thuật toán khác."""
 
 _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
 - Chọn hình thức phù hợp với ý cần giải thích; không thêm chuyển động chỉ để đạt tỷ lệ.
@@ -203,8 +232,9 @@ _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
   * Tự đưa ra đề bài, công thức toán và ví dụ số liệu cụ thể, trực quan.
   * ƯU TIÊN preset "matrix_op" (nhân ma trận), "neural_flow" / "neural_net", "math_equation" (bóc tách 4 màu công thức), "visual_algo" hoặc "manim" để hiển thị chính xác các bước tính toán và đường cong đạo hàm.
 - VỚI VIDEO NGẮN (YOUTUBE SHORTS - PHONG CÁCH @ONJSDEV):
-  * BẮT BUỘC dùng preset "onjsdev_visualizer" hoặc "sorting" / "tree_graph" / "algo_trace" theo phong cách @onjsdev.
-  * Hiển thị thanh dữ liệu neon, thẻ độ phức tạp O(n²)/O(n log n), và hộp code VS Code mô phỏng từng bước kèm SFX click/swap.
+  * Chọn preset theo đúng họ bài toán từ THỰC ĐƠN ANIMATION RIÊNG CHO SHORTS; onjsdev_visualizer không đồng nghĩa với Bubble Sort.
+  * Với sorting/search/pathfinding: hiển thị trạng thái thuật toán, thẻ độ phức tạp và hộp code mô phỏng từng bước. Với cây, DP, công thức, hệ thống: dùng layout chuyên biệt tương ứng.
+  * Luân phiên ngôn ngữ chuyển động giữa các tập: thanh dữ liệu, thu hẹp vùng tìm kiếm, lan frontier trên lưới, duyệt node/cạnh, điền bảng DP, biến đổi công thức, flow dữ liệu hoặc mascot kể chuyện.
 - Với chủ đề GPU, Huấn luyện phân tán, LLM, Bộ nhớ AI: ƯU TIÊN preset "gpu_sharding" hoặc "manim" (vẽ cụm GPU #1..#4, thước đo VRAM meter, phân mảnh tham số/gradient, công thức 2P+2P+12P màu đồng bộ với hình khối).
 - ĐÚNG CHUYÊN MÔN THEO CHỦ ĐỀ (NON-NEGOTIABLE): Tuyệt đối KHÔNG gán bừa preset giải tích (calculus_curve), nhân ma trận (matrix_op), sơ đồ web (system_layers), hay hiệp phương sai (visual_algo) cho các chủ đề Mật mã học (RSA, AES, Diffie-Hellman), Số nguyên tố, hoặc bài toán không liên quan! Với Mật mã / Số học: dùng "math_equation", "diagram"/"flowchart", "code" (pseudocode), hoặc "pycode"/"manim" mô tả chính xác cơ chế toán học.
 - Scene 1 (HOOK) BẮT BUỘC là "animation" hoặc "challenge", vẽ chuyển động ngay từ giây đầu tiên.
@@ -213,6 +243,17 @@ _ANIMATION_RULES = """QUY TẮC HÌNH ẢNH & VISUAL PROMPT:
   2. CHUYỂN ĐỘNG TỪNG BƯỚC & MÀU SẮC (ô nào sáng vàng, đường nào đổi xanh neon, con trỏ dừng ở đâu).
   3. NHỊP ĐIỆU: dừng 0.6-0.8s ở mỗi bước để người xem kịp ngấm.
 - MỌI scene (trừ code) PHẢI có "image_query" (2-5 từ khoá TIẾNG ANH). Scene hợp cảnh quay thực tế (data center, vi mạch...) thêm "video_query" (2-4 từ khoá TIẾNG ANH)."""
+
+_DOCUMENTARY_RULES = """QUY TẮC PHIM TÀI LIỆU CÔNG NGHỆ:
+- Nhịp kể chậm, ấm và điềm tĩnh; câu văn tự nhiên như đang kể một câu chuyện có thật, không giật gân liên tục.
+- Mỗi scene có một ý chính. Ưu tiên ảnh tư liệu, chân dung, b-roll, timeline, bản đồ, quote card, biểu đồ và sơ đồ tĩnh có chuyển động máy quay nhẹ.
+- Animation chuyên sâu chỉ dùng khi thật sự giúp hiểu một cơ chế hoặc bước ngoặt; tổng số scene animation không vượt 20%.
+- Không bắt buộc hook bằng animation, stickman hoặc mascot. Không biến tiểu sử/lịch sử thành tutorial thuật toán.
+- Với nhân vật: thể hiện bối cảnh, động lực, cộng sự, xung đột, sai lầm và di sản; tránh ca tụng một chiều.
+- Với lịch sử: ghi rõ năm/thập niên, địa điểm, tổ chức và quan hệ nguyên nhân-kết quả. Không bịa hội thoại hay suy nghĩ nội tâm.
+- Phân biệt sự kiện đã kiểm chứng với giai thoại/tranh cãi. Không khẳng định công lao độc quyền nếu phát minh là nỗ lực tập thể.
+- Mỗi scene (trừ code) có image_query tiếng Anh 3-6 từ. Thêm video_query tiếng Anh cho cảnh phù hợp footage thực tế.
+- visual_prompt mô tả bố cục tư liệu và chuyển động máy quay chậm; không yêu cầu hiệu ứng neon dồn dập."""
 
 _TITLE_RULES = """- "title" phải thuộc MỘT trong các dạng: câu hỏi gây sốc, con số + lợi ích rõ ràng, khoảng cách tò mò, cổ phần cao (hậu quả/lợi ích), phản trực giác.
   TUYỆT ĐỐI KHÔNG dùng: "Giới thiệu về...", "Tìm hiểu...", "Hướng dẫn...". Không đặt tiền tố "Tập X/Y" (hệ thống tự thêm)."""
@@ -232,6 +273,10 @@ class _Settings:
     @property
     def is_short(self) -> bool:
         return self.mode == "short"
+
+    @property
+    def is_documentary(self) -> bool:
+        return self.mode == "documentary"
 
     @property
     def is_mega(self) -> bool:
@@ -278,6 +323,8 @@ class _Settings:
 
     @property
     def n_exercises(self) -> int:
+        if self.is_documentary:
+            return 0
         return 2 if self.is_mega else 1
 
 
@@ -293,13 +340,22 @@ def _load_settings() -> _Settings:
     lang = "vi" if str(CONFIG.get("language", "vi") or "vi").lower().startswith("vi") else "en"
     mode = str(CONFIG.get("active_mode", "long") or "long").lower()
     duration = _int_cfg("target_duration_seconds", 300, 30, 7200)
+    mode_cfg = ((CONFIG.get("modes", {}) or {}).get(mode, {}) or {})
     if mode == "short":
         duration = min(duration, SHORT_MAX_SECONDS)
-    wpm = _int_cfg("words_per_minute", _DEFAULT_WPM, 80, 260)
+    if mode == "documentary":
+        duration = max(duration, int(mode_cfg.get("min_duration_seconds", 600)))
+    try:
+        default_wpm = int(mode_cfg.get("words_per_minute", CONFIG.get("words_per_minute", _DEFAULT_WPM)))
+    except (TypeError, ValueError):
+        default_wpm = _DEFAULT_WPM
+    wpm = min(max(default_wpm, 80), 260)
     return _Settings(lang=lang, duration=duration, mode=mode, wpm=wpm)
 
 
 def _system(s: _Settings) -> str:
+    if s.is_documentary:
+        return _SYSTEM_DOCUMENTARY_VI if s.lang == "vi" else _SYSTEM_DOCUMENTARY_EN
     return _SYSTEM_VI if s.lang == "vi" else _SYSTEM_EN
 
 
@@ -811,14 +867,20 @@ def _schema_json(title_hint: str, desc_hint: str, scene: dict, exercise_hint: st
 def _research_block(research: str) -> str:
     res_cfg = CONFIG.get("research", {}) or {}
     fact_cfg = CONFIG.get("fact_check", {}) or {}
-    research_enabled = bool(res_cfg.get("enabled", False))
+    research_enabled = bool(res_cfg.get("enabled", False)) or CONFIG.get("active_mode") == "documentary"
     text = (research or "").strip()
     blocks: list[str] = []
     if text and (research_enabled or fact_cfg.get("enabled", False)):
-        limit = (
-            _int_cfg("research_max_chars", 4000, 500, 30000)
-            if research_enabled else int(fact_cfg.get("max_prompt_chars", 1600))
-        )
+        if research_enabled:
+            active_mode = str(CONFIG.get("active_mode") or "long")
+            mode_cfg = ((CONFIG.get("modes", {}) or {}).get(active_mode, {}) or {})
+            try:
+                limit = int(mode_cfg.get("research_max_chars", CONFIG.get("research_max_chars", 4000)))
+            except (TypeError, ValueError):
+                limit = 4000
+            limit = min(max(limit, 500), 30000)
+        else:
+            limit = int(fact_cfg.get("max_prompt_chars", 1600))
         if len(text) > limit:
             text = text[: max(0, limit - 40)].rstrip() + "\n[...đã rút gọn]\n</research>"
         if "<research>" not in text:
@@ -881,7 +943,51 @@ def _retry_note(issues: list[str]) -> str:
     )
 
 
+def _build_documentary_prompt(s: _Settings, topic: str, research: str) -> str:
+    """Single-pass fallback when the chaptered documentary writer cannot complete."""
+    min_words = int(s.approx_words * s.prompt_words_ratio)
+    scene = _scene_example(
+        "lời kể chậm, nhẹ nhàng, chính xác; 3-5 câu ngắn có khoảng thở",
+        "một mốc ngắn trong câu chuyện",
+        "ảnh tư liệu hoặc b-roll với pan/zoom chậm; chỉ dùng animation khi cần giải thích cơ chế",
+    )
+    scene["visual_type"] = "diagram"
+    scene["animation"] = None
+    schema = json.dumps({
+        "title": "tiêu đề phim tài liệu gây tò mò nhưng không giật gân, dưới 70 ký tự",
+        "description": "mô tả 3-4 câu, nêu bối cảnh và giá trị lịch sử, có hashtag cuối",
+        "tags": ["công nghệ", "lịch sử", "nhân vật", "documentary"],
+        "scenes": [scene],
+        "exercises": [],
+    }, ensure_ascii=False, indent=2)
+    return f"""Viết kịch bản phim tài liệu công nghệ 16:9 dài tối thiểu 10 phút về:
+"{topic}"
+{_research_block(research)}
+Ngôn ngữ đầu ra: {s.lang_name}. image_query và video_query luôn bằng tiếng Anh.
+
+YÊU CẦU ĐỘ DÀI:
+- Tổng narration tối thiểu {min_words} từ, mục tiêu khoảng {s.approx_words} từ ở nhịp {s.wpm} từ/phút.
+- Tạo {s.n_scenes_min}-{s.n_scenes_max} scene, mỗi scene 3-5 câu ngắn.
+
+MẠCH KỂ:
+1. Cold open bằng một khoảnh khắc có thật.
+2. Bối cảnh trước khi công nghệ/nhân vật xuất hiện.
+3. Những con người, cộng sự và thử nghiệm ban đầu.
+4. Thất bại, cạnh tranh và bước ngoặt.
+5. Công nghệ đi vào đời sống, tạo tác động và mặt trái.
+6. Di sản hiện tại, điều còn tranh cãi và câu hỏi mở.
+
+{_DOCUMENTARY_RULES}
+
+{_VISUAL_TYPES_SPEC}
+
+Không tạo bài tập. Không bắt buộc animation ở scene đầu. Chỉ trả JSON theo schema:
+{schema}"""
+
+
 def _build_long_prompt(s: _Settings, topic: str, research: str, series: dict | None) -> str:
+    if s.is_documentary:
+        return _build_documentary_prompt(s, topic, research)
     min_words = int(s.approx_words * s.prompt_words_ratio)
     schema = _schema_json(
         "tiêu đề gây tò mò mạnh, dưới 70 ký tự",
@@ -1123,6 +1229,8 @@ QUY TẮC HEADING: không ghi "Hook:", "Cảnh 1:", "Scene 1:" vào heading/titl
 
 {_VISUAL_TYPES_SPEC}
 
+{_SHORT_ANIMATION_SPEC}
+
 {_ANIMATION_RULES}
 
 Trả về DUY NHẤT một object JSON theo schema (ví dụ chỉ minh hoạ 1 scene):
@@ -1181,7 +1289,14 @@ def _build_conclusion_scene(script: Script, s: _Settings) -> Scene:
     try:
         headings = "; ".join(sc.heading for sc in script.scenes if sc.heading)[:800]
         n_sent = "2-3 câu" if s.is_short else "3-4 câu"
-        prompt = f"""Video YouTube về "{script.topic}" (tiêu đề: "{script.title}") vừa trình bày các mục: {headings}.
+        if s.is_documentary:
+            prompt = f"""Phim tài liệu công nghệ về "{script.topic}" (tiêu đề: "{script.title}") vừa kể các phần: {headings}.
+Viết scene KHÉP LẠI bằng {s.lang_name} với giọng nhẹ nhàng:
+- "narration": 3-4 câu ngắn, suy ngẫm về con người, bước ngoặt và di sản; kết thúc bằng một câu hỏi mở, không quảng cáo dồn dập.
+- "bullets": ĐÚNG 3 ý, mỗi ý tối đa 10 từ: (1) khởi nguồn, (2) bước ngoặt, (3) di sản còn lại.
+Chỉ trả JSON: {{"narration": "...", "bullets": ["...", "...", "..."]}}"""
+        else:
+            prompt = f"""Video YouTube về "{script.topic}" (tiêu đề: "{script.title}") vừa trình bày các mục: {headings}.
 Viết scene TỔNG KẾT bằng {s.lang_name}:
 - "narration": {n_sent} ngắn (8-16 từ/câu), văn bản thuần, đúc kết bản chất + 1 câu châm ngôn, rồi kêu gọi bấm Like và Đăng ký kênh.
 - "bullets": ĐÚNG 3 ý, mỗi ý tối đa 10 từ: (1) bản chất cốt lõi, (2) khi nào nên dùng, (3) khi nào không nên dùng/cạm bẫy. Phải bám nội dung các mục trên.
@@ -1191,10 +1306,20 @@ Chỉ trả JSON: {{"narration": "...", "bullets": ["...", "...", "..."]}}"""
         bullets = [b for b in (_clean_heading(b) for b in data.get("bullets", []) if isinstance(b, str)) if b][:3]
     except Exception as e:  # noqa: BLE001
         log.warning("Sinh scene kết luận bằng LLM lỗi, dùng mẫu trung tính: %s", e)
-    if len(narration.split()) < 10:
+    if len(narration.split()) < 10 and s.is_documentary:
+        narration = (
+            f"Câu chuyện về {script.topic} cho thấy công nghệ chưa bao giờ chỉ là máy móc. "
+            "Đằng sau mỗi bước ngoặt luôn có con người, lựa chọn và cả những lần thất bại. "
+            "Di sản ấy vẫn âm thầm hiện diện trong đời sống số hôm nay."
+        )
+    elif len(narration.split()) < 10:
         narration = t["fallback_narration"].format(topic=script.topic)
     if len(bullets) < 3:
-        bullets = [b.format(topic=script.topic) for b in t["fallback_bullets"]]
+        bullets = (
+            ["Khởi nguồn trong một nhu cầu thật", "Bước ngoặt đến từ nhiều con người", "Di sản vẫn định hình hiện tại"]
+            if s.is_documentary else
+            [b.format(topic=script.topic) for b in t["fallback_bullets"]]
+        )
     return _make_scene({
         "narration": narration,
         "visual_type": "bullets",
@@ -1231,6 +1356,8 @@ Chỉ trả JSON: {{"exercises": [{{"question": "...", "hint": "...", "answer": 
 
 
 def _ensure_exercises(script: Script, s: _Settings) -> Script:
+    if s.n_exercises <= 0:
+        return script.model_copy(update={"exercises": []})
     ex = script.exercises[: s.n_exercises]
     if not ex:
         ex = _generate_exercises(script, s, s.n_exercises)
@@ -1258,6 +1385,37 @@ def _enforce_animation_ratio(script: Script, s: _Settings) -> Script:
         return sc.model_copy(update=upd)
 
     anim = {i for i, sc in enumerate(scenes) if sc.visual_type == "animation"}
+
+    if s.is_documentary:
+        mode_cfg = ((CONFIG.get("modes", {}) or {}).get("documentary", {}) or {})
+        doc_anim_cfg = mode_cfg.get("animation", {}) or {}
+        try:
+            max_ratio = min(max(float(doc_anim_cfg.get("max_animation_ratio", 0.20)), 0.0), 1.0)
+        except (TypeError, ValueError):
+            max_ratio = 0.20
+        max_count = max(1, int(math.ceil(n * max_ratio)))
+        ordered = sorted(anim)
+        if len(ordered) > max_count:
+            if max_count == 1:
+                keep = {ordered[len(ordered) // 2]}
+            else:
+                keep = {
+                    ordered[round(k * (len(ordered) - 1) / (max_count - 1))]
+                    for k in range(max_count)
+                }
+            for idx in ordered:
+                if idx in keep:
+                    continue
+                sc = scenes[idx]
+                static_type = "bullets" if sc.bullets else "title"
+                scenes[idx] = sc.model_copy(update={"visual_type": static_type, "animation": None})
+            anim = keep
+        log.info(
+            "Documentary animation: %d/%d scene (trần %.0f%%)",
+            len(anim), n, max_ratio * 100,
+        )
+        return script.model_copy(update={"scenes": scenes})
+
     if 0 not in anim:
         scenes[0] = to_animation(scenes[0])
         anim.add(0)
@@ -1436,8 +1594,16 @@ def _safe_int(v: object, default: int, lo: int, hi: int) -> int:
     return min(max(n, lo), hi)
 
 
-def _default_chapters(num: int, n_scenes: int) -> list[dict]:
-    base = [
+def _default_chapters(num: int, n_scenes: int, documentary: bool = False) -> list[dict]:
+    base = ([
+        ("Một khoảnh khắc đã đổi hướng tương lai", "Cold open bằng một cảnh người thật, quyết định hoặc sự cố có thật"),
+        ("Thế giới trước bước ngoặt", "Bối cảnh xã hội, nhu cầu và giới hạn của công nghệ đương thời"),
+        ("Những con người đứng sau", "Nhân vật chính, cộng sự, động lực, xung đột và các thử nghiệm đầu tiên"),
+        ("Thất bại, cạnh tranh và bước ngoặt", "Các ngõ cụt, đối thủ, quyết định then chốt và khoảnh khắc công nghệ cất cánh"),
+        ("Từ phòng thí nghiệm ra đời sống", "Quá trình phổ biến, tác động lên công việc, văn hóa và xã hội"),
+        ("Những phần lịch sử thường bị bỏ quên", "Tranh cãi, người ít được ghi nhận, hệ quả ngoài dự kiến và giai thoại cần kiểm chứng"),
+        ("Di sản còn ở lại", "Công nghệ hôm nay thừa hưởng điều gì và câu hỏi nào vẫn chưa có lời đáp"),
+    ] if documentary else [
         ("Cú móc & Nghịch lý cốt lõi", "Đặt vấn đề, nghịch lý, vì sao nó quan trọng"),
         ("Mô hình trực giác & Bức tranh tổng quan", "Ẩn dụ đời thường và kiến trúc tổng thể"),
         ("Cơ chế vận hành từng bước", "Trace ca cụ thể: bình thường -> xung đột -> cú hack"),
@@ -1445,7 +1611,7 @@ def _default_chapters(num: int, n_scenes: int) -> list[dict]:
         ("Thực tế, Benchmark & So sánh hiệu năng", "Đo đạc, so sánh, đánh đổi trong hệ thống thật"),
         ("Cạm bẫy phổ biến & Ứng dụng nâng cao", "Edge cases và lỗi hay gặp trong production"),
         ("Tương lai, Bài toán mở & Tổng kết", "Hướng phát triển, câu hỏi mở, tổng kết"),
-    ]
+    ])
     if num < len(base):  # luôn giữ chương cuối là tổng kết
         base = base[: num - 1] + [base[-1]]
     return [
@@ -1460,11 +1626,17 @@ def _mega_outline(topic: str, s: _Settings, research: str, series: dict | None,
         "title": "Tiêu đề video cực hấp dẫn, dưới 70 ký tự",
         "description": "Mô tả chuyên sâu 4-5 câu cho YouTube, kèm hashtag",
         "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-        "running_case": {
+        "running_case": ({
+            "origin": "bối cảnh và nhu cầu có thật trước khi câu chuyện bắt đầu",
+            "people": "nhân vật chính, cộng sự và tổ chức liên quan",
+            "conflict": "thất bại, cạnh tranh hoặc lựa chọn khó khăn",
+            "turning_points": "các mốc thời gian làm thay đổi hướng phát triển",
+            "legacy": "tác động và di sản còn hiện diện hôm nay",
+        } if s.is_documentary else {
             "setup": "MỘT ca cụ thể xuyên suốt toàn video, có dữ liệu thật (3 lệnh CPU / mảng số / chuỗi gói tin / tensor shape...)",
             "conflict": "điểm nghẽn/xung đột xảy ra ở đâu trong ca đó",
             "fix": "cú hack giải cứu và kết quả định lượng",
-        },
+        }),
         "chapters": [{
             "chapter_number": 1,
             "chapter_title": "Tên chương ngắn gọn",
@@ -1472,7 +1644,28 @@ def _mega_outline(topic: str, s: _Settings, research: str, series: dict | None,
             "target_scenes": default_scenes,
         }],
     }, ensure_ascii=False, indent=2)
-    prompt = f"""Bạn là đạo diễn kiêm biên kịch trưởng cho kênh YouTube giải thích công nghệ chuyên sâu (kiểu 3Blue1Brown, Fireship, ByteByteGo).
+    if s.is_documentary:
+        prompt = f"""Bạn là đạo diễn kiêm biên kịch trưởng phim tài liệu công nghệ có nhịp kể chậm và giàu tính người.
+Đang sản xuất một PHIM TÀI LIỆU CÔNG NGHỆ dài tối thiểu 10 phút (~{s.minutes} phút, ~{s.approx_words} từ lời đọc) về:
+"{topic}"
+{_research_block(research)}
+Lập dàn ý gồm ĐÚNG {num_chapters} chương tạo thành một đường dây kể chuyện liền mạch:
+1. Cold open bằng một khoảnh khắc, quyết định hoặc sự cố có thật.
+2. Bối cảnh thế giới trước công nghệ hoặc trước khi nhân vật xuất hiện.
+3. Con người, cộng sự, thử nghiệm, thất bại và xung đột.
+4. Bước ngoặt khiến ý tưởng đi vào đời sống.
+5. Tác động xã hội, mặt trái, những người bị lãng quên và di sản ngày nay.
+
+"running_case" trong schema được dùng như STORY SPINE, gồm origin, people, conflict, turning_points và legacy.
+Không bịa trích dẫn hoặc hội thoại. Mọi mốc năm và công lao phải bám tư liệu; nếu thiếu dữ kiện thì mô tả định tính.
+Mỗi chương có target_scenes từ 4 đến 7 (trung bình ~{default_scenes}).
+Ngôn ngữ đầu ra: {s.lang_name}.
+
+Trả về DUY NHẤT một object JSON theo schema (mảng "chapters" gồm {num_chapters} phần tử):
+{schema}
+Chỉ trả JSON thuần."""
+    else:
+        prompt = f"""Bạn là đạo diễn kiêm biên kịch trưởng cho kênh YouTube giải thích công nghệ chuyên sâu (kiểu 3Blue1Brown, Fireship, ByteByteGo).
 Đang sản xuất video MASTERCLASS SIÊU DÀI (~{s.minutes} phút, ~{s.approx_words} từ lời đọc) về chủ đề:
 "{topic}"
 {_research_block(research)}{_series_block(series)}
@@ -1509,7 +1702,7 @@ Chỉ trả JSON thuần."""
             "n_scenes": _safe_int(ch.get("target_scenes"), default_scenes, 3, 9),
         })
     if len(chapters) < 3:
-        chapters = _default_chapters(num_chapters, default_scenes)
+        chapters = _default_chapters(num_chapters, default_scenes, documentary=s.is_documentary)
 
     rc = data.get("running_case")
     if isinstance(rc, dict):
@@ -1552,6 +1745,52 @@ def _build_chapter_prompt(
             "prompt chi tiết để AI viết code Python/Manim: dữ liệu cụ thể, màu sắc, chuyển động từng bước",
         )],
     }, ensure_ascii=False, indent=2)
+    if s.is_documentary:
+        doc_schema = json.dumps({
+            "chapter_summary": "1-2 câu tóm tắt diễn tiến để chương sau nối tiếp mà không lặp",
+            "scenes": [_scene_example(
+                "lời kể chậm, ấm, chính xác; mỗi câu 8-16 từ và có khoảng thở",
+                "tiêu đề ngắn như một mốc trong câu chuyện",
+                "bố cục ảnh tư liệu/timeline/chân dung/b-roll và chuyển động máy quay chậm; chỉ dùng animation nếu thật sự cần",
+            )],
+        }, ensure_ascii=False, indent=2)
+        first_doc_note = (
+            "- Scene đầu mở bằng một khoảnh khắc có thật gây tò mò; KHÔNG bắt buộc animation, không chào hỏi."
+            if is_first else
+            "- Nối tiếp tự nhiên từ chương trước, không chào hỏi và không kể lại những gì đã nói."
+        )
+        last_doc_note = (
+            "- Chương cuối khép lại bằng di sản, một câu hỏi mở và lời mời đăng ký nhẹ nhàng; không dùng bài tập."
+            if is_last else
+            "- Chưa kết luận toàn bộ câu chuyện; kết chương bằng một chuyển tiếp nhẹ sang bước ngoặt tiếp theo."
+        )
+        return f"""Viết nội dung chi tiết cho Chương {ch["number"]}/{total}: "{ch["title"]}"
+Thuộc phim tài liệu: "{title}" (chủ đề: "{topic}")
+Mục tiêu chương: {ch["objective"]}
+{_research_block(research)}
+STORY SPINE XUYÊN SUỐT (giữ đúng nhân vật, mốc thời gian và quan hệ nhân quả):
+{running_case or "  (xây dựng từ tư liệu; không bịa chi tiết còn thiếu)"}
+
+CÁC CHƯƠNG TRƯỚC ĐÃ KỂ:
+{prev}
+
+YÊU CẦU CHƯƠNG NÀY — ngôn ngữ {s.lang_name}:
+- Tạo ĐÚNG {n_scenes} scene liền mạch, tổng lời đọc khoảng {words_target} từ.
+- Nhịp kể nhẹ nhàng ở khoảng {s.wpm} từ/phút; 3-5 câu mỗi scene, câu ngắn, văn bản thuần phù hợp TTS.
+- Mỗi scene chỉ phát triển một mốc, một con người hoặc một hệ quả; không nhồi danh sách sự kiện.
+- Dùng ngày tháng, địa điểm, tổ chức và tên người chính xác theo tư liệu. Không bịa trích dẫn, hội thoại hay suy nghĩ nội tâm.
+- Cân bằng thành tựu với thất bại, cộng sự, tranh cãi và tác động xã hội. Ghi rõ nếu một giai thoại chưa được xác nhận.
+- Khoảng 60% scene dùng ảnh tư liệu/chân dung/b-roll; 20-30% dùng timeline, quote, chart hoặc diagram; animation tối đa 20%.
+{first_doc_note}
+{last_doc_note}
+
+{_DOCUMENTARY_RULES}
+
+{_VISUAL_TYPES_SPEC}
+
+Trả về DUY NHẤT một object JSON:
+{doc_schema}
+Chỉ trả JSON thuần, không markdown."""
     return f"""Bạn đang viết nội dung chi tiết cho Chương {ch["number"]}/{total}: "{ch["title"]}"
 Thuộc video Masterclass: "{title}" (chủ đề: "{topic}")
 Mục tiêu chương: {ch["objective"]}
@@ -1587,7 +1826,8 @@ def _write_chapter(
     topic: str, s: _Settings, prompt_args: dict, ch: dict, words_per_scene: int
 ) -> tuple[list[Scene], str]:
     """Viết 1 chương, thử tối đa 3 lần, giữ bản nhiều lời đọc nhất đạt chuẩn tối thiểu."""
-    min_words = int(ch["n_scenes"] * words_per_scene * 0.6)
+    min_ratio = 0.85 if s.is_documentary else 0.6
+    min_words = int(ch["n_scenes"] * words_per_scene * min_ratio)
     min_scenes = max(ch["n_scenes"] - 2, 3)
     best: tuple[list[Scene], str] = ([], "")
     best_words = -1
@@ -1620,11 +1860,19 @@ def _write_chapter(
 
 
 def _write_mega_script(topic: str, s: _Settings, research: str, series: dict | None) -> Script:
-    num_chapters = min(max(s.minutes // 3, 4), 7)
+    num_chapters = (
+        min(max(s.minutes // 2, 5), 7)
+        if s.is_documentary else
+        min(max(s.minutes // 3, 4), 7)
+    )
     total_scenes_target = max(s.minutes * 2, num_chapters * 4)
     default_scenes = _safe_int(round(total_scenes_target / num_chapters), 5, 4, 8)
     words_per_scene = max(s.approx_words // total_scenes_target, 45)
-    log.info("Mega Deep-Dive: %s (%d phút, %d chương, ~%d scene)", topic, s.minutes, num_chapters, total_scenes_target)
+    log.info(
+        "%s: %s (%d phút, %d chương, ~%d scene)",
+        "Technology Documentary" if s.is_documentary else "Mega Deep-Dive",
+        topic, s.minutes, num_chapters, total_scenes_target,
+    )
 
     outline = _mega_outline(topic, s, research, series, num_chapters, default_scenes)
     title = _finalize_title(outline["title"], topic, s)
@@ -1654,7 +1902,11 @@ def _write_mega_script(topic: str, s: _Settings, research: str, series: dict | N
 
     if not all_scenes or len(failed) * 2 >= len(chapters):
         log.warning("Quá nhiều chương lỗi (%s) -> fallback sang kịch bản chuẩn rút gọn", failed)
-        fb = dataclasses.replace(s, mode="long", duration=min(s.duration, 480))
+        fb = (
+            dataclasses.replace(s, duration=max(600, min(s.duration, 720)))
+            if s.is_documentary else
+            dataclasses.replace(s, mode="long", duration=min(s.duration, 480))
+        )
         return _write_standard_script(topic, fb, research, series)
     if failed:
         log.warning("Kịch bản mega thiếu chương %s: video sẽ ngắn hơn mục tiêu.", failed)
@@ -1675,7 +1927,8 @@ def _write_mega_script(topic: str, s: _Settings, research: str, series: dict | N
 
 def _gather_research(topic: str) -> str:
     res_cfg = CONFIG.get("research", {}) or {}
-    if not res_cfg.get("enabled", False):
+    documentary_research = CONFIG.get("active_mode") == "documentary"
+    if not res_cfg.get("enabled", False) and not documentary_research:
         fact_cfg = CONFIG.get("fact_check", {}) or {}
         if not fact_cfg.get("enabled", False) or not fact_cfg.get("offline_only", True):
             return ""
@@ -1733,6 +1986,14 @@ def _finalize_script(script: Script, s: _Settings, series: dict | None) -> Scrip
 
     optimized = _optimize_title(script, s)
     script = script.model_copy(update={"title": _finalize_title(optimized, script.topic, s, series)})
+    if s.is_documentary:
+        minimum_words = 10 * s.wpm
+        actual_words = _count_words(script.scenes)
+        if actual_words < minimum_words:
+            raise ValueError(
+                f"Documentary chỉ có {actual_words} từ; cần ít nhất {minimum_words} từ "
+                "để đạt sàn 10 phút ở nhịp đọc đã chọn."
+            )
     return script
 
 

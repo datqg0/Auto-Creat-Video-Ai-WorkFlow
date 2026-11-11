@@ -12,9 +12,9 @@ target_duration_seconds: 300
 # Giới hạn ký tự tài liệu nghiên cứu đưa vào prompt kịch bản
 research_max_chars: 1800
 
-# ---- Chế độ video theo buổi ----
-# Sáng làm video dài (ngang 16:9), tối làm short (dọc 9:16, tối đa 3 phút / 180s).
-# pipeline chọn mode qua --mode; nếu không có thì dùng default_mode.
+# ---- Chế độ video ----
+# Lịch GitHub tự động chạy Short hằng ngày và long 3 ngày/lần.
+# Mega và documentary chỉ chạy khi được chọn thủ công trong workflow_dispatch.
 default_mode: long
 modes:
   long:
@@ -23,7 +23,7 @@ modes:
     height: 1080
     focus: "ai_deep_ml"            # Video dài chuyên sâu AI & Machine Learning từ số 0 (Deep-ML)
   short:
-    target_duration_seconds: 60    # 60s Shorts chuẩn phong cách kênh @onjsdev (Visual Algorithms & Math)
+    target_duration_seconds: 60    # 60s Shorts: đa dạng thuật toán, cấu trúc dữ liệu, mô phỏng & toán trực quan
     width: 1080
     height: 1920
     style: "onjsdev"
@@ -32,6 +32,21 @@ modes:
     width: 1920
     height: 1080
     focus: "ai_deep_ml"
+  documentary:
+    target_duration_seconds: 720   # Mặc định 12 phút, pipeline khóa sàn 10 phút
+    min_duration_seconds: 600
+    width: 1920
+    height: 1080
+    focus: "technology_documentary"
+    words_per_minute: 115          # Nhịp kể chậm, có khoảng thở
+    research_max_chars: 6000       # Cần đủ dữ kiện lịch sử, con người và mốc thời gian
+    tts:
+      vieneu_speed: 0.82
+      edge_rate: "-18%"
+      sentence_pause: 0.45
+    animation:
+      animate_from_start: false
+      max_animation_ratio: 0.20
 
 # ---- LLM ----
 # Chuỗi fallback nhiều tầng: thử provider đầu, lỗi thì rớt sang tầng kế.
@@ -386,7 +401,7 @@ topics:
     - "Trí tuệ nhân tạo & Deep Learning từ số 0 (Deep-ML & AI from Scratch: Attention Mechanism, Transformer, Neural Networks, CNN, Loss Functions, Gradient Descent, Backpropagation, Adam Optimizer, K-Means, PCA, Softmax Regression)"
 
     # 2. THUẬT TOÁN TRỰC QUAN & KỲ QUAN TOÁN HỌC (onjsdev Shorts Style - Trọng tâm Video Ngắn)
-    - "Thuật toán trực quan & Tư duy logic (onjsdev style: Bubble Sort, QuickSort, Merge Sort, Insertion Sort, A* Pathfinding, Dijkstra, Mê cung Hunt and Kill, Công thức Pi Chudnovsky, Cấu trúc dữ liệu)"
+    - "Thuật toán trực quan & Tư duy logic (Shorts: Binary Search, Two Pointers, Sorting, BFS/DFS, A*/Dijkstra, Trie, Stack/Queue, Dynamic Programming, Boids, Game of Life, Pi & Fractals)"
 
     # 3. LẬP TRÌNH ĐỒ HỌA & SHADERS (Graphic Programming)
     - "Lập trình đồ họa & Shaders (Graphic Programming: Ray Tracing, Rasterization, Pixel & Vertex Shaders, Signed Distance Functions SDF, Raymarching, Voxel engines, Compute Shaders mô phỏng hạt, Render Pipeline, WebGPU/OpenGL)"
@@ -408,6 +423,14 @@ topics:
 
     # 9. CÁC NGÔN NGỮ LẬP TRÌNH & SO SÁNH ĐỐI ĐẦU (Programming Languages & Showdowns)
     - "Ngôn ngữ lập trình & Cuộc chiến hiệu năng (Programming Languages: Rust vs C++, Tại sao Python chậm hơn C 100 lần, JavaScript V8 Engine & JIT Compiler, Go Goroutines vs Java Threads, Cơ chế dọn rác Garbage Collector vs Borrow Checker, Assembly vs C, Con trỏ Pointer trong C, Functional Programming Haskell/Lisp)"
+
+  # Chỉ dùng khi chọn mode documentary thủ công trong GitHub Actions.
+  documentary_domains:
+    - "Lịch sử công nghệ: nguồn gốc Internet, transistor, vi xử lý, điện thoại, GPS, Wi-Fi, mã nguồn mở, AI và những bước ngoặt đã thay đổi xã hội"
+    - "Chân dung người làm công nghệ: Ada Lovelace, Alan Turing, Grace Hopper, Claude Shannon, Gordon Moore, Margaret Hamilton, Dennis Ritchie, Steve Wozniak, Radia Perlman, Hedy Lamarr"
+    - "Câu chuyện bên lề ngành công nghệ: sản phẩm thất bại, cuộc chiến định dạng, những quyết định suýt phá sản công ty, tiêu chuẩn ít người biết và các phát minh bị lãng quên"
+    - "Công nghệ và con người: văn hóa hacker, quyền riêng tư, lao động số, thiết kế gây nghiện, cộng đồng mã nguồn mở, khoảng cách số và tác động môi trường"
+    - "Hạ tầng vô hình của đời sống số: cáp quang biển, trung tâm dữ liệu, vệ tinh, đồng hồ nguyên tử, chuỗi cung ứng chip, tên miền và các giao thức giữ Internet hoạt động"
 
   # Số ngày tránh lặp lại chủ đề đã dùng
   dedup_days: 30
