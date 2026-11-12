@@ -59,7 +59,7 @@ def _contract_for(scene: Scene) -> SceneContract:
         )
         for index, _ in enumerate(sentences[:6])
     ]
-    objects = [str(item)[:80] for item in (scene.bullets or [])[:6]
+    objects = [str(item)[:80] for item in (scene.bullets or [])[:6]]
     if not objects and scene.heading:
         objects = [scene.heading[:80]]
     teaching_goal = scene.heading or (sentences[0] if sentences else "Minh họa luận điểm của cảnh")
